@@ -287,37 +287,83 @@ Add to `~/.continue/config.json`:
 }
 ```
 
-### Available MCP Tools
+### Available MCP Tools (31 tools)
+
+#### Memory CRUD
 
 | Tool | Description | Input |
 |---|---|---|
-| `nexus_list_memories` | List all memories with pagination | `{ "limit": 50, "offset": 0 }` |
-| `nexus_get_memory` | Get a specific memory by ID | `{ "id": "uuid" }` |
-| `nexus_create_memory` | Create a new memory | `{ "title": "...", "content": "...", "layer": "Raw" }` |
-| `nexus_search` | Full-text search across memories | `{ "query": "search term", "limit": 10 }` |
-| `nexus_stats` | Memory and entity statistics | `{}` |
-| `nexus_health` | Database health check | `{}` |
-| `nexus_settings` | Get current settings | `{}` |
-| `nexus_timeline` | Browse memory timeline | `{ "days": 30 }` |
-| `nexus_build_context` | Build AI context for a query | `{ "query": "topic" }` |
-| `nexus_graph_stats` | Knowledge graph statistics | `{}` |
-| `nexus_copilot_command` | Execute a copilot command | `{ "command": "/health" }` |
-| `nexus_parse_markdown` | Parse Markdown into graph entities | `{ "text": "# Heading..." }` |
+| `nexus_list_memories` | List all memory records | `{}` |
+| `nexus_get_memory` | Get a memory by ID | `{ "id": "uuid" }` |
+| `nexus_create_memory` | Create a new memory | `{ "title": "...", "content": "...", "author": "user" }` |
+| `nexus_update_memory` | Update memory content | `{ "id": "uuid", "content": "new text" }` |
+| `nexus_delete_memory` | Delete a memory | `{ "id": "uuid" }` |
+| `nexus_get_recent_memories` | Get memories from last N days | `{ "days": 7 }` |
+| `nexus_get_important_memories` | Get memories above importance threshold | `{ "threshold": 0.7 }` |
+
+#### Search
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_search_memories` | Full-text search across memories | `{ "query": "search term" }` |
+| `nexus_search_context` | Enhanced search with intent detection | `{ "query": "topic" }` |
+| `nexus_search_semantic` | Semantic search via ONNX embeddings | `{ "query": "text", "limit": 10 }` |
+| `nexus_analyze_text` | Extract keywords, entities, temporal refs | `{ "text": "analyze this" }` |
+
+#### Entity CRUD
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_get_entity` | Get an entity by ID | `{ "id": "uuid" }` |
+| `nexus_create_entity` | Create a graph entity | `{ "entity_type": "Person", "title": "Name" }` |
+| `nexus_update_entity` | Update entity title | `{ "id": "uuid", "title": "New" }` |
+| `nexus_delete_entity` | Delete an entity | `{ "id": "uuid" }` |
+| `nexus_list_graph_entities` | List entities (optionally by type) | `{ "entity_type": "Person", "limit": 100 }` |
+
+#### Relationships
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_link_entities` | Create entity-entity relationship | `{ "source_id": "uuid", "target_id": "uuid", "relationship_type": "RelatedTo", "weight": 0.8 }` |
+| `nexus_unlink_entities` | Delete a relationship | `{ "relationship_id": "uuid" }` |
+| `nexus_link_memory_entity` | Link memory to entity | `{ "memory_id": "uuid", "entity_id": "uuid", "relationship": "Related", "weight": 1.0 }` |
+| `nexus_unlink_memory_entity` | Remove memory-entity link | `{ "memory_id": "uuid", "entity_id": "uuid" }` |
+| `nexus_get_memory_links` | Get all entity links for a memory | `{ "memory_id": "uuid" }` |
+| `nexus_get_entity_memory_links` | Get all memory links for an entity | `{ "entity_id": "uuid" }` |
+
+#### Intelligence
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_build_context` | Build AI context (full M4 pipeline) | `{ "query": "topic" }` |
+| `nexus_parse_markdown` | Parse Markdown → graph entities | `{ "text": "# Heading..." }` |
+| `nexus_store_fingerprint` | Store semantic fingerprint | `{ "memory_id": "uuid", "text": "keywords source" }` |
+
+#### System
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_stats` | Database statistics | `{}` |
+| `nexus_health` | Health check | `{}` |
+| `nexus_settings` | Current settings | `{}` |
+| `nexus_timeline` | Entity timeline by creation date | `{}` |
+| `nexus_graph_stats` | Knowledge graph stats | `{}` |
+| `nexus_copilot_command` | Execute a copilot slash command | `{ "command": "/health" }` |
 
 ### Available MCP Resources
 
 | Resource URI | Description |
 |---|---|
-| `nexus://stats` | Current memory statistics |
-| `nexus://health` | Database health status |
-| `nexus://settings` | Application settings |
+| `nexus://stats` | Memory and entity counts |
+| `nexus://health` | Database connectivity status |
+| `nexus://settings` | Application configuration |
 
 ### Example: AI Assistant Using Your Memories
 
 Once connected, your AI assistant can:
 
 > **"Show me all memories about the API project"**
-> → Calls `nexus_search` with query "API project"
+> → Calls `nexus_search_memories` with query "API project"
 
 > **"Create a new memory: Meeting with team about Q3 planning"**
 > → Calls `nexus_create_memory` with title and content
@@ -325,8 +371,11 @@ Once connected, your AI assistant can:
 > **"What's the knowledge graph structure?"**
 > → Calls `nexus_graph_stats` and `nexus_build_context`
 
-> **"Summarize recent activity"**
-> → Calls `nexus_timeline` + `nexus_stats`
+> **"Show recent activity"**
+> → Calls `nexus_get_recent_memories` with `days: 7`
+
+> **"Find important memories"**
+> → Calls `nexus_get_important_memories` with `threshold: 0.7`
 
 ### Protocol Details
 
