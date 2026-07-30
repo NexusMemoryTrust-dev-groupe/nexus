@@ -63,3 +63,21 @@ Cargo.lock
 
 # Benchmarks (generated HTML reports)
 src-tauri/target/criterion/
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# FastEmbed model cache
+src-tauri/.fastembed_cache/
+
+# OpenCode runtime state
+src-tauri/.omo/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# OS files
+Desktop.ini
