@@ -1,0 +1,25 @@
+[project]
+name = "nexus-ai"
+version = "0.1.0"
+description = "Nexus AI Layer"
+requires-python = ">=3.11"
+dependencies = [
+    "pyo3>=0.22",
+    "sentence-transformers>=3.0",
+    "spacy>=3.7",
+    "openai>=1.0",
+    "anthropic>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nexus/src-tauri
+      - name: Format check
+        run: cargo fmt --all -- --check
+        working-directory: nexus/src-tauri
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: nexus/src-tauri
+      - name: Build
+        run: cargo build --verbose
+        working-directory: nexus/src-tauri
+      - name: Test
+        run: cargo test --verbose
+        working-directory: nexus/src-tauri
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: nexus/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: nexus
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: nexus
+      - name: Lint
+        run: npm run lint
+        working-directory: nexus
+      - name: Test
+        run: npm test -- --run
+        working-directory: nexus
+      - name: Build
+        run: npm run build
+        working-directory: nexus
