@@ -1,21 +1,263 @@
-MIT License
+PROPRIETARY SOFTWARE LICENSE AGREEMENT
+========================================
 
-Copyright (c) 2026 Nexus Memory Trust
+Nexus Memory Trust — AI Memory Operating System
+Copyright (c) 2026 Nexus Memory Trust. All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+IMPORTANT — READ CAREFULLY: This License Agreement ("Agreement") is a legal 
+agreement between you ("User", " licensee") and Nexus Memory Trust ("Licensor", 
+"Owner", "we", "us") for the use of Nexus Memory Trust software, including 
+all source code, object code, documentation, designs, and related materials 
+("Software").
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+BY INSTALLING, COPYING, ACCESSING, OR OTHERWISE USING THE SOFTWARE, YOU AGREE 
+TO BE BOUND BY THE TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT USE 
+THE SOFTWARE AND DESTROY ALL COPIES IMMEDIATELY.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+═══════════════════════════════════════════════════════════════════════════════
+                           ARTICLE 1 — DEFINITIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+1.1 "Software" shall mean the complete source code, object code, compiled 
+    binaries, assets, documentation, and all derivative works of Nexus Memory 
+    Trust, including but not limited to:
+    - Rust backend (src-tauri/)
+    - React frontend (src/)
+    - AI integration layer
+    - Database schemas and migrations
+    - Configuration files, build scripts, CI/CD pipelines
+    - Icons, images, and visual assets
+    - All related documentation and materials
+
+1.2 "Derivative Work" shall mean any work based on, derived from, or 
+    incorporating the Software, in whole or in part, including but not limited 
+    to modifications, adaptations, translations, compilations, or any form 
+    of transformation.
+
+1.3 "Unauthorized Use" shall mean any use of the Software not expressly 
+    authorized by this Agreement.
+
+═══════════════════════════════════════════════════════════════════════════════
+                     ARTICLE 2 — PROPRIETARY RIGHTS
+═══════════════════════════════════════════════════════════════════════════════
+
+2.1 OWNERSHIP. The Software is the exclusive property of Nexus Memory Trust. 
+    All title, ownership rights, and intellectual property rights in and to 
+    the Software (including but not limited to patents, copyrights, trade 
+    secrets, trademarks, and know-how) are and shall remain the exclusive 
+    property of Nexus Memory Trust.
+
+2.2 NO RIGHTS GRANTED. Except as expressly set forth in this Agreement, no 
+    rights, licenses, or interests in the Software are granted or conveyed 
+    to you, by implication, estoppel, or otherwise.
+
+2.3 RESERVATION OF ALL RIGHTS. All rights not expressly granted to you in 
+    this Agreement are reserved by Nexus Memory Trust.
+
+═══════════════════════════════════════════════════════════════════════════════
+                    ARTICLE 3 — PROHIBITED ACTIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+YOU SHALL NOT, AND SHALL NOT PERMIT OTHERS TO:
+
+3.1 COPY, REPRODUCE, or duplicate the Software, in whole or in part, by any 
+    means whatsoever, including but not limited to photocopying, scanning, 
+    screen capture, or digital reproduction.
+
+3.2 MODIFY, ADAPT, translate, or create Derivative Works of the Software.
+
+3.3 DISTRIBUTE, SELL, SUBLICENSE, lease, rent, lend, or otherwise transfer 
+    the Software to any third party.
+
+3.4 DECOMPILE, DISASSEMBLE, reverse engineer, or attempt to derive the 
+    source code from the compiled Software, except to the extent such 
+    activity is expressly permitted by applicable law notwithstanding this 
+    limitation.
+
+3.5 REMOVE, alter, or obscure any proprietary notices, labels, or marks 
+    on the Software.
+
+3.6 USE the Software for the purpose of creating a competing product or 
+    service, or for benchmarking, competitive analysis, or similar purposes.
+
+3.7 PUBLISH, disclose, or reveal any performance information or analysis 
+    (including benchmarks, test results, or comparative data) relating to 
+    the Software without prior written consent from Nexus Memory Trust.
+
+3.8 EXPORT, re-export, or transfer the Software in violation of any 
+    applicable export control laws or regulations.
+
+═══════════════════════════════════════════════════════════════════════════════
+                    ARTICLE 4 — LIMITED USE LICENSE
+═══════════════════════════════════════════════════════════════════════════════
+
+4.1 GRANT. Subject to the terms and conditions of this Agreement, Nexus 
+    Memory Trust grants you a limited, non-exclusive, non-transferable, 
+    revocable license to use the Software solely for your personal or 
+    internal business purposes, and solely for the intended purpose of the 
+    Software as an AI Memory Operating System.
+
+4.2 NO SUBLICENSING. You may not sublicense, assign, or transfer this 
+    license to any third party without prior written consent from Nexus 
+    Memory Trust.
+
+4.3 REVOCATION. This license is revocable at any time at the sole discretion 
+    of Nexus Memory Trust. Upon revocation, you must immediately cease all 
+    use of the Software and destroy all copies.
+
+═══════════════════════════════════════════════════════════════════════════════
+                      ARTICLE 5 — USER DATA & PRIVACY
+═══════════════════════════════════════════════════════════════════════════════
+
+5.1 DATA OWNERSHIP. All data you create, input, or store using the Software 
+    ("User Data") remains your exclusive property.
+
+5.2 NO DATA COLLECTION. The Software operates entirely offline and locally 
+    on your device. Nexus Memory Trust does not collect, transmit, or 
+    access your User Data.
+
+5.3 USER RESPONSIBILITY. You are solely responsible for the security, 
+    backup, and management of your User Data.
+
+═══════════════════════════════════════════════════════════════════════════════
+                  ARTICLE 6 — INTELLECTUAL PROPERTY NOTICE
+═══════════════════════════════════════════════════════════════════════════════
+
+6.1 TRADEMARKS. "Nexus Memory Trust", the Nexus logo, and all related names, 
+    logos, product and service names, designs, and slogans are trademarks of 
+    Nexus Memory Trust or its affiliates. You may not use such marks without 
+    prior written permission.
+
+6.2 COPYRIGHT NOTICE. (c) 2026 Nexus Memory Trust. All rights reserved.
+
+6.3 PATENT NOTICE. The Software may be subject to one or more patents or 
+    patent applications. No patent license is granted under this Agreement.
+
+═══════════════════════════════════════════════════════════════════════════════
+                   ARTICLE 7 — DISCLAIMER OF WARRANTIES
+═══════════════════════════════════════════════════════════════════════════════
+
+7.1 THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF 
+    ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE 
+    WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, 
+    AND NON-INFRINGEMENT.
+
+7.2 NEXUS MEMORY TRUST DOES NOT WARRANT THAT THE SOFTWARE WILL BE 
+    UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.
+
+═══════════════════════════════════════════════════════════════════════════════
+                   ARTICLE 8 — LIMITATION OF LIABILITY
+═══════════════════════════════════════════════════════════════════════════════
+
+8.1 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL 
+    NEXUS MEMORY TRUST BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, 
+    CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO THE USE 
+    OF THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+8.2 IN NO EVENT SHALL NEXUS MEMORY TRUST'S TOTAL AGGREGATE LIABILITY EXCEED 
+    THE AMOUNT ACTUALLY PAID BY YOU FOR THE SOFTWARE DURING THE TWELVE (12) 
+    MONTHS PRECEDING THE CLAIM.
+
+═══════════════════════════════════════════════════════════════════════════════
+                     ARTICLE 9 — INDEMNIFICATION
+═══════════════════════════════════════════════════════════════════════════════
+
+9.1 You agree to indemnify, defend, and hold harmless Nexus Memory Trust, 
+    its officers, directors, employees, agents, and affiliates from and 
+    against any and all claims, damages, losses, liabilities, costs, and 
+    expenses (including reasonable attorneys' fees) arising out of or 
+    related to your use of the Software or breach of this Agreement.
+
+═══════════════════════════════════════════════════════════════════════════════
+                      ARTICLE 10 — TERMINATION
+═══════════════════════════════════════════════════════════════════════════════
+
+10.1 This Agreement is effective until terminated. Nexus Memory Trust may 
+     terminate this Agreement at any time, with or without cause, upon 
+     written notice to you.
+
+10.2 Upon termination, you must immediately cease all use of the Software 
+     and destroy all copies of the Software in your possession or control.
+
+10.3 Sections 1, 2, 3, 6, 7, 8, 9, and 11 shall survive termination of 
+     this Agreement.
+
+═══════════════════════════════════════════════════════════════════════════════
+               ARTICLE 11 — LEGAL CONSEQUENCES OF VIOLATION
+═══════════════════════════════════════════════════════════════════════════════
+
+11.1 ENFORCEMENT. Nexus Memory Trust actively monitors and enforces its 
+     intellectual property rights. Unauthorized use of the Software will 
+     be prosecuted to the fullest extent of the law.
+
+11.2 REMEDIES. In the event of unauthorized use, Nexus Memory Trust shall 
+     be entitled to seek:
+     (a) Injunctive relief to prevent further unauthorized use;
+     (b) Compensatory damages for all losses suffered;
+     (c) Disgorgement of all profits derived from unauthorized use;
+     (d) Statutory damages where available under applicable law;
+     (e) Recovery of all costs and attorneys' fees incurred in enforcement.
+
+11.3 CRIMINAL LIABILITY. Unauthorized reproduction or distribution of the 
+     Software may constitute a criminal offense under applicable law, 
+     including but not limited to the Criminal Code of the Russian 
+     Federation (Article 146 — Infringement of Copyright and Related Rights) 
+     and equivalent legislation in other jurisdictions.
+
+11.4 JURISDICTION. Any dispute arising out of or related to this Agreement 
+     or the use of the Software shall be subject to the exclusive 
+     jurisdiction of the courts of the Russian Federation, unless otherwise 
+     required by applicable mandatory law.
+
+═══════════════════════════════════════════════════════════════════════════════
+                    ARTICLE 12 — GOVERNING LAW
+═══════════════════════════════════════════════════════════════════════════════
+
+12.1 This Agreement shall be governed by and construed in accordance with 
+     the laws of the Russian Federation, without regard to its conflict of 
+     laws principles.
+
+12.2 The United Nations Convention on Contracts for the International Sale 
+     of Goods (CISG) shall not apply to this Agreement.
+
+═══════════════════════════════════════════════════════════════════════════════
+                     ARTICLE 13 — MISCELLANEOUS
+═══════════════════════════════════════════════════════════════════════════════
+
+13.1 ENTIRE AGREEMENT. This Agreement constitutes the entire agreement 
+     between the parties with respect to the subject matter hereof and 
+     supersedes all prior or contemporaneous communications, representations, 
+     or agreements, whether written or oral.
+
+13.2 SEVERABILITY. If any provision of this Agreement is held to be invalid 
+     or unenforceable, the remaining provisions shall continue in full force 
+     and effect.
+
+13.3 WAIVER. The failure of Nexus Memory Trust to enforce any provision of 
+     this Agreement shall not constitute a waiver of that provision or the 
+     right to enforce it at a later time.
+
+13.4 AMENDMENTS. Nexus Memory Trust reserves the right to modify this 
+     Agreement at any time. Your continued use of the Software after such 
+     modification constitutes acceptance of the modified Agreement.
+
+13.5 LANGUAGE. This Agreement is drafted in English and Russian. In the 
+     event of any conflict between the English and Russian versions, the 
+     English version shall prevail.
+
+═══════════════════════════════════════════════════════════════════════════════
+                         CONTACT INFORMATION
+═══════════════════════════════════════════════════════════════════════════════
+
+For licensing inquiries, permission requests, or legal matters:
+
+    Nexus Memory Trust
+    GitHub: https://github.com/NexusMemoryTrust-dev-groupe
+    Email: nexus-memory-trust@proton.me
+
+═══════════════════════════════════════════════════════════════════════════════
+
+BY USING THE SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS AGREEMENT, 
+UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS AND CONDITIONS.
+
+(c) 2026 Nexus Memory Trust. All Rights Reserved.
