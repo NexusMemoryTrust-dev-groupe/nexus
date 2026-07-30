@@ -27,7 +27,22 @@ Nexus is a **desktop-first AI memory operating system** built for individuals an
 
 ## Screenshots
 
-> Screenshots coming soon. See the project in action after following the installation guide below.
+> To generate screenshots, run the app and capture:
+> 1. Main view with sidebar and memory list
+> 2. AI Copilot with thinking indicator expanded
+> 3. 3D Knowledge Graph view
+> 4. Timeline with date dividers
+> 5. Settings with model selector
+>
+> Place screenshots in `docs/screenshots/` and reference them here:
+>
+> | View | Preview |
+> |---|---|
+> | Main | ![Main](docs/screenshots/main.png) |
+> | Copilot | ![Copilot](docs/screenshots/copilot.png) |
+> | Graph | ![Graph](docs/screenshots/graph.png) |
+> | Timeline | ![Timeline](docs/screenshots/timeline.png) |
+> | Settings | ![Settings](docs/screenshots/settings.png) |
 
 ---
 
@@ -79,7 +94,9 @@ nexus/
 │   ├── styles/
 │   │   └── globals.css            # All styles including timeline + copilot
 │   └── App.tsx
-├── ai/                            # Python AI layer (optional, PyO3)
+├── scripts/
+│   ├── install-nexus.ps1          # Master installer (auto-installs all deps)
+│   └── first-run-setup.ps1        # First-run wizard (API key + model config)
 ├── package.json
 └── README.md
 ```
@@ -88,17 +105,43 @@ nexus/
 
 ## Installation
 
-### Prerequisites
+### Quick Install (Recommended)
+
+Run the master installer — it checks and installs everything automatically:
+
+```powershell
+# Run as Administrator in PowerShell
+.\scripts\install-nexus.ps1
+```
+
+This will:
+- ✓ Check and install **Node.js 20 LTS** (if missing)
+- ✓ Check and install **npm** (comes with Node.js)
+- ✓ Check and install **OpenCode AI CLI** (if missing)
+- ✓ Validate all system requirements
+
+### First-Run Setup
+
+After building/installing the app, run the first-run wizard:
+
+```powershell
+.\scripts\first-run-setup.ps1
+```
+
+This will:
+- ✓ Auto-detect and install missing dependencies
+- ✓ Configure your **AI API key** (OpenAI, Anthropic, Google, or OpenRouter)
+- ✓ Select your **default AI model** (free model available)
+- ✓ Save configuration to `~/.nexus/setup.json`
+
+### Manual Install (Developers)
 
 | Tool | Version | Notes |
 |---|---|---|
 | **Rust** | 1.75+ (edition 2024) | `rustup update` |
 | **Node.js** | 20+ | LTS recommended |
 | **npm** | 9+ | Ships with Node.js |
-| **OpenCode CLI** | Latest | `npm install -g opencode` — required for AI features |
 | **Tauri CLI** | 2.x | `cargo install tauri-cli` |
-
-### Step-by-Step
 
 ```bash
 # 1. Clone the repository
@@ -127,6 +170,14 @@ npm run dev
 # Terminal 2: Tauri backend (watches Rust changes)
 cargo tauri dev
 ```
+
+### Pre-built Releases
+
+Download the latest installer from [GitHub Releases](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases):
+- **Windows**: `Nexus-Setup-x64.exe` (NSIS installer)
+- **Linux**: `.deb` or `.AppImage`
+
+The installer handles everything — no manual dependency installation required.
 
 ---
 
