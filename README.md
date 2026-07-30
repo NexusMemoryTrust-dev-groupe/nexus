@@ -224,6 +224,120 @@ The installer handles everything — no manual dependency installation required.
 
 ---
 
+## MCP Server (Model Context Protocol)
+
+Nexus includes a built-in **MCP server** that lets any AI assistant (Claude Desktop, Cursor, Continue, Windsurf, etc.) read and write your memories, query the knowledge graph, and run commands — all via the standard MCP protocol over stdio.
+
+### Quick Start
+
+```bash
+# Build the app
+cargo tauri build
+
+# Run in MCP mode (stdio JSON-RPC)
+nexus.exe --mcp
+```
+
+### Connect to Claude Desktop
+
+Add this to your Claude Desktop config:
+
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "nexus": {
+      "command": "C:\\path\\to\\nexus.exe",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+> Replace `C:\path\to\nexus.exe` with the actual path to your built executable.
+
+### Connect to Cursor
+
+Go to **Settings → AI → MCP Servers** and add:
+
+```json
+{
+  "nexus": {
+    "command": "C:\\path\\to\\nexus.exe",
+    "args": ["--mcp"]
+  }
+}
+```
+
+### Connect to Continue (VS Code / JetBrains)
+
+Add to `~/.continue/config.json`:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "nexus",
+      "command": "C:\\path\\to\\nexus.exe",
+      "args": ["--mcp"]
+    }
+  ]
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description | Input |
+|---|---|---|
+| `nexus_list_memories` | List all memories with pagination | `{ "limit": 50, "offset": 0 }` |
+| `nexus_get_memory` | Get a specific memory by ID | `{ "id": "uuid" }` |
+| `nexus_create_memory` | Create a new memory | `{ "title": "...", "content": "...", "layer": "Raw" }` |
+| `nexus_search` | Full-text search across memories | `{ "query": "search term", "limit": 10 }` |
+| `nexus_stats` | Memory and entity statistics | `{}` |
+| `nexus_health` | Database health check | `{}` |
+| `nexus_settings` | Get current settings | `{}` |
+| `nexus_timeline` | Browse memory timeline | `{ "days": 30 }` |
+| `nexus_build_context` | Build AI context for a query | `{ "query": "topic" }` |
+| `nexus_graph_stats` | Knowledge graph statistics | `{}` |
+| `nexus_copilot_command` | Execute a copilot command | `{ "command": "/health" }` |
+| `nexus_parse_markdown` | Parse Markdown into graph entities | `{ "text": "# Heading..." }` |
+
+### Available MCP Resources
+
+| Resource URI | Description |
+|---|---|
+| `nexus://stats` | Current memory statistics |
+| `nexus://health` | Database health status |
+| `nexus://settings` | Application settings |
+
+### Example: AI Assistant Using Your Memories
+
+Once connected, your AI assistant can:
+
+> **"Show me all memories about the API project"**
+> → Calls `nexus_search` with query "API project"
+
+> **"Create a new memory: Meeting with team about Q3 planning"**
+> → Calls `nexus_create_memory` with title and content
+
+> **"What's the knowledge graph structure?"**
+> → Calls `nexus_graph_stats` and `nexus_build_context`
+
+> **"Summarize recent activity"**
+> → Calls `nexus_timeline` + `nexus_stats`
+
+### Protocol Details
+
+- **Protocol version:** 2024-11-05 (MCP specification)
+- **Transport:** stdio (JSON-RPC 2.0, one JSON object per line)
+- **Server name:** `nexus-mcp-server` v1.0.0
+- **No authentication required** — runs locally on your machine
+- **All data stays local** — nothing is sent to external servers
+
+---
+
 ## Architecture Rules
 
 The codebase follows strict architectural principles:
