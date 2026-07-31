@@ -25,25 +25,6 @@ Nexus is a **desktop-first AI memory operating system** built for individuals an
 - **Semantic search** — keyword-vector fingerprinting for fast memory retrieval
 - **Cyberpunk timeline** — visual history with animated glow effects and date dividers
 
-## Screenshots
-
-> To generate screenshots, run the app and capture:
-> 1. Main view with sidebar and memory list
-> 2. AI Copilot with thinking indicator expanded
-> 3. 3D Knowledge Graph view
-> 4. Timeline with date dividers
-> 5. Settings with model selector
->
-> Place screenshots in `docs/screenshots/` and reference them here:
->
-> | View | Preview |
-> |---|---|
-> | Main | ![Main](docs/screenshots/main.png) |
-> | Copilot | ![Copilot](docs/screenshots/copilot.png) |
-> | Graph | ![Graph](docs/screenshots/graph.png) |
-> | Timeline | ![Timeline](docs/screenshots/timeline.png) |
-> | Settings | ![Settings](docs/screenshots/settings.png) |
-
 ---
 
 ## Tech Stack
