@@ -314,10 +314,17 @@ These rules are compiled into the binary at build time.
 
 ---
 
-## Support
+## Support the Project
 
-- **Issues:** [GitHub Issues](https://github.com/NexusMemoryTrust-dev-groupe/nexus/issues)
-- **Email:** nexus-memory-trust@proton.me
+If Nexus helps you, consider supporting its development:
+
+| Method | Details |
+|---|---|
+| **Phone (SBP)** | `89158729644` |
+| **Card** | Alfa Bank |
+| **Recipient** | Данила Сергеевич Шанин |
+
+Your donations help maintain the project, add new features, and keep it free for everyone.
 
 ---
 
