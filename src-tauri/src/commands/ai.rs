@@ -95,6 +95,7 @@ struct OcEvent {
 #[derive(Debug, Deserialize)]
 struct OcPart {
     #[serde(rename = "type")]
+    #[allow(dead_code)] // Used for JSON deserialization only
     part_type: Option<String>,
     text: Option<String>,
 }

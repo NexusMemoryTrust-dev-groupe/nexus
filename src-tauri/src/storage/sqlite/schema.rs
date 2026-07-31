@@ -21,6 +21,98 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 ";
 
+/// Check if a column exists in a table.
+fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
+    let query = format!("PRAGMA table_info({})", table);
+    let mut stmt = match conn.prepare(&query) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let mut rows = match stmt.query([]) {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+    while let Ok(Some(row)) = rows.next() {
+        if let Ok(name) = row.get::<_, String>(1) {
+            if name == column {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Execute a migration SQL, handling ALTER TABLE idempotently.
+///
+/// SQLite doesn't support `IF NOT EXISTS` for ALTER TABLE ADD COLUMN.
+/// This function catches "duplicate column name" errors and skips them.
+fn execute_migration_idempotent(conn: &Connection, sql: &str) -> Result<()> {
+    // Check if this migration contains ALTER TABLE statements
+    let upper = sql.to_uppercase();
+    let has_alter = upper.contains("ALTER TABLE");
+
+    if has_alter {
+        // Split by semicolons and execute each statement separately
+        // to handle ALTER TABLE statements individually
+        for statement in sql.split(';') {
+            let trimmed = statement.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            // Check if this is an ALTER TABLE ADD COLUMN statement
+            let stmt_upper = trimmed.to_uppercase();
+            if stmt_upper.starts_with("ALTER TABLE") && stmt_upper.contains("ADD COLUMN") {
+                // Try to execute, ignore "duplicate column name" errors
+                match conn.execute_batch(trimmed) {
+                    Ok(_) => {}
+                    Err(rusqlite::Error::SqliteFailure(err, _))
+                        if err.extended_code == 1 // SQLITE_ERROR
+                            && err.code == rusqlite::ErrorCode::Unknown =>
+                    {
+                        // Check if it's specifically a duplicate column error
+                        // by checking if the column already exists
+                        if let Some(table) = extract_table_name(trimmed) {
+                            if let Some(column) = extract_column_name(trimmed) {
+                                if column_exists(conn, &table, &column) {
+                                    // Column already exists, skip silently
+                                    continue;
+                                }
+                            }
+                        }
+                        // Some other SQLite error, propagate it
+                        return Err(rusqlite::Error::SqliteFailure(err, None));
+                    }
+                    Err(e) => return Err(e),
+                }
+            } else {
+                // Non-ALTER statement, execute normally
+                conn.execute_batch(trimmed)?;
+            }
+        }
+    } else {
+        // No ALTER TABLE, execute entire batch at once
+        conn.execute_batch(sql)?;
+    }
+    Ok(())
+}
+
+/// Extract table name from ALTER TABLE ... ADD COLUMN statement.
+fn extract_table_name(sql: &str) -> Option<String> {
+    let upper = sql.to_uppercase();
+    let after_alter = upper.split("ALTER TABLE").nth(1)?;
+    let table = after_alter.split("ADD COLUMN").next()?;
+    Some(table.trim().to_string())
+}
+
+/// Extract column name from ALTER TABLE ... ADD COLUMN statement.
+fn extract_column_name(sql: &str) -> Option<String> {
+    let upper = sql.to_uppercase();
+    let after_add = upper.split("ADD COLUMN").nth(1)?;
+    let column = after_add.split_whitespace().next()?;
+    Some(column.trim().to_string())
+}
+
 /// Return the current schema version (max applied migration).
 /// Returns 0 if no migrations have been applied yet.
 pub fn get_schema_version(conn: &Connection) -> Result<i32> {
@@ -43,6 +135,9 @@ pub fn get_schema_version(conn: &Connection) -> Result<i32> {
 /// version the SQL is executed and the version recorded in
 /// `schema_migrations`.  Migrations are executed inside a transaction so
 /// that a failure rolls back the entire batch.
+///
+/// ALTER TABLE ADD COLUMN statements are executed idempotently —
+/// if the column already exists, the statement is skipped.
 pub fn apply_migrations(conn: &Connection) -> Result<()> {
     // Ensure the migrations tracking table exists.
     conn.execute_batch(CREATE_MIGRATIONS_TABLE)?;
@@ -53,7 +148,7 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
         if version > current_version {
             // Each migration runs inside its own transaction.
             let tx = conn.unchecked_transaction()?;
-            tx.execute_batch(sql)?;
+            execute_migration_idempotent(&tx, sql)?;
             tx.execute(
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
                 rusqlite::params![version, chrono::Utc::now().to_rfc3339()],
@@ -70,6 +165,7 @@ pub fn apply_migrations(conn: &Connection) -> Result<()> {
 /// NOTE: Only migrations that are purely additive (CREATE TABLE / CREATE
 /// INDEX) can be rolled back safely.  ALTER TABLE and trigger migrations
 /// have no generic undo – they will return an error.
+#[allow(dead_code)] // Public API, may be used by CLI tools
 pub fn rollback_last_migration(conn: &Connection) -> Result<()> {
     let current_version = get_schema_version(conn)?;
     if current_version == 0 {
