@@ -1,0 +1,40 @@
+{
+  "name": "nexus-memory-trust",
+  "version": "1.0.0",
+  "description": "AI Memory Operating System — desktop application for intelligent memory management",
+  "main": "index.js",
+  "bin": {
+    "nexus": "bin/nexus.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "start": "node bin/nexus.js"
+  },
+  "keywords": [
+    "memory",
+    "ai",
+    "knowledge-graph",
+    "desktop",
+    "tauri",
+    "nexus"
+  ],
+  "author": "Nexus Memory Trust Team",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NexusMemoryTrust-dev-groupe/nexus.git"
+  },
+  "homepage": "https://github.com/NexusMemoryTrust-dev-groupe/nexus#readme",
+  "bugs": {
+    "url": "https://github.com/NexusMemoryTrust-dev-groupe/nexus/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "LICENSE",
+    "README.md"
+  ]
+}

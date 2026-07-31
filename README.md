@@ -27,22 +27,41 @@ Nexus is a **desktop-first AI memory operating system** built for individuals an
 
 ---
 
-## Download & Install
+## Installation
 
-### Windows
+Choose your preferred installation method:
 
-1. Download **Nexus-Setup-x64.exe** from [GitHub Releases](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
-2. Run the installer
-3. Follow the setup wizard
-4. Launch Nexus from desktop shortcut
+### Option 1: npm (Recommended)
 
-### Linux
+```bash
+npm install -g nexus-memory-trust
+nexus
+```
 
-1. Download **.deb** or **.AppImage** from [GitHub Releases](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
-2. Install with your package manager or run the AppImage
-3. Launch Nexus from applications menu
+That's it. One command installs everything, `nexus` launches the app.
 
-**No additional software required.** The installer handles everything.
+### Option 2: PowerShell Installer (Windows)
+
+```powershell
+# Run as Administrator
+irm -Uri https://raw.githubusercontent.com/NexusMemoryTrust-dev-groupe/nexus/master/scripts/install-nexus.ps1 | iex
+```
+
+Or download `install-nexus.ps1` from [scripts/](scripts/) and run it.
+
+### Option 3: Manual Download
+
+Download the latest release from [GitHub Releases](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases):
+
+| Platform | File |
+|---|---|
+| Windows | `nexus-windows-x64.exe` |
+| Linux (x64) | `nexus-linux-x64` |
+| Linux (ARM) | `nexus-linux-arm64` |
+| macOS (Intel) | `nexus-macos-x64` |
+| macOS (Apple Silicon) | `nexus-macos-arm64` |
+
+> **Note:** Linux and macOS builds are available but **untested**. We developed and tested exclusively on Windows. Community testing on other platforms is welcome.
 
 ---
 
@@ -50,11 +69,11 @@ Nexus is a **desktop-first AI memory operating system** built for individuals an
 
 When you open Nexus for the first time:
 
-1. **Configure AI API key** — the wizard will ask for your API key (OpenAI, Anthropic, Google, or OpenRouter)
+1. **Configure OpenCode** — the app will ask for your API key via OpenCode CLI (OpenAI, Anthropic, Google, or OpenRouter)
 2. **Select AI model** — choose your preferred model (free models available)
 3. **Start creating memories** — click **+ New Memory** in the sidebar
 
-Your API key is stored locally and never sent to our servers.
+Your API key is stored locally by OpenCode and never sent to our servers.
 
 ---
 

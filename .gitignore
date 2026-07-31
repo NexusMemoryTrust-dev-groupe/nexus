@@ -69,6 +69,10 @@ src-tauri/target/criterion/
 *.db-shm
 *.db-wal
 
+# Downloaded binaries (npm package)
+npm-package/bin/*.exe
+npm-package/bin/nexus
+
 # FastEmbed model cache
 src-tauri/.fastembed_cache/
 
