@@ -173,6 +173,40 @@ Add to `~/.continue/config.json`:
 
 > Replace `C:\path\to\nexus.exe` with the actual path to your Nexus installation.
 
+### Connect from Node.js (AI Agents / Scripts)
+
+On Windows, PowerShell may corrupt JSON arguments when calling MCP directly. Use the bundled helper library:
+
+```javascript
+const { start, call, stop } = require('./scripts/nexus-mcp-lib');
+
+async function main() {
+  await start();
+  
+  // Search memories
+  const search = await call('nexus_search_memories', { query: 'architecture' });
+  console.log(search.result.content[0].text);
+  
+  // Create a memory
+  const mem = await call('nexus_create_memory', {
+    title: 'My Decision',
+    content: 'Chose SQLite for simplicity',
+    author: 'developer'
+  });
+  console.log(mem.result.content[0].text);
+  
+  // Build context for AI
+  const ctx = await call('nexus_build_context', { query: 'database choices' });
+  console.log(ctx.result.content[0].text);
+  
+  stop();
+}
+
+main();
+```
+
+> **Tip:** The helper auto-detects the Nexus path on Windows. On Linux/macOS, ensure `nexus` is in your PATH.
+
 ### Available MCP Tools (31 tools)
 
 #### Memory CRUD
