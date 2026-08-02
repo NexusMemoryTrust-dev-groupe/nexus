@@ -9,10 +9,11 @@ const viewLabelKeys: Record<string, string> = {
   context: 'context.title',
   settings: 'settings.title',
   projects: 'projects.title',
+  savings: 'savings.title',
 };
 
 export function TopBar() {
-  const { mode, toggleCommandBar, activeView } = useUiStore();
+  const { mode, toggleMode, toggleCommandBar, activeView } = useUiStore();
   const { t } = useLocale();
 
   return (
@@ -23,9 +24,9 @@ export function TopBar() {
       </div>
 
       <div className="topbar-actions">
-        <div className={`mode-indicator`}>
+        <button className="mode-indicator" onClick={toggleMode} title={t('topbar.toggleMode')}>
           <span>{mode === 'explorer' ? t('topbar.explorer') : t('topbar.operator')}</span>
-        </div>
+        </button>
 
         <button className="command-trigger" onClick={toggleCommandBar}>
           <Search size={14} />

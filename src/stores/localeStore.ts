@@ -128,8 +128,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.cancel': 'Cancel',
     'common.loading': 'Loading...',
     // TopBar
-    'topbar.explorer': 'Explorer',
-    'topbar.operator': 'Operator',
+  'topbar.explorer': 'Explorer',
+  'topbar.operator': 'Operator',
+  'topbar.toggleMode': 'Switch mode',
     // AI Co-Pilot
     'ai.title': 'AI Co-Pilot',
     'ai.subtitle': 'Ask me anything about your memories and knowledge graph.',
@@ -306,8 +307,9 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.cancel': 'Отмена',
     'common.loading': 'Загрузка...',
     // TopBar
-    'topbar.explorer': 'Просмотр',
-    'topbar.operator': 'Оператор',
+  'topbar.explorer': 'Просмотр',
+  'topbar.operator': 'Оператор',
+  'topbar.toggleMode': 'Переключить режим',
     // AI Co-Pilot
     'ai.title': 'AI Помощник',
     'ai.subtitle': 'Задайте вопрос о ваших воспоминаниях и графе знаний.',

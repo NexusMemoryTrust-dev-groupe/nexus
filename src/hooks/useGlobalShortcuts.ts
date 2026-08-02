@@ -70,8 +70,15 @@ export function useGlobalShortcuts() {
         return;
       }
 
-      // Ctrl+5 — Context
+      // Ctrl+5 — Savings
       if (e.ctrlKey && e.key === '5') {
+        e.preventDefault();
+        setActiveView('savings');
+        return;
+      }
+
+      // Ctrl+6 — Context
+      if (e.ctrlKey && e.key === '6') {
         e.preventDefault();
         setActiveView('context');
         return;

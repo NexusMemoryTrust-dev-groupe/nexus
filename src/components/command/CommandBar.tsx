@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   Search, Brain, Network, Clock, Settings, Plus, Database,
   GitBranch, ArrowRight, Layers, Sparkles,
-  BarChart3, Zap, FolderOpen,
+  Zap, FolderOpen, TrendingDown,
 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useMemoryStore } from '../../stores/memoryStore';
@@ -111,8 +111,17 @@ export function CommandBar() {
       description: 'Build and view context packages',
       icon: Layers,
       category: 'Navigation',
-      shortcut: 'Ctrl+5',
+      shortcut: 'Ctrl+6',
       action: () => { setActiveView('context'); toggleCommandBar(); },
+    },
+    {
+      id: 'nav:savings',
+      label: 'Go to Savings',
+      description: 'View token savings and cost reports',
+      icon: TrendingDown,
+      category: 'Navigation',
+      shortcut: 'Ctrl+5',
+      action: () => { setActiveView('savings'); toggleCommandBar(); },
     },
     {
       id: 'nav:projects',
@@ -162,18 +171,6 @@ export function CommandBar() {
       category: 'Memories',
       action: async () => {
         await fetchMemories();
-        toggleCommandBar();
-      },
-    },
-    {
-      id: 'memory:count',
-      label: 'Count Memories',
-      description: 'Show total number of memory records',
-      icon: BarChart3,
-      category: 'Memories',
-      action: async () => {
-        await fetchMemories();
-        setActiveView('memory');
         toggleCommandBar();
       },
     },
