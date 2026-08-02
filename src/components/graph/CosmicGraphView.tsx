@@ -123,7 +123,7 @@ const CoreNode = memo(function CoreNode({
     };
     gl.domElement.addEventListener('pointermove', onMove);
     gl.domElement.addEventListener('pointerup', onUp);
-  }, [camera, gl, node.id, node.position, getPos, dragPlane, dragOffset, corePositions, dragRef]);
+  }, [camera, gl, node.id, node.position, dragPlane, dragOffset, corePositions, dragRef]);
 
   function getPos(): THREE.Vector3 {
     return corePositions.current.get(node.id) || node.position;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useLocale } from '../../stores/localeStore';
 import { ProjectDetail } from './ProjectDetail';
@@ -71,10 +71,15 @@ export function ProjectsView() {
     return () => clearTimeout(timeout);
   }, [newTitle, validateProjectName]);
 
-  // Re-validate when modal opens (user might have created the folder externally)
+  // Re-validate when modal opens (user might have created the folder externally).
+  // `wasCreateOpen` guards the transition so validation fires only on open, not
+  // on every keystroke — the debounced effect above already handles typing.
+  const wasCreateOpen = useRef(false);
   useEffect(() => {
-    if (showCreate && newTitle.trim()) { validateProjectName(newTitle); }
-  }, [showCreate]);
+    const justOpened = showCreate && !wasCreateOpen.current;
+    wasCreateOpen.current = showCreate;
+    if (justOpened && newTitle.trim()) { validateProjectName(newTitle); }
+  }, [showCreate, newTitle, validateProjectName]);
 
   useEffect(() => {
     fetchProjects();

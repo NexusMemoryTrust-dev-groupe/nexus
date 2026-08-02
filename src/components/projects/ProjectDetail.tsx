@@ -84,45 +84,6 @@ const redoStackRef = useRef<DeletedItem[]>([]);
 const lastProjectIdRef = useRef<string | null>(null);
 const initializedProjectsRef = useRef<Set<string>>(new Set());
 
-  // ── Load file tree and metadata when project changes ──
-  useEffect(() => {
-    if (selectedProject) {
-      // Detect actual project change (not re-render) — reset guard for new project only
-      if (lastProjectIdRef.current !== selectedProject.id) {
-        initializedProjectsRef.current.delete(selectedProject.id);
-        lastProjectIdRef.current = selectedProject.id;
-      }
-      loadProjectFiles();
-    }
-  }, [selectedProject?.id]);
-
-  // ── Filesystem sync polling — checks disk every 3s, removes stale entries, adds new files ──
-  useEffect(() => {
-    if (!selectedProject || tab !== 'files') return;
-    const interval = setInterval(async () => {
-      try {
-        const result = await invoke<{ tree: FileEntry | null; stale_found: boolean }>('sync_workspace', {
-          projectId: selectedProject.id,
-        });
-        // If folders were deleted from disk AND workspace is now empty → delete the project
-        if (result.stale_found && (!result.tree || !result.tree.children || result.tree.children.length === 0)) {
-          await deleteProject(selectedProject.id);
-          return;
-        }
-        // Only update if tree actually changed (avoid unnecessary re-renders)
-        setFileTree(prev => {
-          if (!result.tree && !prev) return prev;
-          if (!result.tree || !prev) return result.tree;
-          if (JSON.stringify(result.tree) !== JSON.stringify(prev)) return result.tree;
-          return prev;
-        });
-      } catch (e) {
-        console.error('Sync workspace failed:', e);
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [selectedProject?.id, tab]);
-
   const loadProjectFiles = useCallback(async () => {
     if (!selectedProject) return;
     const pid = selectedProject.id;
@@ -173,6 +134,45 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
       setLoadingFiles(false);
     }
   }, [selectedProject]);
+
+  // ── Load file tree and metadata when project changes ──
+  useEffect(() => {
+    if (selectedProject) {
+      // Detect actual project change (not re-render) — reset guard for new project only
+      if (lastProjectIdRef.current !== selectedProject.id) {
+        initializedProjectsRef.current.delete(selectedProject.id);
+        lastProjectIdRef.current = selectedProject.id;
+      }
+      loadProjectFiles();
+    }
+  }, [selectedProject, loadProjectFiles]);
+
+  // ── Filesystem sync polling — checks disk every 3s, removes stale entries, adds new files ──
+  useEffect(() => {
+    if (!selectedProject || tab !== 'files') return;
+    const interval = setInterval(async () => {
+      try {
+        const result = await invoke<{ tree: FileEntry | null; stale_found: boolean }>('sync_workspace', {
+          projectId: selectedProject.id,
+        });
+        // If folders were deleted from disk AND workspace is now empty → delete the project
+        if (result.stale_found && (!result.tree || !result.tree.children || result.tree.children.length === 0)) {
+          await deleteProject(selectedProject.id);
+          return;
+        }
+        // Only update if tree actually changed (avoid unnecessary re-renders)
+        setFileTree(prev => {
+          if (!result.tree && !prev) return prev;
+          if (!result.tree || !prev) return result.tree;
+          if (JSON.stringify(result.tree) !== JSON.stringify(prev)) return result.tree;
+          return prev;
+        });
+      } catch (e) {
+        console.error('Sync workspace failed:', e);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [selectedProject, tab, deleteProject]);
 
   // ── Undo helpers (read file content before delete/rename) ──
   const readForUndo = useCallback(async (filePath: string): Promise<string> => {

@@ -66,7 +66,7 @@ export const LabelLayer = memo(function LabelLayer({
     };
     rafRef.current = requestAnimationFrame(update);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [nodes, hoveredIdRef, highlightedIdsRef, filteredIds]);
+  }, [nodes, hoveredIdRef, highlightedIdsRef, filteredIds, labelIdsRef]);
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>

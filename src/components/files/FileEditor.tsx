@@ -45,11 +45,17 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
   const isMarkdown = file ? MARKDOWN_EXTS.includes(getExt(file.name)) : false;
   const language = file ? getLang(file.name) : 'Plain Text';
 
-  // Line count for line numbers
-  const lineCount = useMemo(() => countLines(contentRef.current || file?.content || ''), [dirtyTick, file?.content]);
+  // Line count for line numbers. `dirtyTick` is the recompute trigger: the
+  // content lives in a ref, so the memo must re-run on the version bump rather
+  // than on dependency identity (the ref itself is not reactive).
+  const lineCount = useMemo(() => {
+    void dirtyTick;
+    return countLines(contentRef.current || file?.content || '');
+  }, [dirtyTick, file?.content]);
 
   // Syntax-highlighted HTML for code overlay
   const highlightedHtml = useMemo(() => {
+    void dirtyTick; // recompute trigger for ref-backed content (see lineCount)
     const text = contentRef.current || file?.content || '';
     const lines = text.split('\n');
     return lines.map(line => {
@@ -80,8 +86,6 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     }
   }, []);
 
-  useEffect(() => { loadFile(); }, [filePath]);
-
   // Close context menu on any click
   useEffect(() => {
     if (!ctxMenu) return;
@@ -91,7 +95,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', close); };
   }, [ctxMenu]);
 
-  const loadFile = async () => {
+  const loadFile = useCallback(async () => {
     try {
       const info = await invoke<FileInfo>('read_file', { filePath });
       setFile(info);
@@ -109,9 +113,11 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
       setError('FILE_NOT_FOUND');
       setFile(null);
     }
-  };
+  }, [filePath]);
 
-  const handleSave = async () => {
+  useEffect(() => { loadFile(); }, [loadFile]);
+
+  const handleSave = useCallback(async () => {
     if (!file) return;
     setSaving(true);
     try {
@@ -123,7 +129,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     } finally {
       setSaving(false);
     }
-  };
+  }, [file, onSaved]);
 
   // Ctrl+S to save. e.code is the physical key position, so this fires on any
   // keyboard layout; e.key would be 'ы' on a Russian layout and never match.

@@ -282,6 +282,12 @@ export function FloatingCopilot() {
     setSelectedIndex(0);
   }, [input]);
 
+  const selectCommand = useCallback((cmd: AiCommand) => {
+    setInput(`/${cmd.name} `);
+    setShowCommands(false);
+    inputRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     if (!showCommands) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -292,19 +298,13 @@ export function FloatingCopilot() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showCommands, filtered, selectedIndex]);
+  }, [showCommands, filtered, selectedIndex, selectCommand]);
 
   useEffect(() => {
     if (!listRef.current) return;
     const selected = listRef.current.querySelector('[data-selected="true"]');
     if (selected) selected.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
-
-  const selectCommand = useCallback((cmd: AiCommand) => {
-    setInput(`/${cmd.name} `);
-    setShowCommands(false);
-    inputRef.current?.focus();
-  }, []);
 
   const handleSend = useCallback(async () => {
     if (!input.trim() || isLoading) return;
