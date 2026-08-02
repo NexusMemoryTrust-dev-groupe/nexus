@@ -26,6 +26,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      tag:
+        description: 'Existing tag to publish into (e.g. v1.0.0). Leave empty to build only.'
+        type: string
+        default: ''
       dry_run:
         description: 'Build installers without publishing a release'
         type: boolean
@@ -36,6 +40,15 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # The release this run belongs to. A tag push supplies it through `ref_name`;
+  # a manual run supplies it through the `tag` input.
+  #
+  # Why the input exists: `workflow_dispatch` runs the workflow file *as it
+  # exists at the chosen ref*. Dispatching at an old tag would therefore re-run
+  # whatever release.yml that tag was cut with — including a broken one. Running
+  # from the default branch and naming the tag explicitly adds assets to an
+  # existing release without rewriting history.
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   # ── Gate: the code must be sound before we spend time on installers ───────
@@ -128,10 +141,14 @@ jobs:
           $all = @($tauri, $front, $npm, $cargo) | Select-Object -Unique
           if ($all.Count -ne 1) { throw "Version mismatch across manifests: $($all -join ', ')" }
 
-          if ($env:GITHUB_REF -like 'refs/tags/v*') {
-            $tag = $env:GITHUB_REF -replace '^refs/tags/v', ''
-            if ($tag -ne $tauri) { throw "Tag v$tag does not match version $tauri" }
+          # $env:TAG is the tag this run publishes into — from the ref on a tag
+          # push, from the `tag` input on a manual run. Empty means build-only.
+          if ($env:TAG -like 'v*') {
+            $tag = $env:TAG -replace '^v', ''
+            if ($tag -ne $tauri) { throw "Tag $env:TAG does not match version $tauri" }
             Write-Host "  tag matches version"
+          } else {
+            Write-Host "  no release tag for this run — skipping tag check"
           }
 
   # ── Build one installer per architecture ─────────────────────────────────
@@ -213,11 +230,12 @@ jobs:
   publish:
     name: Publish release
     needs: build
-    # A manual run defaults to dry_run=true so the installers can be built and
-    # inspected without touching the release. Tag pushes always publish.
+    # Tag pushes always publish. A manual run publishes only when it both names
+    # a tag and explicitly clears dry_run, so the default dispatch builds and
+    # uploads artifacts without touching any release.
     if: |
-      startsWith(github.ref, 'refs/tags/v') &&
-      inputs.dry_run != true
+      startsWith(github.ref, 'refs/tags/v') ||
+      (inputs.tag != '' && inputs.dry_run != true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -256,15 +274,15 @@ jobs:
       - name: Create or update release
         uses: softprops/action-gh-release@v2
         with:
-          name: Nexus Memory Trust ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: Nexus Memory Trust ${{ env.TAG }}
+          tag_name: ${{ env.TAG }}
           # Left published on purpose: re-running this workflow on an existing
           # tag (for example to add a missing ARM64 asset) must not flip an
           # already-published release back to draft.
           draft: false
           files: staging/*
           body: |
-            ## Nexus Memory Trust ${{ github.ref_name }}
+            ## Nexus Memory Trust ${{ env.TAG }}
 
             An AI memory operating system: your knowledge graph, your memory,
             your machine.
