@@ -111,7 +111,10 @@ impl IntentDetector {
             .map(|w| w.to_lowercase().chars().filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect::<String>())
             .filter(|w| w.len() > 2 && !stop_words.contains(&w.as_str()))
             .collect();
-        keywords.dedup();
+        // `dedup()` only removes *adjacent* duplicates, so "rust vs rust" kept
+        // both copies. Retain first occurrence of each word, preserving order.
+        let mut seen = std::collections::HashSet::new();
+        keywords.retain(|w| seen.insert(w.clone()));
         keywords
     }
 

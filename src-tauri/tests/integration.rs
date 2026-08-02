@@ -89,7 +89,9 @@ fn integration_compressor_limits_tokens() {
         package.memory_records.push(rec);
     }
 
-    let compressed = compressor.compress(&package, 200).unwrap();
+    let compressed = compressor
+        .compress(&package, 200, ContextCompressor::DEFAULT_MIN_RELEVANCE)
+        .unwrap();
     assert!(compressed.memory_records.len() <= 20, "Should compress: got {} records", compressed.memory_records.len());
 }
 

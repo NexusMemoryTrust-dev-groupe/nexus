@@ -6,243 +6,26 @@ import { useGraphStore } from '../../stores/graphStore';
 import { useMemoryStore } from '../../stores/memoryStore';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
+import { Network, Maximize2, Minimize2, Info } from 'lucide-react';
+
 import {
-  Network, Maximize2, Minimize2, Info, MessageCircle, Search, X,
-  Brain, Link2, Eye, Focus, ChevronRight, Sparkles,
-} from 'lucide-react';
-
-// ═══════════════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════════════
-const entityColors: Record<string, string> = {
-  project: '#ff8a5b', file: '#a99cf8', person: '#63d8d2',
-  concept: '#ddbb65', task: '#f472b6', decision: '#818cf8',
-  organization: '#f59e0b', meeting: '#34d399', document: '#c084fc',
-  technology: '#60a5fa', memory: '#f472b6', default: '#93c5fd',
-};
-
-function getColor(entityType: string): string {
-  const lower = entityType.toLowerCase();
-  for (const [key, val] of Object.entries(entityColors)) {
-    if (lower.includes(key)) return val;
-  }
-  return entityColors.default;
-}
-
-const _dummy = new THREE.Object3D();
-const _colorObj = new THREE.Color();
-const _projVec = new THREE.Vector3();
-const _lerpVec = new THREE.Vector3();
-
-const sphereGeo = new THREE.SphereGeometry(1, 24, 24);
-const smallSphereGeo = new THREE.SphereGeometry(1, 12, 12);
-const tinySphereGeo = new THREE.SphereGeometry(1, 8, 8);
-
-const ORBIT_SPEED_MULT = 0.012;
-const ORBIT_SPREAD = 1.6;
-
-// ═══════════════════════════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════════════════════════
-interface GraphNodeData {
-  id: string; title: string; entityType: string; color: string;
-  position: THREE.Vector3; orbitRadius: number; orbitSpeed: number;
-  orbitOffset: number; coreId: string | null; size: number;
-  connectionCount: number; description?: string;
-}
-interface GraphEdgeData {
-  id: string; source: string; target: string;
-  relationshipType: string; weight: number;
-}
-interface OrbitCluster {
-  coreId: string; coreTitle: string; coreColor: string;
-  satellites: GraphNodeData[]; center: THREE.Vector3;
-}
-interface SearchSuggestion {
-  id: string; title: string; type: string; color: string; kind: 'entity' | 'memory';
-  description?: string; connectionCount?: number;
-}
-
-const screenPos = new Map<string, { x: number; y: number; visible: boolean }>();
-
-// ═══════════════════════════════════════════════════════════════
-// UTILITIES
-// ═══════════════════════════════════════════════════════════════
-function getOrbitPos(n: GraphNodeData, t: number, corePos?: THREE.Vector3): THREE.Vector3 {
-  const a = t * n.orbitSpeed + n.orbitOffset;
-  const base = corePos || n.position;
-  return new THREE.Vector3(
-    base.x + Math.cos(a) * n.orbitRadius,
-    base.y + Math.sin(a * 0.5) * n.orbitRadius * 0.3,
-    base.z + Math.sin(a) * n.orbitRadius,
-  );
-}
-
-// Resolve LIVE position for any node — core or satellite
-// Core nodes (coreId=null) → corePositions.get(n.id)
-// Satellites (coreId set) → orbit around parent core position
-function resolveNodePosition(
-  n: GraphNodeData, t: number,
-  corePositions: React.MutableRefObject<Map<string, THREE.Vector3>>,
-): THREE.Vector3 {
-  if (n.orbitRadius > 0 && n.coreId) {
-    const corePos = corePositions.current.get(n.coreId);
-    return getOrbitPos(n, t, corePos);
-  }
-  // Core node or satellite without core — use live physics position
-  const livePos = corePositions.current.get(n.id);
-  return livePos || n.position;
-}
-
-// Format node name based on entity type — makes names descriptive and concise
-function formatNodeName(title: string, entityType: string): string {
-  const lower = entityType.toLowerCase();
-
-  // Files: extract filename, ensure extension
-  if (lower.includes('file')) {
-    // Extract last path segment
-    const parts = title.replace(/\\/g, '/').split('/');
-    let name = parts[parts.length - 1] || title;
-    // If no extension, add a type hint
-    if (!name.includes('.')) {
-      const ext = lower.includes('config') ? '.config' : lower.includes('test') ? '.test' : '.file';
-      name += ext;
-    }
-    return name.length > 28 ? name.slice(0, 26) + '…' : name;
-  }
-
-  // Code / function / method: show short signature
-  if (lower.includes('function') || lower.includes('method') || lower.includes('class')) {
-    // Remove full path, keep just the identifier
-    const parts = title.replace(/\\/g, '/').split('/');
-    const name = parts[parts.length - 1] || title;
-    return name.length > 28 ? name.slice(0, 26) + '…' : name;
-  }
-
-  // Tasks: keep concise
-  if (lower.includes('task')) {
-    return title.length > 25 ? title.slice(0, 23) + '…' : title;
-  }
-
-  // Concepts / decisions: extract key phrase, single-word if possible
-  if (lower.includes('concept') || lower.includes('decision')) {
-    // Remove common filler words for a more concise label
-    const cleaned = title
-      .replace(/\b(implementation|concept|decision|approach|strategy|pattern|architecture)\b/gi, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-    if (cleaned.length > 3 && cleaned.length <= 28) return cleaned;
-    return title.length > 28 ? title.slice(0, 26) + '…' : title;
-  }
-
-  // Default: truncate long names
-  return title.length > 28 ? title.slice(0, 26) + '…' : title;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STARFIELD
-// ═══════════════════════════════════════════════════════════════
-const Starfield = memo(function Starfield({ count = 600 }: { count?: number }) {
-  const positions = useMemo(() => {
-    const a = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      a[i * 3] = (Math.random() - 0.5) * 500;
-      a[i * 3 + 1] = (Math.random() - 0.5) * 500;
-      a[i * 3 + 2] = (Math.random() - 0.5) * 500;
-    }
-    return a;
-  }, [count]);
-  const ref = useRef<THREE.Points>(null);
-  useFrame((_, dt) => { if (ref.current) ref.current.rotation.y += dt * 0.001; });
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial color="#ffffff" size={0.35} transparent opacity={0.4} sizeAttenuation depthWrite={false} />
-    </points>
-  );
-});
-
-// ═══════════════════════════════════════════════════════════════
-// AMBIENT DUST
-// ═══════════════════════════════════════════════════════════════
-const AmbientDust = memo(function AmbientDust({ count = 180 }: { count?: number }) {
-  const [positions, colors, speeds] = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const spd = new Float32Array(count);
-    const palette = Object.values(entityColors).slice(0, -1);
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 120;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 80;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 120;
-      _colorObj.set(palette[Math.floor(Math.random() * palette.length)]);
-      col[i * 3] = _colorObj.r; col[i * 3 + 1] = _colorObj.g; col[i * 3 + 2] = _colorObj.b;
-      spd[i] = 0.1 + Math.random() * 0.3;
-    }
-    return [pos, col, spd] as const;
-  }, [count]);
-  const ref = useRef<THREE.Points>(null);
-  useFrame((state) => {
-    if (!ref.current) return;
-    const t = state.clock.elapsedTime;
-    const arr = ref.current.geometry.getAttribute('position') as THREE.BufferAttribute;
-    const a = arr.array as Float32Array;
-    for (let i = 0; i < count; i++) {
-      a[i * 3 + 1] += Math.sin(t * speeds[i] + i) * 0.003;
-      a[i * 3] += Math.cos(t * speeds[i] * 0.5 + i * 0.7) * 0.002;
-    }
-    arr.needsUpdate = true;
-  });
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
-      <pointsMaterial vertexColors size={0.2} transparent opacity={0.35} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} />
-    </points>
-  );
-});
-
-// ═══════════════════════════════════════════════════════════════
-// PULSE RINGS
-// ═══════════════════════════════════════════════════════════════
-function PulseRings({ position, color }: { position: [number, number, number]; color: string }) {
-  const ring1Ref = useRef<THREE.Mesh>(null);
-  const ring2Ref = useRef<THREE.Mesh>(null);
-  const ring3Ref = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    [ring1Ref, ring2Ref, ring3Ref].forEach((ref, idx) => {
-      if (!ref.current) return;
-      const p = ((t * 0.15 + idx * 0.33) % 1);
-      ref.current.scale.setScalar(2.0 + p * 5.0);
-      (ref.current.material as THREE.MeshBasicMaterial).opacity = 0.2 * (1 - p);
-    });
-  });
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color(color), transparent: true, opacity: 0,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-  }), [color]);
-  // Create 3 separate materials for the 3 rings
-  const mats = useMemo(() => [
-    mat,
-    mat.clone(),
-    mat.clone(),
-  ], [mat]);
-
-  return (
-    <group position={position}>
-      {[ring1Ref, ring2Ref, ring3Ref].map((ref, i) => (
-        <mesh key={i} ref={ref} rotation={[Math.PI / 2, 0, 0]} material={mats[i]}>
-          <ringGeometry args={[0.95, 1.05, 64]} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
+  getColor, getEdgeColor,
+  _dummy, _colorObj, _projVec, _lerpVec,
+  sphereGeo, smallSphereGeo, tinySphereGeo,
+} from './cosmic/constants';
+import type { GraphNodeData, GraphEdgeData, OrbitCluster, SearchSuggestion } from './cosmic/types';
+import { screenPos } from './cosmic/types';
+import { getOrbitPos, resolveNodePosition } from './cosmic/utils';
+import { buildClusters } from './cosmic/clusters';
+import {
+  LodTier, tierForDistanceSq,
+  selectLabels, selectEdges, updateFrustum, isSphereVisible,
+  thresholdsForNodeCount, labelBudgetForNodeCount,
+} from './cosmic/lod';
+import type { LabelCandidate } from './cosmic/lod';
+import { Starfield, AmbientDust, PulseRings } from './cosmic/Decorations';
+import { CosmicSun } from './cosmic/CosmicSun';
+import { LabelLayer, ContextMenu, SearchBar, InfoPanel } from './cosmic/Panels';
 
 // ═══════════════════════════════════════════════════════════════
 // CORE NODE — IMPERATIVE position update for smooth drag
@@ -550,11 +333,6 @@ const DataFlowDots = memo(function DataFlowDots({
 // ═══════════════════════════════════════════════════════════════
 // EDGE LINES — color by relationship type, weight affects opacity
 // ═══════════════════════════════════════════════════════════════
-const EDGE_TYPE_COLORS: Record<string, string> = {
-  RelatedTo: '#63d8d2', Uses: '#ff8a5b', Implements: '#a99cf8',
-  DependsOn: '#f472b6', PartOf: '#ddbb65', ConflictsWith: '#ef4444',
-  default: '#6b7280',
-};
 const _edgeColor = new THREE.Color();
 
 const EdgeLines = memo(function EdgeLines({
@@ -588,7 +366,7 @@ const EdgeLines = memo(function EdgeLines({
       arr[i * 6] = sp.x; arr[i * 6 + 1] = sp.y; arr[i * 6 + 2] = sp.z;
       arr[i * 6 + 3] = tp.x; arr[i * 6 + 4] = tp.y; arr[i * 6 + 5] = tp.z;
       // Color per edge based on relationship type
-      const hex = EDGE_TYPE_COLORS[e.relationshipType] || EDGE_TYPE_COLORS.default;
+      const hex = getEdgeColor(e.relationshipType);
       _edgeColor.set(hex);
       const w = Math.max(0.4, Math.min(1, e.weight));
       _edgeColor.multiplyScalar(w);
@@ -625,269 +403,86 @@ const OrbitPaths = memo(function OrbitPaths({ orbits }: { orbits: { position: TH
 // ═══════════════════════════════════════════════════════════════
 // SCREEN PROJECTION TRACKER
 // ═══════════════════════════════════════════════════════════════
+/**
+ * Projects every node to screen space once per frame and, in the same pass,
+ * decides how much detail it deserves.
+ *
+ * Combining the two is deliberate. The projection already computes a world
+ * position and a camera-relative depth; classifying the level of detail here
+ * costs one squared distance and reuses everything else. Doing it in the label
+ * layer instead would mean walking every node a second time, in the DOM, at
+ * 60 Hz.
+ *
+ * The results land in the shared `screenPos` map, which the label layer reads
+ * without touching React state — a per-frame `setState` over thousands of nodes
+ * would re-render the whole tree.
+ */
 function ScreenProjectionTracker({
-  nodes, timeRef, corePositions,
+  nodes, timeRef, corePositions, labelIdsRef, pinnedIdsRef,
 }: {
   nodes: GraphNodeData[]; timeRef: React.MutableRefObject<number>;
   corePositions: React.MutableRefObject<Map<string, THREE.Vector3>>;
+  labelIdsRef: React.MutableRefObject<Set<string>>;
+  pinnedIdsRef: React.MutableRefObject<Set<string>>;
 }) {
   const { camera, size } = useThree();
+
+  // Thresholds and label budget tighten as the graph grows, so a 5000-node
+  // workspace stays interactive without changing how a 50-node demo looks.
+  const thresholds = useMemo(() => thresholdsForNodeCount(nodes.length), [nodes.length]);
+  const labelBudget = useMemo(() => labelBudgetForNodeCount(nodes.length), [nodes.length]);
+
+  // Reused across frames: allocating a candidate array per frame would hand the
+  // garbage collector thousands of short-lived objects a second.
+  const candidatesRef = useRef<LabelCandidate[]>([]);
+
   useFrame(() => {
     const t = timeRef.current;
+    const frustum = updateFrustum(camera);
+    const camPos = camera.position;
+
+    const candidates = candidatesRef.current;
+    candidates.length = 0;
+
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
       const wp = resolveNodePosition(n, t, corePositions);
+
+      const distanceSq = camPos.distanceToSquared(wp);
+      const tier = tierForDistanceSq(distanceSq, thresholds);
+
+      // Pad the cull radius by the node's own size so a large core whose centre
+      // sits just off-screen does not blink out while its body still overlaps.
+      const onScreen =
+        tier !== LodTier.Culled && isSphereVisible(wp, n.size * 2, frustum);
+
       _projVec.copy(wp).project(camera);
-      screenPos.set(n.id, { x: (_projVec.x * 0.5 + 0.5) * size.width, y: (-_projVec.y * 0.5 + 0.5) * size.height, visible: _projVec.z < 1 });
+      const visible = onScreen && _projVec.z < 1;
+
+      screenPos.set(n.id, {
+        x: (_projVec.x * 0.5 + 0.5) * size.width,
+        y: (-_projVec.y * 0.5 + 0.5) * size.height,
+        visible,
+        distanceSq,
+        tier,
+      });
+
+      candidates.push({
+        id: n.id,
+        distanceSq,
+        isCore: n.orbitRadius === 0,
+        visible,
+        pinned: pinnedIdsRef.current.has(n.id),
+      });
     }
+
+    // One label decision per frame for the whole graph, rather than each label
+    // deciding for itself.
+    labelIdsRef.current = selectLabels(candidates, labelBudget);
   });
   return null;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// BUILD CLUSTERS — each orphan is its own core, dynamic spread
-// ═══════════════════════════════════════════════════════════════
-function buildClusters(
-  nodes: Array<{ id: string; entityType: string; title: string; description: string }>,
-  edges: Array<{ sourceEntityId: string; targetEntityId: string; relationshipType: string; weight: number; id: string }>,
-): { clusters: OrbitCluster[]; allNodes: GraphNodeData[]; uniqueEdges: GraphEdgeData[]; satellites: GraphNodeData[] } {
-  const seenEdges = new Set<string>();
-  const uniqueEdges: GraphEdgeData[] = edges.filter(e => {
-    const k = `${e.sourceEntityId}→${e.targetEntityId}`;
-    if (seenEdges.has(k)) return false; seenEdges.add(k); return true;
-  }).map(e => ({ id: e.id, source: e.sourceEntityId, target: e.targetEntityId, relationshipType: e.relationshipType, weight: e.weight }));
-
-  const adj = new Map<string, Set<string>>();
-  nodes.forEach(n => adj.set(n.id, new Set()));
-  uniqueEdges.forEach(e => { adj.get(e.source)?.add(e.target); adj.get(e.target)?.add(e.source); });
-
-  const importance = new Map<string, number>();
-  nodes.forEach(n => importance.set(n.id, adj.get(n.id)?.size || 0));
-
-  const sorted = [...nodes].sort((a, b) => (importance.get(a.id) || 0) - (importance.get(b.id) || 0));
-  const assigned = new Set<string>();
-  const clusters: OrbitCluster[] = [];
-
-  // Generate dynamic spread positions — golden angle spiral for even distribution
-  function generateCenter(index: number): THREE.Vector3 {
-    const totalNodes = nodes.length;
-    const spacing = Math.max(30, Math.sqrt(totalNodes) * 8);
-    // Golden angle spiral in XZ plane with Y variation
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const angle = index * goldenAngle;
-    const radius = spacing * Math.sqrt(index + 1) * 0.4;
-    return new THREE.Vector3(
-      Math.cos(angle) * radius,
-      (Math.sin(index * 1.7) * spacing * 0.15),
-      Math.sin(angle) * radius,
-    );
-  }
-
-  // Build main clusters from high-importance nodes
-  let clusterIdx = 0;
-  for (let i = sorted.length - 1; i >= 0 && clusterIdx < Math.min(nodes.length, Math.ceil(nodes.length / 2)); i--) {
-    const core = sorted[i];
-    if (assigned.has(core.id)) continue;
-    const neighbors = adj.get(core.id) || new Set();
-    const sats: GraphNodeData[] = [];
-    const center = generateCenter(clusterIdx);
-    let si = 0;
-    neighbors.forEach((nid) => {
-      if (!assigned.has(nid)) {
-        const sn = nodes.find(n => n.id === nid);
-        if (sn) {
-          sats.push({
-            id: sn.id, title: formatNodeName(sn.title, sn.entityType), entityType: sn.entityType, color: getColor(sn.entityType),
-            position: center.clone(), orbitRadius: 4 + si * ORBIT_SPREAD,
-            orbitSpeed: ORBIT_SPEED_MULT * (1 - si * 0.04),
-            orbitOffset: (si * Math.PI * 2) / Math.max(neighbors.size, 1),
-            coreId: core.id, size: 0.8 + (importance.get(sn.id) || 0) * 0.15,
-            connectionCount: importance.get(sn.id) || 0, description: sn.description,
-          });
-          assigned.add(nid); si++;
-        }
-      }
-    });
-    clusters.push({ coreId: core.id, coreTitle: formatNodeName(core.title, core.entityType), coreColor: getColor(core.entityType), satellites: sats, center });
-    assigned.add(core.id);
-    clusterIdx++;
-  }
-
-  // Orphans: each gets its own position on the spiral
-  let orphanIdx = 0;
-  const orphans = nodes.filter(n => !assigned.has(n.id));
-  orphans.forEach((n) => {
-    const center = generateCenter(clusters.length + orphanIdx);
-    clusters.push({
-      coreId: n.id, coreTitle: formatNodeName(n.title, n.entityType), coreColor: getColor(n.entityType),
-      satellites: [], center,
-    });
-    assigned.add(n.id); orphanIdx++;
-  });
-
-  const allNodes: GraphNodeData[] = [];
-  const allSatellites: GraphNodeData[] = [];
-  clusters.forEach(c => {
-    const cn = nodes.find(n => n.id === c.coreId);
-    if (cn) {
-      allNodes.push({
-        id: cn.id, title: formatNodeName(cn.title, cn.entityType), entityType: cn.entityType, color: getColor(cn.entityType),
-        position: c.center.clone(), orbitRadius: 0, orbitSpeed: 0, orbitOffset: 0, coreId: null,
-        size: 1.5 + (importance.get(cn.id) || 0) * 0.2, connectionCount: importance.get(cn.id) || 0,
-        description: cn.description,
-      });
-    }
-    allSatellites.push(...c.satellites);
-    allNodes.push(...c.satellites);
-  });
-  return { clusters, allNodes, uniqueEdges, satellites: allSatellites };
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COSMIC SUN — glowing star with corona, rays, and light
-// ═══════════════════════════════════════════════════════════════
-const CosmicSun = memo(function CosmicSun({ position = [-80, 35, -90] as [number, number, number] }: { position?: [number, number, number] }) {
-  const coreRef = useRef<THREE.Mesh>(null);
-  const corona1Ref = useRef<THREE.Mesh>(null);
-  const corona2Ref = useRef<THREE.Mesh>(null);
-  const corona3Ref = useRef<THREE.Mesh>(null);
-  const raysRef = useRef<THREE.Mesh>(null);
-  const groupRef = useRef<THREE.Group>(null);
-
-  // Animated pulsing materials
-  const coreMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#fff4e0'),
-    toneMapped: false,
-  }), []);
-  const coronaMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#ffaa44'),
-    transparent: true,
-    opacity: 0.18,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.BackSide,
-  }), []);
-  const coronaMat2 = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#ff8833'),
-    transparent: true,
-    opacity: 0.08,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.BackSide,
-  }), []);
-  const coronaMat3 = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#ffcc66'),
-    transparent: true,
-    opacity: 0.04,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.BackSide,
-  }), []);
-
-  // Light rays geometry — 12 flat quads radiating outward
-  const raysGeo = useMemo(() => {
-    const count = 12;
-    const positions = new Float32Array(count * 6 * 3); // 6 verts per ray (2 triangles)
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const innerR = 2.2;
-      const outerR = 8 + Math.random() * 6;
-      const halfW = 0.15 + Math.random() * 0.15;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const perpCos = Math.cos(angle + Math.PI / 2);
-      const perpSin = Math.sin(angle + Math.PI / 2);
-      // Two triangles per ray
-      const base = i * 18;
-      // Triangle 1
-      positions[base] = cos * innerR + perpCos * halfW;
-      positions[base + 1] = sin * innerR + perpSin * halfW;
-      positions[base + 2] = 0;
-      positions[base + 3] = cos * innerR - perpCos * halfW;
-      positions[base + 4] = sin * innerR - perpSin * halfW;
-      positions[base + 5] = 0;
-      positions[base + 6] = cos * outerR;
-      positions[base + 7] = sin * outerR;
-      positions[base + 8] = 0;
-      // Triangle 2
-      positions[base + 9] = cos * outerR;
-      positions[base + 10] = sin * outerR;
-      positions[base + 11] = 0;
-      positions[base + 12] = cos * innerR - perpCos * halfW;
-      positions[base + 13] = sin * innerR - perpSin * halfW;
-      positions[base + 14] = 0;
-      positions[base + 15] = cos * outerR + perpCos * halfW * 0.3;
-      positions[base + 16] = sin * outerR + perpSin * halfW * 0.3;
-      positions[base + 17] = 0;
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    return geo;
-  }, []);
-  const raysMat = useMemo(() => new THREE.MeshBasicMaterial({
-    color: new THREE.Color('#ffcc88'),
-    transparent: true,
-    opacity: 0.12,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  }), []);
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    // Core pulse
-    const corePulse = 1.0 + Math.sin(t * 1.5) * 0.05;
-    if (coreRef.current) coreRef.current.scale.setScalar(corePulse);
-    // Corona layers pulse independently
-    if (corona1Ref.current) {
-      corona1Ref.current.scale.setScalar(1.0 + Math.sin(t * 0.8) * 0.1);
-      coronaMat.opacity = 0.14 + Math.sin(t * 1.2) * 0.06;
-    }
-    if (corona2Ref.current) {
-      corona2Ref.current.scale.setScalar(1.0 + Math.sin(t * 0.6 + 1) * 0.12);
-      coronaMat2.opacity = 0.06 + Math.sin(t * 0.9 + 0.5) * 0.04;
-    }
-    if (corona3Ref.current) {
-      corona3Ref.current.scale.setScalar(1.0 + Math.sin(t * 0.4 + 2) * 0.15);
-      coronaMat3.opacity = 0.03 + Math.sin(t * 0.7 + 1) * 0.02;
-    }
-    // Rays slow rotation + opacity pulse
-    if (raysRef.current) {
-      raysRef.current.rotation.z = t * 0.03;
-      raysMat.opacity = 0.08 + Math.sin(t * 0.5) * 0.06;
-    }
-    // Gentle group wobble
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(t * 0.05) * 0.02;
-    }
-  });
-
-  return (
-    <group ref={groupRef} position={position}>
-      {/* Core — bright emissive sphere */}
-      <mesh ref={coreRef} material={coreMat}>
-        <sphereGeometry args={[1.8, 32, 32]} />
-      </mesh>
-      {/* Corona layer 1 — tight glow */}
-      <mesh ref={corona1Ref} material={coronaMat}>
-        <sphereGeometry args={[2.8, 32, 32]} />
-      </mesh>
-      {/* Corona layer 2 — mid glow */}
-      <mesh ref={corona2Ref} material={coronaMat2}>
-        <sphereGeometry args={[4.5, 32, 32]} />
-      </mesh>
-      {/* Corona layer 3 — wide diffuse */}
-      <mesh ref={corona3Ref} material={coronaMat3}>
-        <sphereGeometry args={[7.0, 32, 32]} />
-      </mesh>
-      {/* Light rays — radiating quads */}
-      <mesh ref={raysRef} geometry={raysGeo} material={raysMat} />
-      {/* Point light from the sun */}
-      <pointLight color="#ffcc88" intensity={15} distance={200} decay={1.5} />
-      <pointLight color="#ff9944" intensity={5} distance={120} decay={2} />
-    </group>
-  );
-});
 
 // ═══════════════════════════════════════════════════════════════
 // R3F SCENE — self-contained physics + drag
@@ -896,6 +491,7 @@ function Scene({
   clusters, allNodes, satellites, edges,
   onNodeClick, onNodeHover, onNodeUnhover, onNodeContextMenu,
   highlightedRef, highlightedIdsRef, filteredIds,
+  labelIdsRef, pinnedIdsRef,
 }: {
   clusters: OrbitCluster[]; allNodes: GraphNodeData[]; satellites: GraphNodeData[];
   edges: GraphEdgeData[];
@@ -904,6 +500,10 @@ function Scene({
   highlightedRef: React.MutableRefObject<string | null>;
   highlightedIdsRef: React.MutableRefObject<Set<string>>;
   filteredIds: Set<string> | null;
+  /** Written by the projection pass, read by the DOM label layer. */
+  labelIdsRef: React.MutableRefObject<Set<string>>;
+  /** Ids that keep their label regardless of budget: selection, hover, search. */
+  pinnedIdsRef: React.MutableRefObject<Set<string>>;
 }) {
   const timeRef = useRef(0);
   const dragRef = useRef<string | null>(null);
@@ -918,6 +518,13 @@ function Scene({
   const nodeMap = useMemo(() => {
     const m = new Map<string, GraphNodeData>(); allNodes.forEach(n => m.set(n.id, n)); return m;
   }, [allNodes]);
+
+  // Edges actually handed to the renderer, capped at the budget.
+  //
+  // Only the *drawing* is trimmed: hover propagation below still walks the full
+  // edge list, so dropping a faint link from the picture never changes which
+  // neighbours light up when a node is hovered.
+  const drawnEdges = useMemo(() => selectEdges(edges), [edges]);
 
   // Adjacency list for hover propagation
   const adjMap = useMemo(() => {
@@ -1053,349 +660,14 @@ function Scene({
         corePositions={corePositions} dragRef={dragRef} />
 
       <OrbitPaths orbits={satellites.map(s => ({ position: s.position, orbitRadius: s.orbitRadius, color: s.color }))} />
-      <EdgeLines edges={edges} nodeMap={nodeMap} timeRef={timeRef} corePositions={corePositions} />
-      <DataFlowDots edges={edges} nodeMap={nodeMap} timeRef={timeRef} corePositions={corePositions} />
-      <ScreenProjectionTracker nodes={allNodes} timeRef={timeRef} corePositions={corePositions} />
+      <EdgeLines edges={drawnEdges} nodeMap={nodeMap} timeRef={timeRef} corePositions={corePositions} />
+      <DataFlowDots edges={drawnEdges} nodeMap={nodeMap} timeRef={timeRef} corePositions={corePositions} />
+      <ScreenProjectionTracker nodes={allNodes} timeRef={timeRef} corePositions={corePositions}
+        labelIdsRef={labelIdsRef} pinnedIdsRef={pinnedIdsRef} />
     </>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════
-// DOM: LABEL LAYER
-// ═══════════════════════════════════════════════════════════════
-const LabelLayer = memo(function LabelLayer({
-  nodes, hoveredIdRef, highlightedIdsRef, filteredIds,
-}: {
-  nodes: GraphNodeData[]; hoveredIdRef: React.MutableRefObject<string | null>;
-  highlightedIdsRef: React.MutableRefObject<Set<string>>; filteredIds: Set<string> | null;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
-  useEffect(() => {
-    const update = () => {
-      const c = containerRef.current;
-      if (!c) { rafRef.current = requestAnimationFrame(update); return; }
-      const ch = c.children;
-      const isSearching = filteredIds !== null;
-      const ids = highlightedIdsRef.current;
-      const hasHighlight = ids.size > 0;
-      for (let i = 0; i < nodes.length && i < ch.length; i++) {
-        const n = nodes[i]; const el = ch[i] as HTMLElement; const sp = screenPos.get(n.id);
-        const isH = hasHighlight ? ids.has(n.id) : hoveredIdRef.current === n.id;
-        const isDimmed = hasHighlight && !isH;
-        const isCore = n.orbitRadius === 0;
-        const isF = isSearching && !filteredIds.has(n.id);
-        if (!sp || !sp.visible || isF) { el.style.visibility = 'hidden'; }
-        else {
-          el.style.visibility = 'visible'; el.style.left = `${sp.x}px`; el.style.top = `${sp.y}px`;
-          el.style.transform = `translate(-50%, -100%) scale(${isH ? 1.15 : 1})`;
-          el.style.opacity = isDimmed ? '0.2' : (isCore ? '1' : (isH ? '1' : '0.55'));
-          el.style.fontSize = isCore ? '12px' : '10px';
-          el.style.fontWeight = isCore ? '700' : (isH ? '600' : '400');
-          el.style.color = isH ? n.color : (isDimmed ? '#333' : (isCore ? '#e8edf3' : '#7888a0'));
-        }
-      }
-      rafRef.current = requestAnimationFrame(update);
-    };
-    rafRef.current = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [nodes, hoveredIdRef, highlightedIdsRef, filteredIds]);
-
-  return (
-    <div ref={containerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-      {nodes.map(n => (
-        <div key={n.id} style={{
-          position: 'absolute', transform: 'translate(-50%, -100%)',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          textShadow: '0 1px 4px rgba(0,0,0,0.9)', whiteSpace: 'nowrap',
-          pointerEvents: 'none', userSelect: 'none', willChange: 'transform',
-          transition: 'color 0.2s, opacity 0.2s, font-size 0.15s',
-        }}>
-          {n.title}
-        </div>
-      ))}
-    </div>
-  );
-});
-
-// ═══════════════════════════════════════════════════════════════
-// DOM: CONTEXT MENU
-// ═══════════════════════════════════════════════════════════════
-function ContextMenu({
-  data, onClose, onAskCopilot, onFocus, onHide, onViewMemory,
-}: {
-  data: { x: number; y: number; node: GraphNodeData } | null;
-  onClose: () => void; onAskCopilot: (n: GraphNodeData) => void;
-  onFocus: (n: GraphNodeData) => void; onHide: (id: string) => void;
-  onViewMemory: (n: GraphNodeData) => void;
-}) {
-  useEffect(() => {
-    if (!data) return;
-    const h = () => onClose();
-    document.addEventListener('click', h);
-    document.addEventListener('contextmenu', h);
-    return () => { document.removeEventListener('click', h); document.removeEventListener('contextmenu', h); };
-  }, [data, onClose]);
-  if (!data) return null;
-  return (
-    <div className="cosmic-context-menu" style={{ left: data.x, top: data.y }} onClick={e => e.stopPropagation()}>
-      <div className="cosmic-context-header">
-        <div className="cosmic-context-dot" style={{ background: data.node.color }} />
-        <span>{data.node.title}</span>
-      </div>
-      <button onClick={() => { onAskCopilot(data.node); onClose(); }}><Brain size={14} /> Ask Copilot</button>
-      <button onClick={() => { onViewMemory(data.node); onClose(); }}><MessageCircle size={14} /> View memories</button>
-      <button onClick={() => { onFocus(data.node); onClose(); }}><Focus size={14} /> Focus cluster</button>
-      <div className="cosmic-context-separator" />
-      <button onClick={() => { onHide(data.node.id); onClose(); }}><Eye size={14} /> Hide node</button>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// DOM: SEARCH BAR with autocomplete
-// ═══════════════════════════════════════════════════════════════
-function SearchBar({
-  value, onChange, onClear, suggestions, onSelectSuggestion, allEntities,
-}: {
-  value: string; onChange: (v: string) => void; onClear: () => void;
-  suggestions: SearchSuggestion[]; onSelectSuggestion: (s: SearchSuggestion) => void;
-  allEntities: SearchSuggestion[];
-}) {
-  const [focused, setFocused] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const showDropdown = focused;
-  // When empty query: show all entities grouped by type. When typing: show filtered suggestions
-  const displayItems = value.length >= 2 ? suggestions : allEntities;
-  // Flat list for keyboard nav
-  const flatItems = useMemo(() => {
-    if (value.length >= 2) return displayItems;
-    const flat: SearchSuggestion[] = [];
-    displayItems.forEach(s => flat.push(s));
-    return flat;
-  }, [displayItems, value]);
-  // Group by type for empty query
-  const grouped = useMemo(() => {
-    if (value.length >= 2) return null;
-    const groups = new Map<string, SearchSuggestion[]>();
-    displayItems.forEach(s => {
-      const key = s.kind === 'memory' ? 'Memories' : s.type;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(s);
-    });
-    return groups;
-  }, [displayItems, value]);
-
-  // Reset active index when query changes
-  useEffect(() => { setActiveIdx(-1); }, [value]);
-
-  // Scroll active item into view
-  useEffect(() => {
-    if (activeIdx < 0 || !dropdownRef.current) return;
-    const item = dropdownRef.current.querySelector('.cosmic-search-item-active');
-    if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeIdx]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!showDropdown || flatItems.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIdx(prev => (prev + 1) % flatItems.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIdx(prev => (prev - 1 + flatItems.length) % flatItems.length);
-    } else if (e.key === 'Enter' && activeIdx >= 0 && activeIdx < flatItems.length) {
-      e.preventDefault();
-      onSelectSuggestion(flatItems[activeIdx]);
-      setActiveIdx(-1);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      setFocused(false);
-      setActiveIdx(-1);
-    }
-  }, [showDropdown, flatItems, activeIdx, onSelectSuggestion]);
-
-  return (
-    <div className="cosmic-search">
-      <Search size={13} className="cosmic-search-icon" />
-      <input type="text" placeholder="Search..." value={value}
-        onChange={e => onChange(e.target.value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => { setFocused(false); setActiveIdx(-1); }, 200)}
-        onKeyDown={handleKeyDown}
-        className="cosmic-search-input" />
-      {value && <button className="cosmic-search-clear" onClick={onClear}><X size={11} /></button>}
-      {showDropdown && (
-        <div className="cosmic-search-dropdown" ref={dropdownRef}>
-          {value.length < 2 && grouped ? (
-            // Show grouped categories when no query
-            (() => {
-              let globalIdx = 0;
-              return Array.from(grouped.entries()).map(([category, items]) => (
-                <div key={category}>
-                  <div className="cosmic-search-category">{category}</div>
-                  {items.slice(0, 4).map(s => {
-                    const idx = globalIdx++;
-                    return <SearchSuggestionItem key={s.id} s={s} onSelect={onSelectSuggestion} isActive={idx === activeIdx} />;
-                  })}
-                </div>
-              ));
-            })()
-          ) : (
-            // Show filtered results when typing
-            displayItems.map((s, idx) => <SearchSuggestionItem key={s.id} s={s} onSelect={onSelectSuggestion} isActive={idx === activeIdx} />)
-          )}
-          {value.length >= 2 && displayItems.length === 0 && (
-            <div className="cosmic-search-empty">No results for "{value}"</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SearchSuggestionItem({ s, onSelect, isActive }: { s: SearchSuggestion; onSelect: (s: SearchSuggestion) => void; isActive?: boolean }) {
-  const entityIcons: Record<string, string> = {
-    person: '👤', project: '📁', decision: '⚖️', task: '✓',
-    technology: '🔧', file: '📄', organization: '🏢', meeting: '📅',
-    concept: '💡', document: '📝', default: '●',
-  };
-  const icon = entityIcons[s.type.toLowerCase()] || entityIcons.default;
-  const descSnippet = s.description ? s.description.slice(0, 60) + (s.description.length > 60 ? '…' : '') : '';
-  return (
-    <button className={`cosmic-search-item${isActive ? ' cosmic-search-item-active' : ''}`}
-      onMouseDown={(e) => {
-        e.preventDefault(); // prevent input blur from killing dropdown
-        e.stopPropagation();
-        onSelect(s); // fire directly in mousedown — safe across all browsers/webview
-      }}>
-      <span className="cosmic-search-item-icon" style={{ color: s.color }}>{icon}</span>
-      <div className="cosmic-search-item-text">
-        <div className="cosmic-search-item-title">{s.title}</div>
-        <div className="cosmic-search-item-type" style={{ color: s.color }}>
-          {s.type}{s.connectionCount != null ? ` · ${s.connectionCount} conn` : ''}
-        </div>
-        {descSnippet && <div className="cosmic-search-item-desc">{descSnippet}</div>}
-      </div>
-      <span className="cosmic-search-item-badge" style={{ color: s.color, background: `${s.color}15` }}>
-        {s.kind === 'entity' ? 'Entity' : 'Memory'}
-      </span>
-    </button>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// DOM: INFO PANEL — rich display with backend data
-// ═══════════════════════════════════════════════════════════════
-const InfoPanel = memo(function InfoPanel({
-  node, onClose, onAskCopilot, relatedMemoryCount, relatedMemories,
-  connectedNodes, allEdges, onSelectNode, onViewMemory,
-}: {
-  node: GraphNodeData | null; onClose: () => void;
-  onAskCopilot: (n: GraphNodeData) => void; relatedMemoryCount: number;
-  relatedMemories: Array<{ id: string; title: string; summary: string; confidenceScore: number; importanceScore: number }>;
-  connectedNodes: GraphNodeData[]; allEdges: GraphEdgeData[];
-  onSelectNode: (n: GraphNodeData) => void; onViewMemory: (id: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  if (!node) return null;
-  const nodeEdges = allEdges.filter(e => e.source === node.id || e.target === node.id);
-  const entityIcons: Record<string, string> = {
-    person: '👤', project: '📁', decision: '⚖️', task: '✓',
-    technology: '🔧', file: '📄', organization: '🏢', meeting: '📅',
-    concept: '💡', document: '📝', default: '●',
-  };
-  const icon = entityIcons[node.entityType.toLowerCase()] || entityIcons.default;
-  return (
-    <div className="cosmic-info-panel" style={{ animation: 'slideInRight 0.25s ease-out' }}>
-      <div className="cosmic-info-header">
-        <div className="cosmic-info-icon" style={{ background: `${node.color}22`, color: node.color, boxShadow: `0 0 16px ${node.color}33`, fontSize: 18 }}>
-          {icon}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="cosmic-info-title">{node.title}</div>
-          <div className="cosmic-info-type" style={{ color: node.color }}>{node.entityType}</div>
-        </div>
-        <button className="cosmic-info-close" onClick={onClose}>×</button>
-      </div>
-      <div className="cosmic-info-body" style={{ maxHeight: expanded ? 500 : 280, overflowY: 'auto', transition: 'max-height 0.3s ease' }}>
-        {node.description && (
-          <div className="cosmic-info-desc">{node.description}</div>
-        )}
-        <div className="cosmic-info-stats">
-          <div className="cosmic-info-stat"><Link2 size={12} /><span>{node.connectionCount} connections</span></div>
-          {relatedMemoryCount > 0 && <div className="cosmic-info-stat"><Brain size={12} /><span>{relatedMemoryCount} related memories</span></div>}
-        </div>
-
-        {/* Connected entities */}
-        {nodeEdges.length > 0 && (
-          <div className="cosmic-info-section">
-            <div className="cosmic-info-section-title"><Link2 size={10} /> Connections</div>
-            {nodeEdges.slice(0, expanded ? 12 : 5).map(e => {
-              const otherId = e.source === node.id ? e.target : e.source;
-              const other = connectedNodes.find(n => n.id === otherId);
-              if (!other) return null;
-              const relColors: Record<string, string> = {
-                RelatedTo: '#63d8d2', Uses: '#ff8a5b', Implements: '#a99cf8',
-                DependsOn: '#f472b6', PartOf: '#ddbb65', ConflictsWith: '#ef4444',
-              };
-              const relColor = relColors[e.relationshipType] || '#6b7280';
-              return (
-                <div key={e.id} className="cosmic-info-connection" onClick={() => onSelectNode(other)}
-                  style={{ cursor: 'pointer' }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: other.color, flexShrink: 0 }} />
-                  <span className="cosmic-info-connection-name">{other.title}</span>
-                  <span className="cosmic-info-connection-rel" style={{ color: relColor, background: `${relColor}15` }}>{e.relationshipType}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Related memories */}
-        {relatedMemories.length > 0 && (
-          <div className="cosmic-info-section">
-            <div className="cosmic-info-section-title"><Brain size={10} /> Related Memories</div>
-            {relatedMemories.slice(0, expanded ? 6 : 3).map(m => (
-              <div key={m.id} className="cosmic-info-memory-card" onClick={() => onViewMemory(m.id)}
-                style={{ cursor: 'pointer' }}>
-                <div className="cosmic-info-memory-title">{m.title}</div>
-                <div className="cosmic-info-memory-summary">
-                  {m.summary?.slice(0, 80)}{m.summary?.length > 80 ? '…' : ''}
-                </div>
-                <div className="cosmic-info-memory-bars">
-                  <div className="cosmic-info-score-bar">
-                    <span className="cosmic-info-score-label">Conf</span>
-                    <div className="cosmic-info-score-track">
-                      <div className="cosmic-info-score-fill" style={{ width: `${Math.round(m.confidenceScore * 100)}%`, background: '#63d8d2' }} />
-                    </div>
-                    <span className="cosmic-info-score-value">{Math.round(m.confidenceScore * 100)}%</span>
-                  </div>
-                  <div className="cosmic-info-score-bar">
-                    <span className="cosmic-info-score-label">Imp</span>
-                    <div className="cosmic-info-score-track">
-                      <div className="cosmic-info-score-fill" style={{ width: `${Math.round(m.importanceScore * 100)}%`, background: '#ddbb65' }} />
-                    </div>
-                    <span className="cosmic-info-score-value">{Math.round(m.importanceScore * 100)}%</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <button onClick={() => setExpanded(!expanded)} className="cosmic-info-expand">
-          {expanded ? 'Show less' : `Show more`} <ChevronRight size={10} style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-        </button>
-
-        <button className="cosmic-info-copilot-btn" onClick={() => onAskCopilot(node)}>
-          <Sparkles size={14} /> Ask Copilot
-        </button>
-      </div>
-    </div>
-  );
-});
 
 // ═══════════════════════════════════════════════════════════════
 // MAIN EXPORT
@@ -1416,6 +688,14 @@ export function CosmicGraphView() {
   const highlightedRef = useRef<string | null>(null);
   const highlightedIdsRef = useRef<Set<string>>(new Set());
   const nodeClickedRef = useRef(false);
+
+  // Level-of-detail hand-off between the R3F frame loop and the DOM label layer.
+  //
+  // Refs rather than state: the projection pass rewrites `labelIdsRef` every
+  // frame, and routing that through setState would re-render the whole tree 60
+  // times a second — the exact cost the label budget exists to avoid.
+  const labelIdsRef = useRef<Set<string>>(new Set());
+  const pinnedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { fetchGraph(); fetchMemories(); }, [fetchGraph, fetchMemories]);
 
@@ -1448,6 +728,20 @@ export function CosmicGraphView() {
     });
     return ids;
   }, [searchQuery, allNodes]);
+
+  // Labels that survive the budget no matter how far the camera moves.
+  //
+  // Without this, orbiting away from a node you just clicked silently drops its
+  // name — the label budget cannot distinguish "far" from "the one thing the
+  // user is looking at". Search hits are pinned for the same reason: a match the
+  // user typed must stay legible even in a dense graph.
+  useEffect(() => {
+    const pinned = new Set<string>();
+    if (selectedNode) pinned.add(selectedNode.id);
+    if (hoveredNode) pinned.add(hoveredNode.id);
+    if (filteredIds) filteredIds.forEach(id => pinned.add(id));
+    pinnedIdsRef.current = pinned;
+  }, [selectedNode, hoveredNode, filteredIds]);
 
   const memoryCountMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -1589,11 +883,13 @@ export function CosmicGraphView() {
           onNodeClick={handleNodeClick} onNodeHover={handleNodeHover}
           onNodeUnhover={handleNodeUnhover} onNodeContextMenu={handleNodeContextMenu}
           highlightedRef={highlightedRef} highlightedIdsRef={highlightedIdsRef}
-          filteredIds={filteredIds} />
+          filteredIds={filteredIds}
+          labelIdsRef={labelIdsRef} pinnedIdsRef={pinnedIdsRef} />
       </Canvas>
 
       <LabelLayer nodes={allNodes} hoveredIdRef={hoveredIdRef}
-        highlightedIdsRef={highlightedIdsRef} filteredIds={filteredIds} />
+        highlightedIdsRef={highlightedIdsRef} filteredIds={filteredIds}
+        labelIdsRef={labelIdsRef} />
       <SearchBar value={searchQuery} onChange={setSearchQuery} onClear={() => setSearchQuery('')}
         suggestions={searchSuggestions}
         allEntities={allSearchEntities}

@@ -148,6 +148,65 @@ impl EmbeddingBackend {
     }
 }
 
+/// Where the ONNX embedding model is cached on disk.
+///
+/// fastembed's default is `.fastembed_cache` resolved against the *current
+/// working directory*. For an installed build that directory is inside
+/// `Program Files`, which is not writable by a normal user, so the model
+/// download fails and the engine silently degrades to hash-based vectors.
+///
+/// Anchoring the cache next to the database keeps model and data together in a
+/// per-user writable location, and matches where `core::tokenizer` already
+/// looks for `tokenizer.json` — so exact token counting and semantic search
+/// share one download instead of two.
+///
+/// An *already populated* cache always wins over the per-user default, so a
+/// checkout or portable install that has the model next to the working
+/// directory keeps using it instead of re-downloading. `FASTEMBED_CACHE_DIR`
+/// overrides everything, for CI.
+fn model_cache_dir() -> std::path::PathBuf {
+    if let Ok(dir) = std::env::var("FASTEMBED_CACHE_DIR") {
+        if !dir.trim().is_empty() {
+            return std::path::PathBuf::from(dir);
+        }
+    }
+
+    let per_user = crate::db::db_path()
+        .parent()
+        .map(|p| p.join(".fastembed_cache"));
+
+    // Order matters only for *existing* caches; the download target is always
+    // the per-user directory, which is guaranteed writable.
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(dir) = per_user.clone() {
+        candidates.push(dir);
+    }
+    candidates.push(std::path::PathBuf::from(".fastembed_cache"));
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join(".fastembed_cache"));
+        }
+    }
+
+    if let Some(populated) = candidates.iter().find(|dir| has_downloaded_model(dir)) {
+        return populated.clone();
+    }
+
+    per_user.unwrap_or_else(|| std::path::PathBuf::from(".fastembed_cache"))
+}
+
+/// True when `root` holds a HuggingFace-style model download
+/// (`models--<org>--<name>/…`). Cheap: one directory listing, no recursion.
+fn has_downloaded_model(root: &std::path::Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        entry.file_name().to_string_lossy().starts_with("models--")
+            && entry.path().is_dir()
+    })
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  SemanticSearch
 // ═══════════════════════════════════════════════════════════════
@@ -173,8 +232,11 @@ impl SemanticSearch {
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         schema::apply_migrations(&conn)?;
 
+        let cache_dir = model_cache_dir();
+        let _ = std::fs::create_dir_all(&cache_dir);
         let backend = match TextEmbedding::try_new(
             TextInitOptions::new(EmbeddingModel::AllMiniLML6V2)
+                .with_cache_dir(cache_dir)
                 .with_show_download_progress(false)
         ) {
             Ok(model) => {

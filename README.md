@@ -1,341 +1,893 @@
+<div align="center">
+
 # Nexus Memory Trust
 
-<p align="center">
-  <strong>AI Memory Operating System — desktop-first application for intelligent memory management</strong>
-</p>
+### Операционная система памяти для искусственного интеллекта
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Rust-2024-orange?logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/Tauri-2.0-24C8DB?logo=tauri" alt="Tauri">
-  <img src="https://img.shields.io/badge/SQLite-embedded-003B57?logo=sqlite" alt="SQLite">
-  <img src="https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript" alt="TypeScript">
-</p>
+**Новая парадигма работы с памятью. Ваш ИИ больше не забывает.**
 
----
+[![Version](https://img.shields.io/badge/version-1.0.0-2ea043?style=for-the-badge)](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=for-the-badge&logo=windows)](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
+[![Tests](https://img.shields.io/badge/tests-479%20passing-2ea043?style=for-the-badge)](#качество-и-тестирование)
+[![License](https://img.shields.io/badge/license-PROPRIETARY-d73a49?style=for-the-badge)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-48%20tools-a855f7?style=for-the-badge)](#mcp-сервер--подключение-любого-ии)
 
-## What is Nexus?
+**Developed by NexusTeam**
+**CEO & Founder — Danila Sergeevich Shanin**
 
-Nexus is a **desktop-first AI memory operating system** built for individuals and teams who need structured, searchable, and trustworthy memory management. It combines:
+[Скачать](#-установка) · [Документация](#-содержание) · [MCP-сервер](#mcp-сервер--подключение-любого-ии) · [English](README.en.md)
 
-- **Structured memory capture** — organize thoughts by layer, importance, and project space
-- **Knowledge graph** — visual relationships between memories, entities, and decisions
-- **AI copilot** — streaming chat with real-time thinking display, powered by OpenCode
-- **Version history** — automatic commits with diff tracking and rollback
-- **Semantic search** — keyword-vector fingerprinting for fast memory retrieval
-- **Cyberpunk timeline** — visual history with animated glow effects and date dividers
+</div>
 
 ---
 
-## Installation
+<div align="center">
 
-Choose your preferred installation method:
+## Поддержать проект
 
-### Option 1: npm (Recommended)
+**Nexus разрабатывается небольшой командой без внешнего финансирования.**
+Каждый донат идёт напрямую в разработку: подпись кода, инфраструктура, новые модели.
+
+</div>
+
+<table align="center">
+<tr>
+<td width="50%" align="center">
+
+### Криптовалюта
+
+**ByBit / TRC-20 (USDT)**
+
+```
+TP4SPiuxgw2uXYyxAhq2VBxw16UcLuaQ21
+```
+
+Сеть: **Tron (TRC-20)**
+Принимаем: USDT, USDC, TRX
+
+</td>
+<td width="50%" align="center">
+
+### Связь и поддержка
+
+**Telegram**
+
+### [@nexus_memory_team](https://t.me/nexus_memory_team)
+
+Вопросы, предложения, партнёрство,
+корпоративные лицензии
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+*Если Nexus сэкономил вам токены и время — поддержите проект.
+Даже небольшой донат помогает нам двигаться дальше.*
+
+</div>
+
+---
+
+## Содержание
+
+- [Что такое Nexus](#-что-такое-nexus)
+- [Почему это новая парадигма](#-почему-это-новая-парадигма)
+- [Установка](#-установка)
+- [Предупреждение Windows SmartScreen](#-предупреждение-windows-smartscreen--это-нормально)
+- [Первый запуск](#-первый-запуск)
+- [Возможности](#-возможности)
+- [MCP-сервер](#mcp-сервер--подключение-любого-ии)
+- [Экономия токенов](#-экономия-токенов)
+- [Безопасность](#-безопасность)
+- [Горячие клавиши](#-горячие-клавиши)
+- [Архитектура](#-архитектура)
+- [Качество и тестирование](#качество-и-тестирование)
+- [Частые вопросы](#-частые-вопросы)
+- [Команда](#-команда)
+- [Лицензия](#-лицензия)
+
+---
+
+## Что такое Nexus
+
+Nexus — это **операционная система памяти**. Не заметки. Не база знаний. Не ещё один редактор markdown.
+
+Проблема, которую он решает, знакома каждому, кто работает с ИИ: **модель ничего не помнит**. Каждый диалог начинается с нуля. Вы объясняете контекст заново. Вы вставляете одни и те же файлы. Вы платите за одни и те же токены снова и снова.
+
+Стандартный подход — «загрузить в контекст побольше». Это дорого, медленно и всё равно не работает: модель тонет в шуме и теряет главное.
+
+**Nexus делает наоборот.** Он строит граф знаний из вашей работы, ранжирует его по релевантности к текущей задаче, сжимает до бюджета токенов — и отдаёт модели плотный, точный пакет контекста вместо горы сырых файлов.
+
+<div align="center">
+
+| Без Nexus | С Nexus |
+|:---|:---|
+| Вставляете 15 файлов «на всякий случай» | Получаете 8 релевантных фрагментов |
+| ~50 000 токенов на запрос | ~12 000 токенов на запрос |
+| Модель теряет главное в шуме | Модель видит только нужное |
+| Контекст умирает с закрытием чата | Память живёт между сессиями |
+| Непонятно, почему ИИ ответил мимо | Видно, **почему** каждый фрагмент попал в контекст |
+
+</div>
+
+---
+
+## Почему это новая парадигма
+
+Три вещи, которых нет ни в одном другом продукте на рынке.
+
+### 1. Провенанс: вы видите, **почему** ИИ получил именно этот контекст
+
+Любая RAG-система — чёрный ящик. Модель отвечает мимо, и отладить нечего.
+
+Nexus показывает полную трассировку каждого элемента:
+
+**Почему попало:**
+- `QueryMatch` — прямое совпадение с запросом
+- `KeywordMatch` — совпадение по ключевым словам
+- `GraphExpansion` — подтянуто по связи в графе (с указанием, от какой сущности)
+- `MemorySearch` — найдено семантическим поиском
+- `RecentActivity` — недавно изменялось
+- `HighImportance` — высокий приоритет
+
+**Почему НЕ попало:**
+- `BelowRelevance` — не прошло порог релевантности
+- `TokenBudget` — не хватило бюджета токенов
+- `EntityCap` — превышен лимит сущностей
+
+Плюс разбивка скора по слагаемым: сколько дал текстовый матч, сколько граф, сколько свежесть.
+
+> **Это уникально.** Мы не знаем ни одного коммерческого продукта, который показывает причины **отбрасывания** контекста.
+
+### 2. Измеренная экономия, а не маркетинговая
+
+Большинство продуктов пишут «экономит до 80% токенов» и не объясняют, откуда цифра.
+
+Nexus считает настоящим BPE-токенизатором (тот же, что в embedding-модели):
+1. Считает baseline **до** сжатия
+2. Считает результат **после**
+3. Пишет разницу в базу вместе с полем `token_method`
+
+Поле `token_method` честно говорит `exact` или `estimated`. Если модель токенизатора недоступна — вы это увидите, а не получите красивую ложь.
+
+### 3. MCP как первоклассная функция
+
+**48 инструментов** доступны любому ИИ через Model Context Protocol. Автоматическая регистрация в один клик — не нужно вручную править JSON-конфиги.
+
+Ваш ИИ-ассистент получает не просто «доступ к заметкам», а полноценный API к графу знаний: поиск, обход связей, создание сущностей, сборка контекста, файловые операции в песочнице.
+
+---
+
+## Установка
+
+> **Только Windows 10 / 11.** Поддерживаются архитектуры **x64** и **ARM64**.
+> 32-битные системы не поддерживаются — ONNX-движок для семантического поиска не имеет 32-битной сборки.
+
+### Способ 1 — Установщик (рекомендуется)
+
+Самый простой путь. Скачайте и запустите.
+
+<div align="center">
+
+### [Скачать последнюю версию](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases/latest)
+
+</div>
+
+| Ваша система | Файл |
+|:---|:---|
+| Windows 10/11, Intel или AMD | `Nexus_1.0.0_x64-setup.exe` |
+| Windows 11 на ARM (Surface, Snapdragon) | `Nexus_1.0.0_arm64-setup.exe` |
+| Корпоративное развёртывание (GPO/SCCM) | `Nexus_1.0.0_x64_en-US.msi` |
+
+Установщик:
+- Ставит приложение и создаёт ярлыки
+- Предлагает выбор языка (русский / английский)
+- Устанавливает WebView2, если его нет
+- Работает как для одного пользователя, так и для всей машины
+
+### Способ 2 — npm
+
+Если у вас установлен Node.js 16+:
 
 ```bash
 npm install -g nexus-memory-trust
 nexus
 ```
 
-That's it. One command installs everything, `nexus` launches the app.
+Пакет скачает нужный установщик под вашу архитектуру, проверит SHA-256 и запустит установку. Команда `nexus` затем открывает приложение.
 
-### Option 2: PowerShell Installer (Windows)
+### Способ 3 — PowerShell
 
 ```powershell
-# Run as Administrator
-irm -Uri https://raw.githubusercontent.com/NexusMemoryTrust-dev-groupe/nexus/master/scripts/install-nexus.ps1 | iex
+irm https://raw.githubusercontent.com/NexusMemoryTrust-dev-groupe/nexus/master/npm-package/scripts/install-nexus.ps1 | iex
 ```
 
-Or download `install-nexus.ps1` from [scripts/](scripts/) and run it.
+Скрипт определяет архитектуру, скачивает свежий релиз, сверяет контрольную сумму и устанавливает.
 
-### Option 3: Manual Download
+### Проверка контрольной суммы
 
-Download the latest release from [GitHub Releases](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases):
+К каждому релизу прилагается `SHA256SUMS.txt`. Проверить вручную:
 
-| Platform | File |
-|---|---|
-| Windows | `nexus-windows-x64.exe` |
-| Linux (x64) | `nexus-linux-x64` |
-| Linux (ARM) | `nexus-linux-arm64` |
-| macOS (Intel) | `nexus-macos-x64` |
-| macOS (Apple Silicon) | `nexus-macos-arm64` |
-
-> **Note:** Linux and macOS builds are available but **untested**. We developed and tested exclusively on Windows. Community testing on other platforms is welcome.
+```powershell
+Get-FileHash .\Nexus_1.0.0_x64-setup.exe -Algorithm SHA256
+```
 
 ---
 
-## First Launch
+## Предупреждение Windows SmartScreen — это нормально
 
-When you open Nexus for the first time:
+**Важно прочитать до установки. Вы увидите синее окно с предупреждением. Это ожидаемо.**
 
-1. **Configure OpenCode** — the app will ask for your API key via OpenCode CLI (OpenAI, Anthropic, Google, or OpenRouter)
-2. **Select AI model** — choose your preferred model (free models available)
-3. **Start creating memories** — click **+ New Memory** in the sidebar
+### Почему это происходит
 
-Your API key is stored locally by OpenCode and never sent to our servers.
+Windows показывает предупреждение SmartScreen для программ, которые **не подписаны сертификатом Extended Validation (EV)**. Такой сертификат стоит от 300 до 600 долларов в год и требует юридической верификации организации.
 
----
+Nexus 1.0.0 — первый публичный релиз независимой команды. **Сертификата у нас пока нет.** Мы копим на него, в том числе на донаты.
 
-## Features
+**Это не значит, что программа опасна.** Это значит, что Microsoft ещё не видел достаточно установок, чтобы построить репутацию файла. Ровно то же самое видят пользователи любого нового инди-приложения.
 
-### Creating Memories
+### Как установить
 
-1. Open the sidebar and click **+ New Memory**
-2. Enter a title and content (Markdown supported)
-3. Assign a **layer** (Raw → Refined → Synthesized → Archived)
-4. Set importance and confidence scores
-5. Link to entities in your knowledge graph
+<div align="center">
 
-### AI Copilot
+**«Windows защитила ваш компьютер»**
 
-1. Click the floating copilot button (bottom-right corner)
-2. Type your question in any language (RU, EN, etc.)
-3. Watch the AI think in real-time (expandable thinking indicator)
-4. The copilot responds in **the same language you write in**
+Нажмите **«Подробнее»** → появится кнопка **«Выполнить в любом случае»**
 
-> **Security**: The AI will not reveal its tech stack, architecture, database schema, API keys, or implementation details. This is enforced by compiled-in security rules.
+</div>
 
-### Knowledge Graph
+Пошагово:
+1. Запустите скачанный `.exe`
+2. Появится синее окно SmartScreen
+3. Нажмите **«Подробнее»** (More info) — мелкая ссылка в окне
+4. Нажмите **«Выполнить в любом случае»** (Run anyway)
+5. Дальше обычная установка
 
-1. Navigate to the **Graph** view in the sidebar
-2. Entities and relationships are rendered in 3D
-3. Click nodes to view details and linked memories
-4. Drag to rotate, scroll to zoom
+### Как убедиться, что файл настоящий
 
-### Timeline
+Не верьте на слово — проверьте:
 
-1. Navigate to the **Timeline** view
-2. Browse memory history with animated date dividers
-3. Each layer pulses with its native color
-4. Glass-effect cards with stagger animations
+1. **Скачивайте только с официальных Releases** этого репозитория
+2. **Сверьте SHA-256** с файлом `SHA256SUMS.txt` из того же релиза
+3. **Проверьте на VirusTotal** — загрузите файл на [virustotal.com](https://www.virustotal.com)
+4. **Исходный код открыт** для аудита — вы читаете его прямо сейчас
 
-### Model Selection
-
-1. Open **Settings** from the sidebar
-2. Scroll to the **AI** section
-3. Click **Refresh Models** to fetch available models
-4. Toggle **FREE only** to filter free-tier models
-5. Select your preferred model from the dropdown
+> Мы будем убирать это предупреждение по мере роста репутации файла и покупки EV-сертификата. Спасибо за терпение.
 
 ---
 
-## MCP Server (for AI Assistants)
+## Первый запуск
 
-Nexus includes a built-in **MCP server** that lets any AI assistant (Claude Desktop, Cursor, Continue, Windsurf, etc.) read and write your memories, query the knowledge graph, and run commands.
+При первом старте открывается **мастер настройки** — 7 шагов, всё автоматически.
 
-### Connect to Claude Desktop
+<div align="center">
 
-Add this to your Claude Desktop config:
+| Шаг | Что происходит | Автоматически? |
+|:---:|:---|:---:|
+| 1 | Проверка Node.js 18+ | Проверка |
+| 2 | Проверка / установка OpenCode CLI | Да, одна кнопка |
+| 3 | Ввод API-ключа | Ссылка на бесплатный ключ |
+| 4 | Выбор модели | Список загружается сам |
+| 5 | Регистрация MCP-сервера | Да, одна кнопка |
+| 6 | Проверка связи | Автотест |
+| 7 | Готово | — |
 
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+</div>
+
+Мастер полностью на русском и английском. Каждый шаг объясняет, что он делает и зачем.
+
+### Где хранятся данные
+
+```
+%LOCALAPPDATA%\Nexus\
+├── nexus.db                  База данных (SQLite, все ваши данные)
+├── nexus.db-wal              Журнал транзакций
+└── .fastembed_cache\         ONNX-модель для семантического поиска (~90 МБ)
+```
+
+**Всё локально.** Никаких облаков, никакой телеметрии, никакой отправки ваших данных куда-либо.
+
+> Модель для семантического поиска (~90 МБ) скачивается при первом поиске, а не при установке. Первый семантический запрос будет с задержкой — это одноразово.
+
+---
+
+## Возможности
+
+### Память
+
+Записи с богатой структурой: заголовок, содержимое, автор, теги, важность, уверенность.
+
+- **Версионирование** — полная история изменений, откат к любой версии
+- **Снимки** — точки восстановления состояния
+- **Граф версий** — видно, какая запись породила какую
+- **Дедупликация** — Nexus не даст создать дубликат
+
+### Граф знаний
+
+Сущности и связи, извлечённые из вашей работы автоматически.
+
+**Типы сущностей:** человек, проект, решение, задача, технология, файл, организация, встреча, концепция, документ
+
+**Типы связей:** RelatedTo, Uses, Implements, DependsOn, PartOf, Mentions, Contradicts, Supersedes
+
+**3D-визуализация:**
+- Космическая сцена: сущности как планеты на орбитах вокруг кластеров
+- **LOD-система** — четыре уровня детализации по расстоянию, отсечение по пирамиде видимости, бюджет подписей и рёбер. Граф остаётся плавным на тысячах узлов
+- Поиск с группировкой по типам, подсказки, навигация клавиатурой
+- Контекстное меню: фокус, раскрытие связей, спросить копилота
+
+### Сборка контекста
+
+Ядро продукта. Вы задаёте вопрос — Nexus собирает пакет.
+
+1. **Определение интента** — что вы вообще спрашиваете
+2. **Затравка из графа** — находит точки входа
+3. **Расширение по связям** — подтягивает соседей
+4. **Ранжирование** — скор по релевантности, свежести, важности
+5. **Внедрение памяти** — добавляет релевантные записи
+6. **Сжатие** — режет до бюджета токенов
+7. **Провенанс** — записывает, почему каждый элемент здесь
+
+**Экспорт** в Markdown, JSON или plain text — одна кнопка.
+
+### ИИ-копилот
+
+Встроенный ассистент с доступом ко всей вашей памяти.
+
+- Стриминг ответа по мере генерации
+- Блоки размышления модели (thinking)
+- Выбор модели, включая **бесплатные**
+- 48 инструментов для работы с графом и файлами
+
+### Проекты и файлы
+
+- Рабочие области с деревом файлов
+- Редактор с подсветкой синтаксиса (JS/TS, Python, Rust, Go, Java, C/C++, JSON, YAML, Markdown, HTML, CSS, SQL и другие)
+- Drag-and-drop, переименование, создание, удаление
+- Автоматическая индексация файлов в граф
+- WYSIWYG-редактор для документов (таблицы, чеклисты, код, изображения)
+
+### Экономия
+
+Отдельный экран с измеренной статистикой:
+
+- Сэкономлено токенов: всего / сегодня / неделя / месяц
+- Экономия в долларах по ценам моделей
+- Разбивка по моделям
+- Метод подсчёта: `exact` или `estimated` — честно
+
+### Двуязычный интерфейс
+
+Полностью русский и английский. Переключение на лету, без перезапуска.
+
+---
+
+## MCP-сервер — подключение любого ИИ
+
+Nexus работает как **MCP-сервер** (Model Context Protocol) и отдаёт **48 инструментов** любому совместимому ИИ.
+
+### Автоматическая регистрация
+
+В мастере настройки или в настройках — кнопка **«Зарегистрировать MCP»**. Nexus сам правит конфиг OpenCode, делает резервную копию, проверяет результат.
+
+### Ручное подключение
+
+<details>
+<summary><b>OpenCode</b></summary>
+
+Файл: `%USERPROFILE%\.config\opencode\opencode.json`
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "nexus": {
+      "type": "local",
+      "command": [
+        "C:\\Program Files\\Nexus\\Nexus.exe",
+        "--mcp"
+      ],
+      "enabled": true
+    }
+  }
+}
+```
+
+Проверка:
+```bash
+opencode mcp list
+```
+Должно показать `✓ nexus connected`.
+
+</details>
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+Файл: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "nexus": {
-      "command": "C:\\path\\to\\nexus.exe",
+      "command": "C:\\Program Files\\Nexus\\Nexus.exe",
       "args": ["--mcp"]
     }
   }
 }
 ```
 
-### Connect to Cursor
+Перезапустите Claude Desktop.
 
-Go to **Settings → AI → MCP Servers** and add:
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+Файл: `%USERPROFILE%\.cursor\mcp.json`
 
 ```json
 {
-  "nexus": {
-    "command": "C:\\path\\to\\nexus.exe",
-    "args": ["--mcp"]
+  "mcpServers": {
+    "nexus": {
+      "command": "C:\\Program Files\\Nexus\\Nexus.exe",
+      "args": ["--mcp"]
+    }
   }
 }
 ```
 
-### Connect to Continue (VS Code / JetBrains)
+</details>
 
-Add to `~/.continue/config.json`:
+<details>
+<summary><b>Continue (VS Code / JetBrains)</b></summary>
+
+Файл: `%USERPROFILE%\.continue\config.json`
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "nexus",
-      "command": "C:\\path\\to\\nexus.exe",
-      "args": ["--mcp"]
-    }
-  ]
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "C:\\Program Files\\Nexus\\Nexus.exe",
+          "args": ["--mcp"]
+        }
+      }
+    ]
+  }
 }
 ```
 
-> Replace `C:\path\to\nexus.exe` with the actual path to your Nexus installation.
+</details>
 
-### Connect from Node.js (AI Agents / Scripts)
-
-On Windows, PowerShell may corrupt JSON arguments when calling MCP directly. Use the bundled helper library:
+<details>
+<summary><b>Node.js / собственный агент</b></summary>
 
 ```javascript
-const { start, call, stop } = require('./scripts/nexus-mcp-lib');
+const { spawn } = require('child_process');
 
-async function main() {
-  await start();
-  
-  // Search memories
-  const search = await call('nexus_search_memories', { query: 'architecture' });
-  console.log(search.result.content[0].text);
-  
-  // Create a memory
-  const mem = await call('nexus_create_memory', {
-    title: 'My Decision',
-    content: 'Chose SQLite for simplicity',
-    author: 'developer'
-  });
-  console.log(mem.result.content[0].text);
-  
-  // Build context for AI
-  const ctx = await call('nexus_build_context', { query: 'database choices' });
-  console.log(ctx.result.content[0].text);
-  
-  stop();
-}
+const nexus = spawn('C:\\Program Files\\Nexus\\Nexus.exe', ['--mcp']);
 
-main();
+// Список инструментов
+nexus.stdin.write(JSON.stringify({
+  jsonrpc: '2.0', id: 1, method: 'tools/list'
+}) + '\n');
+
+// Сборка контекста
+nexus.stdin.write(JSON.stringify({
+  jsonrpc: '2.0', id: 2, method: 'tools/call',
+  params: {
+    name: 'nexus_build_context',
+    arguments: { query: 'архитектура аутентификации', max_tokens: 4000 }
+  }
+}) + '\n');
+
+nexus.stdout.on('data', (d) => console.log(d.toString()));
 ```
 
-> **Tip:** The helper auto-detects the Nexus path on Windows. On Linux/macOS, ensure `nexus` is in your PATH.
+</details>
 
-### Available MCP Tools (31 tools)
+### Все 48 инструментов
 
-#### Memory CRUD
+<details>
+<summary><b>Память (7)</b></summary>
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_list_memories` | List all memory records | `{}` |
-| `nexus_get_memory` | Get a memory by ID | `{ "id": "uuid" }` |
-| `nexus_create_memory` | Create a new memory | `{ "title": "...", "content": "...", "author": "user" }` |
-| `nexus_update_memory` | Update memory content | `{ "id": "uuid", "content": "new text" }` |
-| `nexus_delete_memory` | Delete a memory | `{ "id": "uuid" }` |
-| `nexus_get_recent_memories` | Get memories from last N days | `{ "days": 7 }` |
-| `nexus_get_important_memories` | Get memories above importance threshold | `{ "threshold": 0.7 }` |
+`nexus_list_memories` · `nexus_get_memory` · `nexus_create_memory` · `nexus_update_memory` · `nexus_delete_memory` · `nexus_search_memories` · `nexus_get_recent_memories`
 
-#### Search
+</details>
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_search_memories` | Full-text search across memories | `{ "query": "search term" }` |
-| `nexus_search_context` | Enhanced search with intent detection | `{ "query": "topic" }` |
-| `nexus_search_semantic` | Semantic search via ONNX embeddings | `{ "query": "text", "limit": 10 }` |
-| `nexus_analyze_text` | Extract keywords, entities, temporal refs | `{ "text": "analyze this" }` |
+<details>
+<summary><b>Граф знаний (8)</b></summary>
 
-#### Entity CRUD
+`nexus_graph_stats` · `nexus_get_entity` · `nexus_create_entity` · `nexus_update_entity` · `nexus_delete_entity` · `nexus_link_entities` · `nexus_unlink_entities` · `nexus_list_graph_entities`
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_get_entity` | Get an entity by ID | `{ "id": "uuid" }` |
-| `nexus_create_entity` | Create a graph entity | `{ "entity_type": "Person", "title": "Name" }` |
-| `nexus_update_entity` | Update entity title | `{ "id": "uuid", "title": "New" }` |
-| `nexus_delete_entity` | Delete an entity | `{ "id": "uuid" }` |
-| `nexus_list_graph_entities` | List entities (optionally by type) | `{ "entity_type": "Person", "limit": 100 }` |
+</details>
 
-#### Relationships
+<details>
+<summary><b>Контекст и поиск (6)</b></summary>
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_link_entities` | Create entity-entity relationship | `{ "source_id": "uuid", "target_id": "uuid", "relationship_type": "RelatedTo", "weight": 0.8 }` |
-| `nexus_unlink_entities` | Delete a relationship | `{ "relationship_id": "uuid" }` |
-| `nexus_link_memory_entity` | Link memory to entity | `{ "memory_id": "uuid", "entity_id": "uuid", "relationship": "Related", "weight": 1.0 }` |
-| `nexus_unlink_memory_entity` | Remove memory-entity link | `{ "memory_id": "uuid", "entity_id": "uuid" }` |
-| `nexus_get_memory_links` | Get all entity links for a memory | `{ "memory_id": "uuid" }` |
-| `nexus_get_entity_memory_links` | Get all memory links for an entity | `{ "entity_id": "uuid" }` |
+`nexus_build_context` · `nexus_build_context_for_entity` · `nexus_search_context` · `nexus_search_semantic` · `nexus_analyze_text` · `nexus_get_important_memories`
 
-#### Intelligence
+</details>
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_build_context` | Build AI context (full M4 pipeline) | `{ "query": "topic" }` |
-| `nexus_parse_markdown` | Parse Markdown → graph entities | `{ "text": "# Heading..." }` |
-| `nexus_store_fingerprint` | Store semantic fingerprint | `{ "memory_id": "uuid", "text": "keywords source" }` |
+<details>
+<summary><b>Связи память ↔ сущность (5)</b></summary>
 
-#### System
+`nexus_link_memory_entity` · `nexus_unlink_memory_entity` · `nexus_get_memory_links` · `nexus_get_entity_memory_links` · `nexus_store_fingerprint`
 
-| Tool | Description | Input |
-|---|---|---|
-| `nexus_stats` | Database statistics | `{}` |
-| `nexus_health` | Health check | `{}` |
-| `nexus_settings` | Current settings | `{}` |
-| `nexus_timeline` | Entity timeline by creation date | `{}` |
-| `nexus_graph_stats` | Knowledge graph stats | `{}` |
-| `nexus_copilot_command` | Execute a copilot slash command | `{ "command": "/health" }` |
+</details>
 
-### Available MCP Resources
+<details>
+<summary><b>Рабочая область (3)</b></summary>
 
-| Resource URI | Description |
-|---|---|
-| `nexus://stats` | Memory and entity counts |
-| `nexus://health` | Database connectivity status |
-| `nexus://settings` | Application configuration |
+`nexus_add_to_workspace` · `nexus_get_workspace` · `nexus_sync_workspace`
 
-### Example: AI Assistant Using Your Memories
+</details>
 
-Once connected, your AI assistant can:
+<details>
+<summary><b>Файлы — все в песочнице (10)</b></summary>
 
-> **"Show me all memories about the API project"**
-> → Calls `nexus_search_memories` with query "API project"
+`nexus_index_file` · `nexus_index_folder` · `nexus_read_file_content` · `nexus_read_file` · `nexus_create_file` · `nexus_write_file` · `nexus_create_folder` · `nexus_delete_file` · `nexus_move_file` · `nexus_create_workspace_file`
 
-> **"Create a new memory: Meeting with team about Q3 planning"**
-> → Calls `nexus_create_memory` with title and content
+</details>
 
-> **"What's the knowledge graph structure?"**
-> → Calls `nexus_graph_stats` and `nexus_build_context`
+<details>
+<summary><b>Экономия токенов (3)</b></summary>
 
-> **"Show recent activity"**
-> → Calls `nexus_get_recent_memories` with `days: 7`
+`nexus_savings_stats` · `nexus_savings_report` · `nexus_savings_per_model`
 
-> **"Find important memories"**
-> → Calls `nexus_get_important_memories` with `threshold: 0.7`
+</details>
+
+<details>
+<summary><b>Система (6)</b></summary>
+
+`nexus_copilot_command` · `nexus_stats` · `nexus_health` · `nexus_settings` · `nexus_timeline` · `nexus_parse_markdown`
+
+</details>
+
+### Пример: ИИ работает с вашей памятью
+
+```
+Вы: Что мы решили по поводу аутентификации?
+
+ИИ вызывает nexus_build_context { query: "решение по аутентификации" }
+
+Nexus возвращает:
+  · Запись «Выбор JWT vs сессии» (14.03, важность 0.9)
+  · Сущность «AuthService» — связана с «JWT», «Redis»
+  · Запись «Обсуждение refresh-токенов» (16.03)
+  · Провенанс: QueryMatch + GraphExpansion от AuthService
+  · Токенов: 1 240 из 4 000 (baseline был 8 900)
+
+ИИ: Вы выбрали JWT с refresh-токенами в Redis.
+    Решение от 14 марта, основная причина — горизонтальное
+    масштабирование без общего состояния сессий.
+```
 
 ---
 
-## Security
+## Экономия токенов
 
-Nexus enforces strict security rules for AI interactions:
+### Как считается
 
-- **No tech stack disclosure** — the AI will not reveal it runs on Rust/React/SQLite
-- **No architecture details** — internal structure, modules, and patterns are confidential
-- **No code exposure** — source code, imports, and implementations are protected
-- **No database schema leaks** — table structures and relationships are hidden
-- **No API key exposure** — credentials and configuration are never discussed
-- **Language matching** — AI always responds in the same language the user writes in
+Не «примерно», а точно:
 
-These rules are compiled into the binary at build time.
+1. **Baseline** — сколько токенов заняли бы сырые данные. Считается **до** сжатия
+2. **Результат** — сколько заняло сжатое
+3. **Разница** — записывается в базу с указанием метода
 
----
+### Токенизатор
 
-## Support the Project
+Используется настоящий **BPE-токенизатор** из embedding-модели, а не эвристика `длина / 4`.
 
-If Nexus helps you, consider supporting its development:
+Почему это важно:
 
-| Method | Details |
-|---|---|
-| **Phone (SBP)** | `89158729644` |
-| **Card** | Alfa Bank |
-| **Recipient** | Данила Сергеевич Шанин |
+| Текст | Эвристика `len/4` | Реальность | Ошибка |
+|:---|:---|:---|:---|
+| Русский текст | Занижает в ~2 раза | 1 токен ≈ 2–3 символа | **до 200%** |
+| Код с пунктуацией | Занижает | Много токенов на символы | до 150% |
+| Английский ASCII | Примерно верно | ~4 символа на токен | ~10% |
 
-Your donations help maintain the project, add new features, and keep it free for everyone.
+Кириллица — два байта на символ. Байтовая эвристика врёт катастрофически. Именно поэтому мы считаем настоящим токенизатором: **иначе цифра экономии в интерфейсе была бы вымыслом.**
 
----
+### Поле `token_method`
 
-## License
+Интерфейс всегда показывает, как получена цифра:
+- `exact` — реальный BPE-подсчёт
+- `estimated` — модель недоступна, использована эвристика
 
-This project is licensed under a proprietary All-Rights-Reserved license. See [LICENSE](LICENSE) for details.
-
-**No unauthorized copying, modification, or distribution is permitted.**
+Мы не выдаём оценку за точность.
 
 ---
 
-<p align="center">
-  Built with care by the Nexus Memory Trust team
-</p>
+## Безопасность
+
+### Песочница файловых операций
+
+Все 10 файловых инструментов MCP проходят через **whitelist-проверку путей**. ИИ-модель не может читать или писать вне разрешённых папок.
+
+**Разрешено:**
+- Папки, добавленные вами в рабочую область проекта
+- Дополнительные корни из настроек (`sandbox.extra_roots`)
+- Папка данных Nexus
+
+**Блокируется:**
+- Абсолютные пути вне разрешённых корней
+- Обход через `..`
+- Относительные пути
+- Зарезервированные имена Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`)
+- Символические ссылки и NTFS-джанкшены, ведущие наружу
+
+Проверка идёт **после** канонизации пути, поэтому текстовые трюки не помогают.
+
+**Проверено живьём:**
+
+```
+nexus_write_file C:\Windows\System32\pwn.txt
+  → Отказано: путь вне рабочей области Nexus
+
+nexus_index_file C:\Windows\win.ini
+  → Отказано: путь вне рабочей области Nexus
+
+nexus_read_file ..\..\..\Windows\System32\config\SAM
+  → Отказано: путь не абсолютный
+```
+
+### Приватность
+
+- **Всё локально.** SQLite на вашем диске
+- **Никакой телеметрии.** Ни одного исходящего запроса, кроме вызовов ИИ, которые вы сами инициируете
+- **API-ключи** хранятся в credential-store OpenCode, не в нашей базе
+- **Никакой аналитики**, трекеров, «анонимной статистики использования»
+
+### Безопасность базы данных
+
+- `PRAGMA foreign_keys = ON` — целостность связей
+- `busy_timeout = 5000` — конкурентные записи ждут, а не падают
+- Режим WAL — устойчивость к сбоям
+- 11 версионированных миграций, вкомпилированных в бинарник
+
+---
+
+## Горячие клавиши
+
+**Работают на любой раскладке.** Мы используем `e.code` (физическая позиция клавиши), а не `e.key` — поэтому Ctrl+K работает и когда у вас включён русский, и когда английский.
+
+<div align="center">
+
+| Клавиши | Действие |
+|:---|:---|
+| `Ctrl` + `K` | Командная строка |
+| `Ctrl` + `1` | Память |
+| `Ctrl` + `2` | Граф |
+| `Ctrl` + `3` | Хронология |
+| `Ctrl` + `4` | Проекты |
+| `Ctrl` + `5` | Контекст |
+| `Ctrl` + `,` | Настройки |
+| `Ctrl` + `N` | Новая запись |
+| `Ctrl` + `R` / `F5` | Обновить |
+| `Ctrl` + `S` | Сохранить файл |
+| `Ctrl` + `Z` / `Y` | Отменить / повторить |
+| `Ctrl` + `B` / `I` | Жирный / курсив |
+| `Esc` | Закрыть панель |
+
+</div>
+
+---
+
+## Архитектура
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  React 19 + TypeScript + Three.js                        │
+│  Граф · Память · Контекст · Проекты · Экономия            │
+└────────────────────────┬─────────────────────────────────┘
+                         │ Tauri IPC
+┌────────────────────────┴─────────────────────────────────┐
+│  Rust — ядро                                             │
+│                                                          │
+│  Контекст:   intent → seed → expand → rank → compress    │
+│  Провенанс:  трассировка причин включения и отбрасывания  │
+│  Токенизатор: BPE из embedding-модели                    │
+│  Песочница:  whitelist путей для всех файловых операций   │
+│  Индексатор: фоновые эмбеддинги                          │
+│  MCP-сервер: 48 инструментов через stdio                 │
+└────────────────────────┬─────────────────────────────────┘
+                         │
+┌────────────────────────┴─────────────────────────────────┐
+│  SQLite (WAL) + ONNX (all-MiniLM-L6-v2, 384-мерные)      │
+│  11 миграций, вкомпилированных в бинарник                 │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Стек:** Rust · Tauri 2 · React 19 · TypeScript · Three.js · SQLite · ONNX Runtime · fastembed · tokenizers
+
+**Принципы:**
+- Ядро не знает про Tauri — слои разделены
+- Репозитории за трейтами
+- Миграции вкомпилированы, не читаются с диска
+- Никаких `unwrap()` на пользовательском вводе
+- Никаких подавлений типов (`as any`, `@ts-ignore`)
+
+---
+
+## Качество и тестирование
+
+<div align="center">
+
+| Метрика | Значение |
+|:---|:---|
+| Rust unit-тесты | **472** |
+| Rust интеграционные | **7** |
+| Frontend-тесты (LOD) | **32** |
+| Ошибок TypeScript | **0** |
+| Предупреждений сборки | **0** |
+
+</div>
+
+Тесты покрывают логику, а не геттеры: UTF-8-безопасное усечение, границы LOD-уровней, whitelist песочницы, идемпотентность MCP-регистрации, точность токенизатора, миграции схемы, трассировку провенанса.
+
+---
+
+## Частые вопросы
+
+<details>
+<summary><b>Нужен ли интернет?</b></summary>
+
+Для работы с памятью и графом — нет, всё локально. Интернет нужен только для вызовов ИИ-модели и однократной загрузки embedding-модели (~90 МБ) при первом семантическом поиске.
+
+</details>
+
+<details>
+<summary><b>Мои данные уходят на сервер?</b></summary>
+
+Нет. Всё в SQLite на вашем диске. Единственный исходящий трафик — запросы к ИИ-модели, которые вы сами инициируете. Никакой телеметрии.
+
+</details>
+
+<details>
+<summary><b>Это бесплатно?</b></summary>
+
+Приложение — да. Для ИИ нужен ключ OpenCode, и там есть **бесплатные модели** (например `deepseek-v4-flash-free`). Ключ получается бесплатно на opencode.ai/auth.
+
+</details>
+
+<details>
+<summary><b>Почему нет версии для macOS / Linux?</b></summary>
+
+Windows — приоритет первого релиза. Кодовая база на Rust и Tauri кросс-платформенная, так что порт возможен. Сроков пока не называем.
+
+</details>
+
+<details>
+<summary><b>Почему нет 32-битной версии?</b></summary>
+
+ONNX Runtime, который нужен для семантического поиска, не поставляет 32-битных сборок. Обойти это без отказа от семантики нельзя.
+
+</details>
+
+<details>
+<summary><b>Почему Windows предупреждает при установке?</b></summary>
+
+Приложение не подписано EV-сертификатом — он стоит 300–600 долларов в год. Подробно об этом — в разделе [про SmartScreen](#-предупреждение-windows-smartscreen--это-нормально). Проверьте SHA-256 и VirusTotal, если беспокоитесь.
+
+</details>
+
+<details>
+<summary><b>Первый семантический поиск долгий. Это нормально?</b></summary>
+
+Да. Скачивается ONNX-модель (~90 МБ) в `%LOCALAPPDATA%\Nexus\.fastembed_cache`. Один раз. Дальше поиск быстрый.
+
+</details>
+
+<details>
+<summary><b>Как удалить программу?</b></summary>
+
+Параметры → Приложения → Nexus → Удалить. База данных остаётся в `%LOCALAPPDATA%\Nexus\` — удалите папку вручную, если нужно стереть всё.
+
+</details>
+
+<details>
+<summary><b>Можно использовать в коммерческом проекте?</b></summary>
+
+Личное и внутреннее использование — да. Перепродажа, включение в свой продукт, предоставление как сервис — **нет** без письменного соглашения. Читайте [LICENSE](LICENSE). По корпоративным лицензиям пишите в [Telegram](https://t.me/nexus_memory_team).
+
+</details>
+
+---
+
+## Команда
+
+<div align="center">
+
+### **Developed by NexusTeam**
+
+### CEO & Founder — **Danila Sergeevich Shanin**
+
+*Шанин Данила Сергеевич*
+
+---
+
+**Связь:** [@nexus_memory_team](https://t.me/nexus_memory_team)
+
+**Поддержать:** `TP4SPiuxgw2uXYyxAhq2VBxw16UcLuaQ21` (TRC-20)
+
+</div>
+
+---
+
+## Лицензия
+
+<div align="center">
+
+### ПРОПРИЕТАРНОЕ ПРОГРАММНОЕ ОБЕСПЕЧЕНИЕ
+
+**Copyright © 2026 NexusTeam / Шанин Данила Сергеевич. Все права защищены.**
+
+</div>
+
+Это **не** программа с открытым исходным кодом. Код опубликован для прозрачности и аудита безопасности — **не** для копирования, переиспользования или создания производных продуктов.
+
+### Разрешено
+
+- Устанавливать и использовать для личных и внутренних задач
+- Читать исходный код для аудита и обучения
+- Создавать резервные копии своих данных
+
+### Запрещено
+
+- Копировать, распространять, публиковать код или бинарники
+- Перепродавать, сдавать в аренду, предоставлять как сервис (SaaS)
+- Создавать производные продукты, форки, «свои версии»
+- Убирать или изменять указания на авторство
+- Обходить механизмы лицензирования
+- Использовать код в своих проектах — коммерческих или нет
+
+### Ответственность — реальные статьи закона
+
+Нарушение прав на это ПО влечёт ответственность по действующему законодательству.
+
+**Российская Федерация:**
+
+| Норма | Содержание | Санкция |
+|:---|:---|:---|
+| **УК РФ ст. 146** | Нарушение авторских прав в крупном размере | до **6 лет** лишения свободы |
+| **УК РФ ст. 272** | Неправомерный доступ к компьютерной информации | до **7 лет** лишения свободы |
+| **УК РФ ст. 273** | Создание и распространение вредоносных программ | до **7 лет** лишения свободы |
+| **ГК РФ ст. 1301** | Компенсация за нарушение исключительного права | от **10 тыс. до 5 млн ₽** либо двукратная стоимость |
+| **КоАП РФ ст. 7.12** | Административная ответственность | штраф + конфискация |
+
+Программы для ЭВМ охраняются как объекты авторского права — **ГК РФ ст. 1259, 1261**.
+
+**США:** 17 U.S.C. § 501, § 506 · 18 U.S.C. § 2319 (до **10 лет**) · DMCA 17 U.S.C. § 1201 · статутные убытки до **$150 000** за каждое умышленное нарушение (17 U.S.C. § 504)
+
+**Международно:** Бернская конвенция · Договор ВОИС по авторскому праву 1996 · Соглашение ТРИПС ст. 61 · Директива ЕС 2009/24/EC
+
+Полный текст — в файле [LICENSE](LICENSE).
+
+> **Мы фиксируем нарушения и передаём материалы юристам.** Публикация исходного кода — знак доверия к сообществу, а не отказ от прав.
+
+---
+
+<div align="center">
+
+## Nexus Memory Trust
+
+**Новая эра работы с памятью ИИ**
+
+Ваш ассистент больше не начинает с нуля.
+
+---
+
+[Скачать](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases/latest) · [Telegram](https://t.me/nexus_memory_team) · [Лицензия](LICENSE)
+
+**Developed by NexusTeam**
+**CEO & Founder — Danila Sergeevich Shanin**
+
+*Copyright © 2026. Все права защищены.*
+
+</div>

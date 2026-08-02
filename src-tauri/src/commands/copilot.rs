@@ -34,5 +34,7 @@ pub fn copilot_list_commands() -> Vec<serde_json::Value> {
         serde_json::json!({ "command": "/health", "description": "Check system health" }),
         serde_json::json!({ "command": "/settings", "description": "Show application settings" }),
         serde_json::json!({ "command": "/timeline", "description": "Show all entities by creation date" }),
+        serde_json::json!({ "command": "/help", "description": "Show available commands" }),
+        serde_json::json!({ "command": "/projects", "description": "List all project entities" }),
     ]
 }

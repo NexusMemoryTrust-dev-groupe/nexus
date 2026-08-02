@@ -48,6 +48,35 @@ pub struct ContextPackage {
     pub created_at: DateTime<Utc>,
     pub token_count: u32,
     pub compressed_size: u32,
+
+    // ── Measured savings baseline ──
+    //
+    // Captured by the builder *before* compression, while the full candidate
+    // set is still present. `baseline_tokens` is what the model would have
+    // consumed had we handed it everything we found, uncompressed; comparing it
+    // with `token_count` after compression gives a saving that is measured
+    // rather than assumed.
+    /// Tokens in the uncompressed candidate set. 0 when not measured.
+    #[serde(default)]
+    pub baseline_tokens: u32,
+    /// Entities considered before pruning.
+    #[serde(default)]
+    pub candidate_entities: u32,
+    /// Memory records considered before pruning.
+    #[serde(default)]
+    pub candidate_memories: u32,
+
+    // ── Why each item is here ──
+    //
+    // Filled in as the pipeline runs: the seeder records what matched, the
+    // expander records which hop pulled a neighbour in, the ranker attaches the
+    // score breakdown, and the compressor records what it had to drop and why.
+    //
+    // Without this the package is a black box — a user sees a list and has to
+    // trust it. With it, "why is this here?" has an answer that comes from the
+    // engine itself rather than from a guess.
+    #[serde(default)]
+    pub provenance: crate::core::context::provenance::Provenance,
 }
 
 impl ContextPackage {
@@ -67,6 +96,10 @@ impl ContextPackage {
             created_at: now,
             token_count: 0,
             compressed_size: 0,
+            baseline_tokens: 0,
+            candidate_entities: 0,
+            candidate_memories: 0,
+            provenance: crate::core::context::provenance::Provenance::new(),
         }
     }
 

@@ -115,6 +115,14 @@ pub async fn create_memory(
     )
     .map_err(|e| e.to_string())?;
     let _id = repo.save(&record).await.map_err(|e| e.to_string())?;
+    // Index for semantic search off-thread: fingerprints used to be written only
+    // when someone called the MCP tool by hand, so semantic search stayed empty.
+    crate::core::context::indexer::spawn_index_memory(
+        &record.id,
+        &record.title,
+        &record.summary,
+        &record.content,
+    );
     Ok(MemoryDto::from(record))
 }
 
@@ -157,6 +165,14 @@ pub async fn create_project_memory(
     .map_err(|e| e.to_string())?;
     record.project_space_id = Some(entity_id);
     let _id = repo.save(&record).await.map_err(|e| e.to_string())?;
+
+    crate::core::context::indexer::spawn_index_memory(
+        &record.id,
+        &record.title,
+        &record.summary,
+        &record.content,
+    );
+
     Ok(MemoryDto::from(record))
 }
 
@@ -186,7 +202,20 @@ pub async fn update_memory(
         record.summary = s;
     }
     record.touch();
-    repo.save(&record).await.map_err(|e| e.to_string())?;
+    // Must be update(), not save(): save() issues an INSERT and fails with a
+    // UNIQUE constraint violation on the existing primary key.
+    repo.update(&record).await.map_err(|e| e.to_string())?;
+
+    // Re-index: the stored embedding describes the *old* text, so leaving it in
+    // place makes semantic search return this memory for queries that no longer
+    // match its content.
+    crate::core::context::indexer::spawn_index_memory(
+        &record.id,
+        &record.title,
+        &record.summary,
+        &record.content,
+    );
+
     Ok(MemoryDto::from(record))
 }
 
@@ -204,5 +233,11 @@ pub async fn delete_memory(id: String) -> Result<(), String> {
     links_repo.delete_links_for_memory(&entity_id).await.map_err(|e| e.to_string())?;
 
     let repo = open_repo()?;
-    repo.delete(&entity_id).await.map_err(|e| e.to_string())
+    repo.delete(&entity_id).await.map_err(|e| e.to_string())?;
+
+    // Drop the embedding too, otherwise semantic search keeps scoring a memory
+    // that no longer exists and callers get IDs that resolve to nothing.
+    crate::core::context::indexer::spawn_forget_memory(&entity_id);
+
+    Ok(())
 }

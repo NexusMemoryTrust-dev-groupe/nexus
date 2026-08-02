@@ -1,6 +1,6 @@
 [package]
 name = "nexus"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "Nexus Memory Trust — AI Memory Operating System"
 
@@ -21,6 +21,7 @@ rusqlite = { version = "0.40.1", features = ["bundled"] }
 
 # Semantic embeddings
 fastembed = "5"
+tokenizers = { version = "0.22.2", features = ["onig"], default-features = false }
 
 # System dirs
 dirs = "6"

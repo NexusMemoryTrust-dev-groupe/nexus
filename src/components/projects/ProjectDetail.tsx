@@ -22,11 +22,19 @@ function cleanPath(p: string): string {
   return s.replace(/\\\\/g, '\\');
 }
 
-const MD_EXTENSIONS = ['md', 'markdown'];
+const SUPPORTED_EXTS = [
+  'md', 'markdown', 'mdx', 'mdown',
+  'rs', 'py', 'js', 'ts', 'tsx', 'jsx',
+  'go', 'java', 'c', 'cpp', 'h', 'css', 'html',
+  'json', 'yaml', 'yml', 'toml', 'xml', 'svg',
+  'sh', 'bash', 'ps1', 'bat', 'sql',
+  'rb', 'php', 'swift', 'kt', 'txt',
+];
 
-function isValidMarkdown(name: string): boolean {
+function isValidFileExtension(name: string): boolean {
   const ext = name.split('.').pop()?.toLowerCase() || '';
-  return MD_EXTENSIONS.includes(ext);
+  if (!ext) return false;
+  return SUPPORTED_EXTS.includes(ext);
 }
 
 export function ProjectDetail() {
@@ -364,8 +372,9 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
       // Skip if focus is inside a text-editing element (let native undo work)
       if (tag === 'INPUT' || tag === 'TEXTAREA' || isEditable === 'true') return;
 
-      // Ctrl+Z — Undo (English Z, Russian Я)
-      const isZ = e.code === 'KeyZ' || e.key === 'z' || e.key === 'я';
+      // Ctrl+Z — Undo. `e.code` is the physical key position, so this fires on
+      // any keyboard layout without needing per-layout character literals.
+      const isZ = e.code === 'KeyZ';
       if (e.ctrlKey && !e.shiftKey && isZ) {
         if (undoStackRef.current.length === 0) return;
         e.preventDefault();
@@ -373,8 +382,8 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
         return;
       }
 
-      // Ctrl+Y or Ctrl+Shift+Z — Redo (English Y, Russian Н)
-      const isY = e.code === 'KeyY' || e.key === 'y' || e.key === 'н';
+      // Ctrl+Y or Ctrl+Shift+Z — Redo
+      const isY = e.code === 'KeyY';
       const isShiftZ = e.shiftKey && isZ;
       if (e.ctrlKey && (isY || isShiftZ)) {
         if (redoStackRef.current.length === 0) return;
@@ -498,8 +507,8 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
     const isDir = creatingInRoot === 'folder';
 
     // Markdown-only validation for files
-    if (!isDir && !isValidMarkdown(rootChildName.trim())) {
-      setCreateNameWarning('Только .md / .markdown');
+    if (!isDir && !isValidFileExtension(rootChildName.trim())) {
+      setCreateNameWarning('Неподдерживаемое расширение');
       return;
     }
 
@@ -1062,7 +1071,7 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
                       }
                       if (e.key === 'Escape') { setCreatingInRoot(null); setRootChildName(''); setCreateNameWarning(''); }
                     }}
-                    placeholder={creatingInRoot === 'file' ? 'filename.md' : 'folder name'}
+                    placeholder={creatingInRoot === 'file' ? 'filename.ext' : 'folder name'}
                     className="inline-name-input"
                   />
                   <button

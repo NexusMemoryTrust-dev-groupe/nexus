@@ -3669,7 +3669,7 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(255, 138, 91, 0.03) 1px, transparent 0);
+    radial-gradient(circle at 1px 1px, rgba(169, 156, 248, 0.03) 1px, transparent 0);
   background-size: 24px 24px;
   pointer-events: none;
   z-index: 0;
@@ -3682,8 +3682,8 @@ body {
 
 .file-editor-content.preview-mode {
   padding: 0;
-  background: linear-gradient(145deg, rgba(25, 15, 8, 0.95), rgba(18, 10, 5, 0.98));
-  color: #f5f0e8;
+  background: var(--surface);
+  color: var(--bone);
   font-family: var(--sans);
   font-size: 14px;
   line-height: 1.7;
@@ -3696,9 +3696,9 @@ body {
   height: 100%;
   min-height: 400px;
   padding: 24px 32px;
-  background: linear-gradient(145deg, rgba(25, 15, 8, 0.95), rgba(18, 10, 5, 0.98));
+  background: var(--surface);
   border: none;
-  color: #f5f0e8;
+  color: var(--bone);
   font-family: var(--mono);
   font-size: 14px;
   line-height: 1.85;
@@ -3708,14 +3708,55 @@ body {
   overflow-x: auto;
   tab-size: 2;
   box-sizing: border-box;
-  caret-color: var(--tangerine);
+  caret-color: var(--periwinkle);
   letter-spacing: 0.02em;
   transition: background 0.3s ease;
 }
 
-.file-editor-textarea::selection {
-  background: linear-gradient(135deg, rgba(255, 138, 91, 0.3), rgba(169, 156, 248, 0.2));
-  color: #fff;
+/* ── Code editor wrapper (line numbers + textarea) ── */
+.file-editor-code-wrapper {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.file-editor-line-numbers {
+  flex-shrink: 0;
+  width: 52px;
+  padding: 24px 0;
+  background: var(--carbon-soft);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+  user-select: none;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--muted-2);
+  text-align: right;
+  scrollbar-width: none;
+}
+
+.file-editor-line-numbers::-webkit-scrollbar {
+  display: none;
+}
+
+.file-editor-line-num {
+  padding: 0 12px 0 0;
+  height: calc(14px * 1.85);
+  transition: color 0.15s ease;
+}
+
+.file-editor-line-num.active {
+  color: var(--periwinkle);
+  font-weight: 600;
+}
+
+.file-editor-code-wrapper .file-editor-textarea {
+  min-height: unset;
+  padding: 24px 32px;
 }
 
 .file-editor-textarea::-webkit-scrollbar {
@@ -3728,14 +3769,14 @@ body {
 }
 
 .file-editor-textarea::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(255, 138, 91, 0.2), rgba(169, 156, 248, 0.15));
+  background: var(--line);
   border-radius: 4px;
   border: 1px solid transparent;
 }
 
 .file-editor-textarea::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(255, 138, 91, 0.35), rgba(169, 156, 248, 0.25));
-  border-color: rgba(255, 138, 91, 0.2);
+  background: var(--muted-2);
+  border-color: transparent;
 }
 
 /* ── Status bar ── */
@@ -4014,3 +4055,271 @@ body {
   background: rgba(255, 255, 255, 0.06);
   color: var(--bone);
 }
+
+/* ── Syntax highlighting overlay ── */
+.file-editor-highlight-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-editor-highlight-pre {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 24px 32px;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: auto;
+  pointer-events: none;
+  color: var(--bone);
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.file-editor-highlight-pre::-webkit-scrollbar {
+  display: none;
+}
+
+.file-editor-code-wrapper .file-editor-textarea {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  min-height: unset;
+  padding: 24px 32px;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--periwinkle);
+  background: transparent;
+  resize: none;
+}
+
+.file-editor-textarea::selection {
+  background: rgba(169, 156, 248, 0.3);
+  color: var(--bone);
+}
+
+/* ── Syntax token base colors ── */
+.syn-kw   { color: #ff7b72; font-weight: 500; }
+.syn-str  { color: #a5d6ff; }
+.syn-num  { color: #79c0ff; }
+.syn-cmt  { color: #8b949e; font-style: italic; }
+.syn-fn   { color: #d2a8ff; }
+.syn-type { color: #ff7b72; }
+.syn-op   { color: #c9d1d9; }
+.syn-tag  { color: #7ee787; }
+.syn-attr { color: #79c0ff; }
+.syn-imp  { color: #f0a830; font-weight: 500; }
+.syn-dec  { color: #e878a0; }
+.syn-br   { color: #8b949e; }
+.syn-arg  { color: #79c0ff; }
+
+/* ════════════════════════════════════════════
+   PER-LANGUAGE COLOR OVERRIDES
+   ════════════════════════════════════════════ */
+
+/* ── Rust: warm amber/orange ── */
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-kw   { color: #e8a040; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-str  { color: #a8d8a0; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-num  { color: #70d4e0; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-fn   { color: #e878a0; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-type { color: #40c0a0; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-imp  { color: #d4a830; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-br   { color: #a09080; }
+.file-editor-highlight-wrapper[data-lang="Rust"] .syn-op   { color: #c0a890; }
+
+/* ── Python: blue + emerald ── */
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-kw   { color: #5090f0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-str  { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-num  { color: #50c0d0; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-fn   { color: #a070e0; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-type { color: #40b0a0; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-imp  { color: #60a0f0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-dec  { color: #e0a050; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-br   { color: #808890; }
+.file-editor-highlight-wrapper[data-lang="Python"] .syn-op   { color: #90a8c0; }
+
+/* ── JavaScript/TypeScript: gold + electric blue ── */
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-kw { color: #e0c050; font-weight: 500; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-str { color: #90d890; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-fn,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-fn,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-fn,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-fn { color: #c070e0; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-type { color: #50a0f0; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-imp { color: #d0b040; font-weight: 500; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-dec,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-dec,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-dec,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-dec { color: #e0a050; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-cmt { color: #707880; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-br { color: #a0a0a0; }
+
+.file-editor-highlight-wrapper[data-lang="JavaScript"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="TypeScript"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="TSX"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="JSX"] .syn-op { color: #b0b0b0; }
+
+/* ── Go: cyan + teal ── */
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-kw   { color: #40d0e0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-str  { color: #a0d8a0; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-num  { color: #e0c050; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-fn   { color: #a070e0; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-type { color: #40b0a0; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-imp  { color: #30c0d0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-br   { color: #808890; }
+.file-editor-highlight-wrapper[data-lang="Go"] .syn-op   { color: #90a8b0; }
+
+/* ── HTML/SVG: green tags + pink attrs ── */
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-tag,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-tag { color: #70e880; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-attr,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-attr { color: #e878a0; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-str { color: #e0c050; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-cmt { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-num,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-num { color: #79c0ff; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-dec,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-dec { color: #c070e0; }
+.file-editor-highlight-wrapper[data-lang="HTML"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="SVG"] .syn-op { color: #808890; }
+
+/* ── CSS: purple properties + pink selectors ── */
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-kw   { color: #e878a0; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-str  { color: #a5d6ff; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-num  { color: #79c0ff; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-tag  { color: #c070e0; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-type { color: #d2a8ff; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-attr { color: #e0a050; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-br   { color: #a080b0; }
+.file-editor-highlight-wrapper[data-lang="CSS"] .syn-op   { color: #b090c0; }
+
+/* ── SQL: purple keywords + teal types ── */
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-kw   { color: #b070e0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-str  { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-num  { color: #50c0d0; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-type { color: #40b0a0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-br   { color: #9080a0; }
+.file-editor-highlight-wrapper[data-lang="SQL"] .syn-op   { color: #a090c0; }
+
+/* ── Shell/Bash: yellow-green + cyan vars ── */
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-kw { color: #e0c050; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-str { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-num,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-num { color: #79c0ff; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-cmt { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-arg,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-arg { color: #50c0d0; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-br { color: #a0a0a0; }
+.file-editor-highlight-wrapper[data-lang="Shell"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="Bash"] .syn-op { color: #b0b0b0; }
+
+/* ── Ruby: red + emerald ── */
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-kw   { color: #e05050; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-str  { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-num  { color: #79c0ff; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-type { color: #40b0a0; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-imp  { color: #e05050; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-br   { color: #a07070; }
+.file-editor-highlight-wrapper[data-lang="Ruby"] .syn-op   { color: #c08080; }
+
+/* ── PHP: blue + green ── */
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-kw   { color: #5090f0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-str  { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-num  { color: #50c0d0; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-cmt  { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-type { color: #40b0a0; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-imp  { color: #60a0f0; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-arg  { color: #e0a050; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-br   { color: #808890; }
+.file-editor-highlight-wrapper[data-lang="PHP"] .syn-op   { color: #90a8c0; }
+
+/* ── Swift/Kotlin: orange + blue ── */
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-kw { color: #e08040; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-str { color: #90d890; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-num,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-num { color: #50c0d0; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-cmt { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-type { color: #50a0f0; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-imp { color: #d0b040; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-br { color: #a09080; }
+.file-editor-highlight-wrapper[data-lang="Swift"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="Kotlin"] .syn-op { color: #b0a090; }
+
+/* ── C/C++: warm amber + green ── */
+.file-editor-highlight-wrapper[data-lang="C"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-kw,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-kw { color: #e8a040; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-str,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-str { color: #a8d8a0; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-num,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-num,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-num { color: #70d4e0; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-cmt,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-cmt { color: #707880; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-type,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-type { color: #40c0a0; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-imp,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-imp { color: #e87872; font-weight: 500; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-br,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-br { color: #a09080; }
+.file-editor-highlight-wrapper[data-lang="C"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="C++"] .syn-op,
+.file-editor-highlight-wrapper[data-lang="C Header"] .syn-op { color: #c0a890; }

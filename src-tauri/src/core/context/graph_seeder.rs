@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::core::context::context_package::UserIntent;
 use crate::core::entity_id::EntityId;
 use crate::core::graph::entity::Entity;
@@ -20,25 +22,61 @@ impl<G: GraphStore> GraphSeeder<G> {
         Ok(entities)
     }
 
-    /// Get an entity and its 1-hop neighbors.
+    /// Get an entity and its 1-hop neighbors (legacy, kept for backward compat).
     pub async fn seed_entity(&self, entity_id: &EntityId) -> Result<Vec<Entity>> {
-        if let Some(entity) = self.graph_store.get_entity(entity_id).await? {
-            let mut result = vec![entity];
-            let relationships = self.graph_store.get_entity_relationships(entity_id).await?;
-            for rel in relationships {
-                let neighbor_id = if rel.source_entity_id == *entity_id {
-                    &rel.target_entity_id
-                } else {
-                    &rel.source_entity_id
-                };
-                if let Ok(Some(neighbor)) = self.graph_store.get_entity(neighbor_id).await {
-                    result.push(neighbor);
+        self.seed_entity_deep(entity_id, 1).await
+    }
+
+    /// Get an entity and its N-hop neighbors using iterative BFS.
+    /// `depth=1` means just the entity + direct neighbors.
+    /// `depth=2` means entity + neighbors + their neighbors, etc.
+    /// Uses iterative BFS to avoid stack overflow on large graphs with cycles.
+    pub async fn seed_entity_deep(&self, entity_id: &EntityId, depth: u32) -> Result<Vec<Entity>> {
+        if depth == 0 {
+            return Ok(vec![]);
+        }
+
+        let mut visited = HashSet::new();
+        let mut result = Vec::new();
+        let mut current_level = vec![entity_id.clone()];
+
+        // `depth + 1` levels: level 0 is the seed entity itself, so `depth` hops
+        // of neighbours need one extra pass. Looping only `depth` times returned
+        // just the seed for `depth = 1` and dropped the outermost ring entirely.
+        for _ in 0..=depth {
+            if current_level.is_empty() {
+                break;
+            }
+            let mut next_level = Vec::new();
+
+            for eid in &current_level {
+                let id_str = eid.as_str().to_string();
+                if visited.contains(&id_str) {
+                    continue;
+                }
+                visited.insert(id_str);
+
+                if let Some(entity) = self.graph_store.get_entity(eid).await? {
+                    result.push(entity);
+                }
+
+                let relationships = self.graph_store.get_entity_relationships(eid).await?;
+                for rel in relationships {
+                    let neighbor_id = if rel.source_entity_id == *eid {
+                        rel.target_entity_id.clone()
+                    } else {
+                        rel.source_entity_id.clone()
+                    };
+                    if !visited.contains(neighbor_id.as_str()) {
+                        next_level.push(neighbor_id);
+                    }
                 }
             }
-            Ok(result)
-        } else {
-            Ok(vec![])
+
+            current_level = next_level;
         }
+
+        Ok(result)
     }
 }
 

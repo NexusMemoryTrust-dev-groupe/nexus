@@ -1,18 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  ChevronRight, ChevronDown, Folder, FolderOpen, FileText, FileCode,
-  File, Trash2, Edit3, Copy, MoreHorizontal, XCircle, X, AlertTriangle,
+  ChevronRight, ChevronDown, Folder, FolderOpen, FileText,
+  Trash2, Edit3, Copy, MoreHorizontal, XCircle, X, AlertTriangle,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import type { FileEntry } from '../../types';
 import { useFileUndoRedo } from '../../hooks/useFileUndoRedo';
-
-const MD_EXTENSIONS = ['md', 'markdown'];
-
-function isValidMarkdown(name: string): boolean {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-  return MD_EXTENSIONS.includes(ext);
-}
+import {
+  isValidFileExtension, getFileIcon,
+  DRAG_THRESHOLD, findClosestItem,
+} from './treeUtils';
+// Shared with the editor's status bar so a file's size never reads differently
+// in two places.
+import { fmtSize as formatSize } from './syntax/fileTypes';
 
 // ── Shared callbacks ref for mouse-based DnD ──
 interface TreeCallbacks {
@@ -34,13 +34,6 @@ let _drag = {
   currentTarget: null as HTMLElement | null,
   started: false, // true once movement threshold exceeded
 };
-
-const DRAG_THRESHOLD = 5; // px before drag starts
-
-function findClosestItem(target: EventTarget | null): HTMLElement | null {
-  if (!target || !(target instanceof HTMLElement)) return null;
-  return target.closest('.file-tree-item:not(.file-tree-bookmark)') as HTMLElement | null;
-}
 
 interface FileTreeProps {
   entries: FileEntry[];
@@ -382,7 +375,7 @@ function FileTreeNode({
       setExtensionError(false);
       return;
     }
-    if (creatingChild === 'file' && !isValidMarkdown(childName.trim())) {
+    if (creatingChild === 'file' && !isValidFileExtension(childName.trim())) {
       return;
     }
     const prefix = entry.isDir ? fullPath : basePath;
@@ -453,7 +446,7 @@ function FileTreeNode({
   const handleChildNameChange = useCallback((val: string) => {
     setChildName(val);
     setChildNameWarning('');
-    if (creatingChild === 'file' && val.includes('.') && !isValidMarkdown(val)) {
+    if (creatingChild === 'file' && val.includes('.') && !isValidFileExtension(val)) {
       setExtensionError(true);
     } else {
       setExtensionError(false);
@@ -564,7 +557,7 @@ function FileTreeNode({
             >
               <div className="ctx-menu-header">Создать</div>
               <button className="ctx-menu-item" onClick={() => { setCreatingChild('file'); if (onMenuChange) onMenuChange(null); }}>
-                <FileText size={12} /><span>Новый файл (.md)</span>
+                <FileText size={12} /><span>Новый файл</span>
               </button>
               <button className="ctx-menu-item" onClick={() => { setCreatingChild('folder'); if (onMenuChange) onMenuChange(null); }}>
                 <Folder size={12} /><span>Новая папка</span>
@@ -602,7 +595,7 @@ function FileTreeNode({
                 onChange={(e) => handleChildNameChange(e.target.value)}
                 onBlur={handleCancelCreate}
                 onKeyDown={handleChildKeyDown}
-                placeholder={creatingChild === 'file' ? 'filename.md' : 'folder name'}
+                placeholder={creatingChild === 'file' ? 'filename.ext' : 'folder name'}
                 className="inline-name-input"
                 style={extensionError ? { borderColor: 'var(--rose)', color: 'var(--rose)' } : childNameWarning ? { borderColor: 'var(--tangerine)' } : undefined}
               />
@@ -612,7 +605,7 @@ function FileTreeNode({
             </div>
             {extensionError && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--rose)', paddingLeft: '18px', marginTop: '2px' }}>
-                <AlertTriangle size={10} /><span>Только .md / .markdown</span>
+                <AlertTriangle size={10} /><span>Неподдерживаемое расширение</span>
               </div>
             )}
             {childNameWarning && (
@@ -757,7 +750,7 @@ function FileTreeNode({
               <>
                 <div className="ctx-menu-header">Создать</div>
                 <button className="ctx-menu-item" onClick={() => { setCreatingChild('file'); if (onMenuChange) onMenuChange(null); }}>
-                  <FileText size={12} /><span>Новый файл (.md)</span>
+                  <FileText size={12} /><span>Новый файл</span>
                 </button>
                 <button className="ctx-menu-item" onClick={() => { setCreatingChild('folder'); if (onMenuChange) onMenuChange(null); }}>
                   <Folder size={12} /><span>Новая папка</span>
@@ -797,7 +790,7 @@ function FileTreeNode({
               onChange={(e) => handleChildNameChange(e.target.value)}
               onBlur={handleCancelCreate}
               onKeyDown={handleChildKeyDown}
-              placeholder={creatingChild === 'file' ? 'filename.md' : 'folder name'}
+              placeholder={creatingChild === 'file' ? 'filename.ext' : 'folder name'}
               className="inline-name-input"
               style={extensionError ? { borderColor: 'var(--rose)', color: 'var(--rose)' } : childNameWarning ? { borderColor: 'var(--tangerine)' } : undefined}
             />
@@ -807,7 +800,7 @@ function FileTreeNode({
           </div>
           {extensionError && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--rose)', paddingLeft: '18px', marginTop: '2px' }}>
-              <AlertTriangle size={10} /><span>Только .md / .markdown</span>
+              <AlertTriangle size={10} /><span>Неподдерживаемое расширение</span>
             </div>
           )}
           {childNameWarning && (
@@ -844,17 +837,4 @@ function FileTreeNode({
   );
 }
 
-function getFileIcon(name: string) {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-  if (['md', 'markdown'].includes(ext)) return FileText;
-  if (['json', 'yaml', 'yml', 'toml'].includes(ext)) return FileCode;
-  if (['rs', 'py', 'js', 'ts', 'tsx', 'jsx', 'go', 'java', 'c', 'cpp', 'h'].includes(ext)) return FileCode;
-  if (['html', 'css', 'svg'].includes(ext)) return FileCode;
-  return File;
-}
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}

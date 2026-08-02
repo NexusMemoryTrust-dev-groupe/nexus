@@ -1,17 +1,47 @@
 name: Release
 
+# Builds the Windows installers and publishes them with a checksum file.
+#
+# Why this shape
+# --------------
+# The previous workflow built a single x64 target and published whatever
+# tauri-action happened to produce. The npm postinstall script and the
+# PowerShell installer, meanwhile, downloaded `nexus-windows-x64.exe` — an
+# asset name this pipeline has never emitted. Every install therefore failed
+# with a 404.
+#
+# Two changes stop that class of failure from recurring:
+#   1. `verify-asset-names` asserts, before publishing, that the filenames the
+#      installers look for are the filenames the bundler actually produced.
+#   2. `SHA256SUMS.txt` is generated so both installers can verify downloads
+#      instead of trusting the network.
+#
+# Architectures: x64 and ARM64. 32-bit (i686) is deliberately absent — the ONNX
+# runtime behind semantic search publishes no i686 binaries (`ort-sys` fails the
+# build outright), and Windows 11 has no 32-bit edition.
+
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build installers without publishing a release'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
+  # Fail fast on warnings in CI while keeping local builds ergonomic.
+  RUSTFLAGS: -D warnings
 
 jobs:
-  build-windows:
+  # ── Gate: the code must be sound before we spend time on installers ───────
+  verify:
+    name: Tests and type check
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,43 +58,77 @@ jobs:
         with:
           workspaces: nexus/src-tauri
 
-      - name: Install frontend deps
+      - name: Install frontend dependencies
         run: npm ci
         working-directory: nexus
 
-      - name: Build frontend
-        run: npm run build
+      - name: TypeScript type check
+        run: npx tsc --noEmit
         working-directory: nexus
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tauriScript: cargo tauri
-          args: --target x86_64-pc-windows-msvc
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Nexus Memory Trust ${{ github.ref_name }}'
-          releaseBody: |
-            Nexus Memory Trust — AI Memory Operating System
-            
-            ## Installation
-            1. Download `Nexus-Setup-x64.exe` below
-            2. Run the installer
-            3. Follow the first-run setup wizard
-            
-            ## Requirements
-            - Windows 10/11 (64-bit)
-            - Internet connection for AI features (optional)
-          releaseDraft: true
-          prerelease: false
+      - name: Rust tests
+        run: cargo test --all-targets
+        working-directory: nexus/src-tauri
 
-  build-linux:
-    runs-on: ubuntu-latest
+      - name: MCP server smoke test
+        shell: pwsh
+        run: |
+          # The MCP server is plain Node; a parse error here would only surface
+          # at runtime inside a customer's editor, so check it in CI.
+          foreach ($f in @('server.js', 'tools.js', 'db.js')) {
+            node --check "nexus-mcp-server/$f"
+            if ($LASTEXITCODE -ne 0) { throw "$f failed to parse" }
+            Write-Host "  OK $f"
+          }
+
+      - name: Installer library unit tests
+        shell: pwsh
+        run: node scripts/nexus-install-lib.test.js
+
+      - name: Version consistency
+        shell: pwsh
+        run: |
+          # A version mismatch silently produces installers whose filenames do
+          # not match what the download scripts expect.
+          $tauri = (Get-Content nexus/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $root  = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $front = (Get-Content nexus/package.json -Raw | ConvertFrom-Json).version
+          $cargo = ((Get-Content nexus/src-tauri/Cargo.toml) -match '^version\s*=' |
+                    Select-Object -First 1) -replace '.*"(.*)".*', '$1'
+
+          Write-Host "  tauri.conf.json : $tauri"
+          Write-Host "  package.json    : $root"
+          Write-Host "  nexus/package   : $front"
+          Write-Host "  Cargo.toml      : $cargo"
+
+          $all = @($tauri, $root, $front, $cargo) | Select-Object -Unique
+          if ($all.Count -ne 1) { throw "Version mismatch across manifests: $($all -join ', ')" }
+
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $tag = $env:GITHUB_REF -replace '^refs/tags/v', ''
+            if ($tag -ne $tauri) { throw "Tag v$tag does not match version $tauri" }
+            Write-Host "  tag matches version"
+          }
+
+  # ── Build one installer per architecture ─────────────────────────────────
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: verify
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: actions/setup-node@v4
         with:
@@ -72,16 +136,12 @@ jobs:
           cache: npm
           cache-dependency-path: nexus/package-lock.json
 
-      - name: Install system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
-
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: nexus/src-tauri
+          key: ${{ matrix.target }}
 
-      - name: Install frontend deps
+      - name: Install frontend dependencies
         run: npm ci
         working-directory: nexus
 
@@ -89,14 +149,137 @@ jobs:
         run: npm run build
         working-directory: nexus
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build installers
+        run: npx tauri build --target ${{ matrix.target }} --bundles nsis,msi
+        working-directory: nexus
+
+      - name: Collect artifacts
+        id: collect
+        shell: pwsh
+        run: |
+          $bundle = "nexus/src-tauri/target/${{ matrix.target }}/release/bundle"
+          $out = "artifacts"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+
+          $found = @()
+          foreach ($pattern in @("$bundle/nsis/*-setup.exe", "$bundle/msi/*.msi")) {
+            Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName -Destination $out
+              $found += $_.Name
+              Write-Host ("  {0}  ({1:N1} MB)" -f $_.Name, ($_.Length / 1MB))
+            }
+          }
+
+          if ($found.Count -eq 0) { throw "No installers were produced for ${{ matrix.arch }}" }
+
+          # The download scripts match on `setup` + arch, so an NSIS installer
+          # must exist and must carry the architecture in its name.
+          $setup = $found | Where-Object { $_ -like '*setup*.exe' }
+          if (-not $setup) { throw "NSIS installer missing for ${{ matrix.arch }}" }
+          if ($setup -notmatch '${{ matrix.arch }}') {
+            throw "Installer '$setup' does not contain '${{ matrix.arch }}' — the download scripts will not find it"
+          }
+          Write-Host "  asset name check passed: $setup"
+
+      - uses: actions/upload-artifact@v4
         with:
-          tauriScript: cargo tauri
-          args: --target x86_64-unknown-linux-gnu
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Nexus Memory Trust ${{ github.ref_name }}'
-          releaseDraft: true
-          prerelease: false
+          name: installers-${{ matrix.arch }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── Publish: checksums first, then a single release with every asset ──────
+  publish:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+          pattern: installers-*
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          cd staging
+          ls -la
+          # Both installers verify downloads against this file; the format is the
+          # plain `sha256sum` output they already know how to parse.
+          sha256sum * > SHA256SUMS.txt
+          echo "--- SHA256SUMS.txt ---"
+          cat SHA256SUMS.txt
+
+      - name: Verify the download scripts can resolve these assets
+        run: |
+          cd staging
+          # Final guard against the 404 that broke installation before: prove an
+          # x64 and an ARM64 setup executable are both present and discoverable
+          # by the same substring match the installers use.
+          for arch in x64 arm64; do
+            if ! ls | grep -i "setup" | grep -qi "$arch"; then
+              echo "No installer discoverable for $arch"
+              ls
+              exit 1
+            fi
+            echo "  $arch installer present"
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Nexus Memory Trust ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: staging/*
+          body: |
+            ## Nexus Memory Trust ${{ github.ref_name }}
+
+            An AI memory operating system: your knowledge graph, your memory,
+            your machine.
+
+            ### Install
+
+            **Installer (recommended)** — download the file for your machine and
+            run it. You can choose the install location, including another drive,
+            and pick English or Russian during setup.
+
+            | Your machine | Download |
+            |---|---|
+            | Windows 10/11, Intel or AMD | `Nexus_*_x64-setup.exe` |
+            | Windows 11 on ARM (Surface, Snapdragon) | `Nexus_*_arm64-setup.exe` |
+
+            **npm** — if you prefer the terminal:
+
+            ```
+            npm install -g nexus-memory-trust
+            nexus
+            ```
+
+            `.msi` builds are also attached for managed deployments.
+
+            ### First run
+
+            A setup wizard checks Node.js and the OpenCode CLI, helps you add an
+            API key (a free model is available), and registers Nexus with
+            OpenCode so any AI assistant can use your memory. Nothing leaves your
+            machine except the requests you send to your chosen model.
+
+            ### Verify your download
+
+            `SHA256SUMS.txt` is attached. On Windows:
+
+            ```
+            Get-FileHash .\Nexus_*_x64-setup.exe -Algorithm SHA256
+            ```
+
+            ### Requirements
+
+            - Windows 10 version 1809 or newer, or Windows 11 (64-bit)
+            - WebView2 — installed automatically if missing
+
+            32-bit Windows is not supported: the ONNX runtime used for semantic
+            search ships no 32-bit build.

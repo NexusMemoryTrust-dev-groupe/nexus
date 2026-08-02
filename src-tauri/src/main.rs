@@ -66,6 +66,16 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 bus.subscribe(handler).await;
             });
+
+            // Bring the semantic index up to date in the background.
+            //
+            // Fingerprints used to be written only when something called the MCP
+            // tool by hand, so on a real database the semantic index was empty and
+            // similarity search silently returned nothing. This walks whatever is
+            // still unindexed on a background thread; it is a no-op once the index
+            // has caught up, and it never blocks the window from opening.
+            crate::core::context::indexer::spawn_backfill();
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -88,6 +98,8 @@ fn main() {
             commands::graph::get_entity_metadata,
             commands::graph::delete_entity,
             commands::context::build_context,
+            commands::context::build_context_for_entity,
+            commands::context::export_context,
             commands::config::get_config,
             commands::config::get_all_config,
             commands::config::set_config,
@@ -124,6 +136,17 @@ fn main() {
             commands::workspace::delete_workspace_for_project,
             commands::copilot::copilot_execute,
             commands::copilot::copilot_list_commands,
+            commands::savings::get_savings_stats,
+            commands::savings::record_savings_event,
+            commands::savings::get_savings_report,
+            commands::savings::get_model_savings,
+            commands::setup::setup_status,
+            commands::setup::setup_needed,
+            commands::setup::install_opencode,
+            commands::setup::register_mcp,
+            commands::setup::save_api_key,
+            commands::setup::select_model,
+            commands::setup::complete_setup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

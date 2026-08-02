@@ -1,9 +1,15 @@
 import { create } from 'zustand';
+import { setupEn, setupRu } from './setupLocale';
+import { contextEn, contextRu } from './contextLocale';
 
 type Locale = 'en' | 'ru';
 
 const translations: Record<Locale, Record<string, string>> = {
   en: {
+    // First-run wizard copy lives in ./setupLocale so the onboarding prose can
+    // be reviewed on its own; the SetupCopy type keeps both locales in step.
+    ...setupEn,
+    ...contextEn,
     // Settings page
     'settings.title': 'Settings',
     'settings.subtitle': 'Configure your Nexus Memory Trust workspace',
@@ -162,8 +168,26 @@ const translations: Record<Locale, Record<string, string>> = {
     'settings.aiEnabled': 'AI Co-Pilot Enabled',
     'settings.aiModel': 'AI Model',
     'settings.aiModelHint': 'Model used for AI Co-Pilot',
+    // Savings page
+    'savings.title': 'Savings',
+    'savings.subtitle': 'Token savings from using Nexus context engine',
+    'savings.tokens': 'tokens',
+    // The baseline is measured, not assumed: it is the token count of every
+    // source the context engine considered, rendered in full. Wording says
+    // "would have read" rather than naming a competitor, because that is what
+    // the number actually describes.
+    'savings.callout.title': 'What the same work costs without a context engine',
+    'savings.callout.body1': 'Reading every source in full would have cost',
+    'savings.callout.body2': 'Nexus sent a ranked, compressed package instead, avoiding',
+    'savings.callout.body3':
+      'Both figures are counted with the same tokenizer on the same sources, so the comparison is reproducible.',
+    'savings.method.exact': 'Counted with the real BPE vocabulary',
+    'savings.method.estimated': 'Estimated: embedding model not downloaded yet',
+    'savings.method.mixed': 'Some rows predate measurement and are excluded',
   },
   ru: {
+    ...setupRu,
+    ...contextRu,
     // Settings page
     'settings.title': 'Настройки',
     'settings.subtitle': 'Настройте ваше рабочее пространство Nexus Memory Trust',
@@ -322,6 +346,18 @@ const translations: Record<Locale, Record<string, string>> = {
     'settings.aiEnabled': 'AI Помощник включён',
     'settings.aiModel': 'AI Модель',
     'settings.aiModelHint': 'Модель для AI Co-Pilot',
+    // Savings page
+    'savings.title': 'Экономия',
+    'savings.subtitle': 'Экономия токенов при использовании контекстного движка Nexus',
+    'savings.tokens': 'токенов',
+    'savings.callout.title': 'Во что та же работа обходится без контекстного движка',
+    'savings.callout.body1': 'Чтение всех источников целиком стоило бы',
+    'savings.callout.body2': 'Nexus отправил сжатый ранжированный пакет и сэкономил',
+    'savings.callout.body3':
+      'Оба значения посчитаны одним и тем же токенайзером по одним и тем же источникам, поэтому сравнение воспроизводимо.',
+    'savings.method.exact': 'Посчитано настоящим BPE-словарём',
+    'savings.method.estimated': 'Оценка: модель эмбеддингов ещё не загружена',
+    'savings.method.mixed': 'Часть записей сделана до внедрения замеров и не учитывается',
   },
 };
 

@@ -1,8 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { X, Save, Loader2, Eye, Edit3, FileText, Link2, FileX } from 'lucide-react';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { TiptapEditor } from './TiptapEditor';
+import {
+  MARKDOWN_EXTS, getExt, getLang,
+  fmtSize, countLines, countWords,
+} from './syntax/fileTypes';
+import { getLangConfig } from './syntax/langConfig';
+import { tokenizeLine, renderTokens } from './syntax/tokenizer';
 
 interface FileEditorProps {
   filePath: string;
@@ -19,21 +25,6 @@ interface FileInfo {
   isEditable: boolean;
 }
 
-const MARKDOWN_EXTS = ['md', 'markdown', 'mdx', 'mdown'];
-const CODE_EXTS: Record<string, string> = {
-  rs: 'Rust', py: 'Python', js: 'JavaScript', ts: 'TypeScript', tsx: 'TSX', jsx: 'JSX',
-  go: 'Go', java: 'Java', c: 'C', cpp: 'C++', h: 'C Header', css: 'CSS', html: 'HTML',
-  json: 'JSON', yaml: 'YAML', yml: 'YAML', toml: 'TOML', xml: 'XML', svg: 'SVG',
-  sh: 'Shell', bash: 'Bash', ps1: 'PowerShell', bat: 'Batch', sql: 'SQL',
-  rb: 'Ruby', php: 'PHP', swift: 'Swift', kt: 'Kotlin',
-};
-
-function getExt(n: string) { const p = n.split('.'); return p.length > 1 ? p[p.length - 1].toLowerCase() : ''; }
-function getLang(n: string) { return CODE_EXTS[getExt(n)] || 'Plain Text'; }
-function fmtSize(b: number) { return b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`; }
-function countLines(t: string) { return t ? t.split('\n').length : 0; }
-function countWords(t: string) { return t ? t.trim().split(/\s+/).filter(Boolean).length : 0; }
-
 export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
   const [file, setFile] = useState<FileInfo | null>(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -42,13 +33,52 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
   const [isDirty, setIsDirty] = useState(false);
   // Uncontrolled textarea — native Ctrl+Z works
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLPreElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef(''); // latest content for save
+  const [currentLine, setCurrentLine] = useState(1);
+  const [dirtyTick, setDirtyTick] = useState(0); // forces highlightedHtml recompute
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; selected: string; start: number; end: number } | null>(null);
 
   const isMarkdown = file ? MARKDOWN_EXTS.includes(getExt(file.name)) : false;
   const language = file ? getLang(file.name) : 'Plain Text';
+
+  // Line count for line numbers
+  const lineCount = useMemo(() => countLines(contentRef.current || file?.content || ''), [dirtyTick, file?.content]);
+
+  // Syntax-highlighted HTML for code overlay
+  const highlightedHtml = useMemo(() => {
+    const text = contentRef.current || file?.content || '';
+    const lines = text.split('\n');
+    return lines.map(line => {
+      if (!line) return ''; // empty lines stay empty
+      const tokens = tokenizeLine(line, language);
+      return renderTokens(tokens);
+    }).join('\n');
+  }, [dirtyTick, file?.content, language]);
+
+  // Track current line from cursor position
+  const trackCurrentLine = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const pos = ta.selectionStart;
+    const textBefore = ta.value.substring(0, pos);
+    const line = textBefore.split('\n').length;
+    setCurrentLine(line);
+  }, []);
+
+  // Sync textarea scroll to line numbers gutter + highlight pre
+  const syncScroll = useCallback(() => {
+    const ta = textareaRef.current;
+    const gutter = lineNumbersRef.current;
+    const highlight = highlightRef.current;
+    if (ta) {
+      if (gutter) gutter.scrollTop = ta.scrollTop;
+      if (highlight) highlight.scrollTop = ta.scrollTop;
+    }
+  }, []);
 
   useEffect(() => { loadFile(); }, [filePath]);
 
@@ -71,6 +101,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
         textareaRef.current.value = info.content;
       }
       setIsDirty(false);
+      setDirtyTick(0);
       setError(null);
       if (!info.isEditable) setIsPreview(true);
     } catch (e) {
@@ -94,11 +125,11 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     }
   };
 
-  // Ctrl+S to save — dual check: e.code for English, e.key for Russian layout
+  // Ctrl+S to save. e.code is the physical key position, so this fires on any
+  // keyboard layout; e.key would be 'ы' on a Russian layout and never match.
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const isS = e.code === 'KeyS' || e.key === 's' || e.key === 'ы';
-      if (e.ctrlKey && isS) {
+      if (e.ctrlKey && e.code === 'KeyS') {
         e.preventDefault();
         handleSave();
       }
@@ -128,6 +159,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     document.execCommand('insertText', false, before + sel + after);
     contentRef.current = ta.value;
     setIsDirty(true);
+    setDirtyTick(t => t + 1);
     // Restore selection
     setTimeout(() => {
       ta.selectionStart = s + before.length;
@@ -144,6 +176,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
     document.execCommand('insertText', false, replacement);
     contentRef.current = ta.value;
     setIsDirty(true);
+    setDirtyTick(t => t + 1);
   }, []);
 
   const ctxMakeHeading = useCallback(() => {
@@ -289,28 +322,52 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
             }}
           />
         ) : (
-          <textarea
-            ref={textareaRef}
-            defaultValue={file.content}
-            onChange={() => { setIsDirty(true); contentRef.current = textareaRef.current?.value || ''; }}
-            onContextMenu={handleContextMenu}
-            spellCheck={false}
-            className="file-editor-textarea"
-            style={{ fontSize: '14px' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Tab') {
-                e.preventDefault();
-                const ta = textareaRef.current;
-                if (ta) {
-                  // Use execCommand to preserve undo stack
-                  ta.focus();
-                  document.execCommand('insertText', false, '  ');
-                  contentRef.current = ta.value;
-                  setIsDirty(true);
-                }
-              }
-            }}
-          />
+          <div className="file-editor-code-wrapper">
+            {/* Line numbers gutter */}
+            <div className="file-editor-line-numbers" ref={lineNumbersRef}>
+              {Array.from({ length: lineCount }, (_, i) => (
+                <div key={i + 1} className={`file-editor-line-num ${i + 1 === currentLine ? 'active' : ''}`}>
+                  {i + 1}
+                </div>
+              ))}
+            </div>
+            {/* Syntax highlight overlay + transparent textarea */}
+            <div className="file-editor-highlight-wrapper" data-lang={language}>
+              <pre
+                ref={highlightRef}
+                className="file-editor-highlight-pre"
+                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+              />
+              <textarea
+                ref={textareaRef}
+                defaultValue={file.content}
+                onClick={trackCurrentLine}
+                onKeyUp={trackCurrentLine}
+                onScroll={syncScroll}
+                onChange={() => { setIsDirty(true); contentRef.current = textareaRef.current?.value || ''; setDirtyTick(t => t + 1); trackCurrentLine(); }}
+                onContextMenu={handleContextMenu}
+                spellCheck={false}
+                className="file-editor-textarea"
+                style={{ fontSize: '14px' }}
+                onKeyDown={(e) => {
+                  trackCurrentLine();
+                  if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const ta = textareaRef.current;
+                    if (ta) {
+                      // Use execCommand to preserve undo stack
+                      ta.focus();
+                      const langCfg = getLangConfig(language);
+                      document.execCommand('insertText', false, langCfg.indent);
+                      contentRef.current = ta.value;
+                      setIsDirty(true);
+                      setDirtyTick(t => t + 1);
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
 

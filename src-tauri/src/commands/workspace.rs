@@ -421,8 +421,31 @@ pub async fn move_workspace_entry(
 
     let old_abs = src.to_string_lossy().to_string();
 
-    // Move on disk
-    fs::rename(&src, &dest).map_err(|e| format!("Move failed: {}", e))?;
+    // Move on disk (with cross-filesystem fallback)
+    let rename_result = fs::rename(&src, &dest);
+    if rename_result.is_err() {
+        // Cross-filesystem: copy + delete
+        if src.is_dir() {
+            fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+                fs::create_dir_all(dst)?;
+                for entry in fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    if ty.is_dir() {
+                        copy_dir_recursive(&entry.path(), &dst.join(entry.file_name()))?;
+                    } else {
+                        fs::copy(entry.path(), dst.join(entry.file_name()))?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_recursive(&src, &dest).map_err(|e| format!("Move failed (copy): {}", e))?;
+            fs::remove_dir_all(&src).map_err(|e| format!("Move failed (cleanup): {}", e))?;
+        } else {
+            fs::copy(&src, &dest).map_err(|e| format!("Move failed (copy): {}", e))?;
+            fs::remove_file(&src).map_err(|e| format!("Move failed (cleanup): {}", e))?;
+        }
+    }
     let new_abs = dest.to_string_lossy().to_string();
 
     // Update DB entries
@@ -623,8 +646,30 @@ pub async fn rename_managed_folder(
         return Err(format!("A folder '{}' already exists at: {}", new_name, new_path.display()));
     }
 
-    // Rename on disk
-    fs::rename(&path, &new_path).map_err(|e| e.to_string())?;
+    // Rename on disk (with cross-filesystem fallback)
+    let rename_result = fs::rename(&path, &new_path);
+    if rename_result.is_err() {
+        if path.is_dir() {
+            fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+                fs::create_dir_all(dst)?;
+                for entry in fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    if ty.is_dir() {
+                        copy_dir_recursive(&entry.path(), &dst.join(entry.file_name()))?;
+                    } else {
+                        fs::copy(entry.path(), dst.join(entry.file_name()))?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_recursive(&path, &new_path).map_err(|e| format!("Rename failed (copy): {}", e))?;
+            fs::remove_dir_all(&path).map_err(|e| format!("Rename failed (cleanup): {}", e))?;
+        } else {
+            fs::copy(&path, &new_path).map_err(|e| format!("Rename failed (copy): {}", e))?;
+            fs::remove_file(&path).map_err(|e| format!("Rename failed (cleanup): {}", e))?;
+        }
+    }
     let old_abs = normalized;
     let new_abs = new_path.to_string_lossy().to_string();
 

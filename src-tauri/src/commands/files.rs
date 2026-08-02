@@ -128,7 +128,7 @@ pub fn mime_from_ext(path: &Path) -> String {
 }
 
 /// Check if a file is editable (text-based).
-fn is_editable(path: &Path) -> bool {
+pub fn is_editable(path: &Path) -> bool {
     matches!(
         path.extension()
             .and_then(|e| e.to_str())

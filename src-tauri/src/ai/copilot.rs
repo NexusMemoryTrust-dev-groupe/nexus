@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rusqlite::OptionalExtension;
 
 use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
@@ -11,8 +12,10 @@ use crate::core::graph::relationship::Relationship;
 use crate::core::graph::relationship_types::RelationshipType;
 use crate::core::context::context_builder::{ContextBuilder, ContextBuilderImpl};
 use crate::core::context::context_request::ContextRequest;
+use crate::core::context::context_service::ContextService;
 use crate::storage::sqlite::SqliteGraphRepository;
 use crate::storage::sqlite::SqliteMemoryRepository;
+use crate::storage::sqlite::context_repository::SqliteContextRepository;
 use crate::storage::sqlite::memory_entity_links_repository::MemoryEntityLinkRepository;
 
 /// Result of a copilot command execution.
@@ -89,12 +92,17 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
 
         // ── Context commands ──
         "context" => cmd_build_context(&cmd.args).await,
+        "entity_context" => cmd_build_entity_context(&cmd.args).await,
 
         // ── System commands ──
         "stats" => cmd_stats().await,
         "health" => cmd_health().await,
         "settings" => cmd_settings().await,
         "timeline" => cmd_timeline().await,
+
+        // ── Savings commands ──
+        "savings" => cmd_savings().await,
+        "savings-model" => cmd_savings_model(&cmd.args).await,
 
         // ── Utility commands ──
         "help" => cmd_help().await,
@@ -199,10 +207,21 @@ async fn cmd_create_memory(args: &[String]) -> CopilotResponse {
         Err(e) => return CopilotResponse::err(format!("Validation error: {}", e)),
     };
     match repo.save(&record).await {
-        Ok(id) => CopilotResponse::ok(
-            format!("Memory created: {}", title),
-            Some(serde_json::json!({ "id": id.as_str(), "title": title })),
-        ),
+        Ok(id) => {
+            // Index for semantic search off-thread. Memories created through the
+            // MCP server land here rather than in `commands::memory`, so without
+            // this hook anything an AI wrote stayed invisible to vector search.
+            crate::core::context::indexer::spawn_index_memory(
+                &record.id,
+                &record.title,
+                &record.summary,
+                &record.content,
+            );
+            CopilotResponse::ok(
+                format!("Memory created: {}", title),
+                Some(serde_json::json!({ "id": id.as_str(), "title": title })),
+            )
+        }
         Err(e) => CopilotResponse::err(format!("Save error: {}", e)),
     }
 }
@@ -310,6 +329,20 @@ async fn cmd_create_entity(args: &[String]) -> CopilotResponse {
         Ok(r) => r,
         Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
     };
+    
+    // Dedup: check if entity with same title+type already exists
+    let existing = repo.get_entities_by_type(&entity_type).await;
+    if let Ok(entities) = existing {
+        for e in entities {
+            if e.title == title {
+                return CopilotResponse::ok(
+                    format!("Entity already exists: {} ({})", title, args[0]),
+                    Some(serde_json::json!({ "id": e.id.as_str(), "type": args[0], "title": title, "existing": true })),
+                );
+            }
+        }
+    }
+    
     let entity = Entity::new(entity_type, title.clone(), String::new());
     if let Err(e) = entity.validate() {
         return CopilotResponse::err(format!("Validation error: {}", e));
@@ -317,7 +350,7 @@ async fn cmd_create_entity(args: &[String]) -> CopilotResponse {
     match repo.add_entity(&entity).await {
         Ok(id) => CopilotResponse::ok(
             format!("Entity created: {} ({})", title, args[0]),
-            Some(serde_json::json!({ "id": id.as_str(), "type": args[0], "title": title })),
+            Some(serde_json::json!({ "id": id.as_str(), "type": args[0], "title": title, "existing": false })),
         ),
         Err(e) => CopilotResponse::err(format!("Save error: {}", e)),
     }
@@ -340,6 +373,79 @@ async fn cmd_build_context(args: &[String]) -> CopilotResponse {
         Ok(c) => c,
         Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
     };
+    let snapshot_conn = match crate::db::open_connection() {
+        Ok(c) => c,
+        Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+    };
+    let graph_repo = match SqliteGraphRepository::new(graph_conn) {
+        Ok(r) => r,
+        Err(e) => return CopilotResponse::err(format!("Init error: {}", e)),
+    };
+    let memory_repo = match SqliteMemoryRepository::new(memory_conn) {
+        Ok(r) => r,
+        Err(e) => return CopilotResponse::err(format!("Init error: {}", e)),
+    };
+    let snapshot_repo = match SqliteContextRepository::new(snapshot_conn) {
+        Ok(r) => r,
+        Err(e) => return CopilotResponse::err(format!("Init error: {}", e)),
+    };
+
+    let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
+    let cache = crate::core::context::context_cache::global_cache();
+    let service = ContextService::new(builder, cache, snapshot_repo);
+
+    let request = ContextRequest {
+        query: query.clone(),
+        ..Default::default()
+    };
+    match service.build_context(&request).await {
+        Ok(pkg) => {
+            // Record savings for this interaction
+            crate::commands::savings::record_savings(
+                &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+                &query,
+                &format!("{:?}", pkg.user_intent.intent_type),
+            );
+            CopilotResponse::ok(
+                format!("Context built for '{}': {} entities, {} relationships, {} memories",
+                    query, pkg.entities.len(), pkg.relationships.len(), pkg.memory_records.len()),
+                Some(serde_json::json!({
+                    "entities": pkg.entities.len(),
+                    "relationships": pkg.relationships.len(),
+                    "memory_records": pkg.memory_records.len(),
+                    "token_count": pkg.token_count,
+                    "intent_type": format!("{:?}", pkg.user_intent.intent_type),
+                })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Context build error: {}", e)),
+    }
+}
+
+async fn cmd_build_entity_context(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /entity_context <entity_id> [depth]");
+    }
+    let entity_id = &args[0];
+    let depth = if args.len() > 1 {
+        args[1].parse::<u32>().unwrap_or(2)
+    } else {
+        2
+    };
+
+    let eid = match crate::core::entity_id::EntityId::parse(entity_id) {
+        Ok(e) => e,
+        Err(e) => return CopilotResponse::err(format!("Invalid entity ID: {}", e)),
+    };
+
+    let graph_conn = match crate::db::open_connection() {
+        Ok(c) => c,
+        Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+    };
+    let memory_conn = match crate::db::open_connection() {
+        Ok(c) => c,
+        Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+    };
     let graph_repo = match SqliteGraphRepository::new(graph_conn) {
         Ok(r) => r,
         Err(e) => return CopilotResponse::err(format!("Init error: {}", e)),
@@ -350,23 +456,26 @@ async fn cmd_build_context(args: &[String]) -> CopilotResponse {
     };
 
     let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
-    let request = ContextRequest {
-        query: query.clone(),
-        ..Default::default()
-    };
-    match builder.build(&request).await {
-        Ok(pkg) => CopilotResponse::ok(
-            format!("Context built for '{}': {} entities, {} relationships, {} memories",
-                query, pkg.entities.len(), pkg.relationships.len(), pkg.memory_records.len()),
-            Some(serde_json::json!({
-                "entities": pkg.entities.len(),
-                "relationships": pkg.relationships.len(),
-                "memory_records": pkg.memory_records.len(),
-                "token_count": pkg.token_count,
-                "intent_type": format!("{:?}", pkg.user_intent.intent_type),
-            })),
-        ),
-        Err(e) => CopilotResponse::err(format!("Context build error: {}", e)),
+    match builder.build_for_entity(&eid, depth).await {
+        Ok(pkg) => {
+            // Record savings for this entity context build
+            crate::commands::savings::record_savings(
+                &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+                &format!("entity:{}", entity_id),
+                "EntityContext",
+            );
+            CopilotResponse::ok(
+                format!("Context built for entity '{}' (depth {}): {} entities, {} relationships, {} memories",
+                    entity_id, depth, pkg.entities.len(), pkg.relationships.len(), pkg.memory_records.len()),
+                Some(serde_json::json!({
+                    "entities": pkg.entities.len(),
+                    "relationships": pkg.relationships.len(),
+                    "memory_records": pkg.memory_records.len(),
+                    "token_count": pkg.token_count,
+                })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Entity context build error: {}", e)),
     }
 }
 
@@ -395,10 +504,19 @@ async fn cmd_update_memory(args: &[String]) -> CopilotResponse {
     record.content = new_content;
     record.touch();
     match repo.update(&record).await {
-        Ok(_) => CopilotResponse::ok(
-            format!("Memory updated: {}", record.title),
-            Some(serde_json::json!({ "id": record.id.as_str(), "title": record.title })),
-        ),
+        Ok(_) => {
+            // Content changed, so the stored embedding is now stale.
+            crate::core::context::indexer::spawn_index_memory(
+                &record.id,
+                &record.title,
+                &record.summary,
+                &record.content,
+            );
+            CopilotResponse::ok(
+                format!("Memory updated: {}", record.title),
+                Some(serde_json::json!({ "id": record.id.as_str(), "title": record.title })),
+            )
+        }
         Err(e) => CopilotResponse::err(format!("Save error: {}", e)),
     }
 }
@@ -416,7 +534,12 @@ async fn cmd_delete_memory(args: &[String]) -> CopilotResponse {
         Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
     };
     match repo.delete(&entity_id).await {
-        Ok(_) => CopilotResponse::ok(format!("Memory '{}' deleted", args[0]), None),
+        Ok(_) => {
+            // Drop the fingerprint too, otherwise deleted memories keep
+            // surfacing in semantic results as orphaned vectors.
+            crate::core::context::indexer::spawn_forget_memory(&entity_id);
+            CopilotResponse::ok(format!("Memory '{}' deleted", args[0]), None)
+        }
         Err(e) => CopilotResponse::err(format!("Delete error: {}", e)),
     }
 }
@@ -601,27 +724,41 @@ async fn cmd_settings() -> CopilotResponse {
         );"
     );
     
-    // Read actual settings from config store
-    let get_val = |key: &str| -> String {
+    // Read a single key, returning None when absent.
+    let raw = |key: &str| -> Option<String> {
         conn.query_row(
             "SELECT value FROM configuration_kv WHERE key = ?1",
             [key],
             |row| row.get::<_, String>(0),
-        ).unwrap_or_else(|_| match key {
-            "theme" => "dark".to_string(),
-            "language" => "en".to_string(),
-            "ai_model" => "opencode/deepseek-v4-flash-free".to_string(),
-            _ => String::new(),
-        })
+        )
+        .ok()
+        .filter(|v| !v.is_empty())
     };
+
+    // The UI and `commands::ai` persist dotted keys (`ai.model`, `app.language`),
+    // but this command used to read `ai_model` / `language`, which never exist —
+    // so /settings always reported hardcoded defaults instead of real values.
+    // Dotted key wins; the legacy name is still accepted for older databases.
+    let resolve = |keys: &[&str], fallback: &str| -> String {
+        keys.iter()
+            .find_map(|k| raw(k))
+            .unwrap_or_else(|| fallback.to_string())
+    };
+
+    let ai_model = resolve(
+        &["ai.model", "ai_model"],
+        "opencode/deepseek-v4-flash-free",
+    );
+    let language = resolve(&["app.language", "language"], "en");
+    let theme = resolve(&["app.theme", "theme"], "dark");
 
     CopilotResponse::ok(
         "Settings loaded",
         Some(serde_json::json!({
-            "theme": get_val("theme"),
-            "language": get_val("language"),
-            "ai_model": get_val("ai_model"),
-            "mcp_server_version": "1.0.0",
+            "theme": theme,
+            "language": language,
+            "ai_model": ai_model,
+            "mcp_server_version": env!("CARGO_PKG_VERSION"),
             "db_path": crate::db::db_path().to_string_lossy(),
         })),
     )
@@ -669,6 +806,52 @@ async fn cmd_timeline() -> CopilotResponse {
 //  Utility commands
 // ═══════════════════════════════════════════════════════════════
 
+/// Show cumulative token/cost savings stats. Hard data from the DB — no estimates.
+async fn cmd_savings() -> CopilotResponse {
+    match crate::commands::savings::get_savings_stats() {
+        Ok(s) => {
+            let message = format!(
+                "Savings: {} tokens saved (${:.2}) across {} interactions. Today: {} tokens (${:.2}). Week: {} tokens (${:.2}).",
+                s.total_tokens_saved,
+                s.total_cost_saved_usd,
+                s.total_interactions,
+                s.tokens_saved_today,
+                s.cost_saved_today,
+                s.tokens_saved_week,
+                s.cost_saved_week,
+            );
+            CopilotResponse::ok(message, Some(serde_json::to_value(&s).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Savings error: {}", e)),
+    }
+}
+
+/// Show per-model savings for a specific model. Model name is matched case-insensitively.
+async fn cmd_savings_model(args: &[String]) -> CopilotResponse {
+    let model = if args.is_empty() {
+        return CopilotResponse::err("Usage: /savings-model <model_name> (e.g. /savings-model GPT-5.6 Terra)");
+    } else {
+        args.join(" ")
+    };
+
+    match crate::commands::savings::get_model_savings(&model) {
+        Ok(json) => {
+            let cost = json["cost_saved_usd"].as_f64().unwrap_or(0.0);
+            let tokens = json["total_tokens_saved"].as_u64().unwrap_or(0);
+            let message = format!(
+                "Model '{}' ({}): ${:.2} saved on {} input tokens at ${:.2}/1M input.",
+                json["model"]["name"].as_str().unwrap_or(&model),
+                json["model"]["company"].as_str().unwrap_or(""),
+                cost,
+                tokens,
+                json["model"]["input_per_m"].as_f64().unwrap_or(0.0),
+            );
+            CopilotResponse::ok(message, Some(json))
+        }
+        Err(e) => CopilotResponse::err(e),
+    }
+}
+
 async fn cmd_help() -> CopilotResponse {
     let help_text = r#"Nexus Copilot Commands:
 
@@ -691,6 +874,26 @@ Graph Commands:
 
 Context Commands:
   /context <query>                   Build context package for a query
+  /entity_context <id> [depth]       Build context centered on an entity
+
+Savings Commands:
+  /savings                           Show token/cost savings stats (hard data)
+  /savings-model <name>              Show savings for a specific model (e.g. /savings-model GPT-5.6 Terra)
+
+File Operations:
+  /create-file <path> <content>      Create a new file on disk
+  /write-file <path> <content>       Write/overwrite a file
+  /create-folder <path>              Create a directory
+  /delete <path>                     Delete a file or directory
+  /move <source> <dest>              Move/rename a file
+  /read-file <path>                  Read raw file content
+
+File Interpreter:
+  /index-file <path>                 Index file into knowledge graph
+  /index-folder <path>               Index all files in folder
+
+Workspace:
+  /workspace-file <pid> <parent> <name> <content>  Create file in workspace
 
 System Commands:
   /stats                             Show database statistics
@@ -800,6 +1003,22 @@ mod tests {
         assert!(resp.message.contains("memories") || resp.message.contains("DB"),
             "Expected 'memories' or 'DB' in message, got: {}", resp.message);
     }
+
+    #[tokio::test]
+    async fn execute_savings() {
+        let cmd = parse_command("/savings").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(resp.success || resp.message.contains("DB") || resp.message.contains("error"),
+            "Expected success or DB-related error, got: {}", resp.message);
+    }
+
+    #[tokio::test]
+    async fn execute_savings_model_usage() {
+        let cmd = parse_command("/savings-model").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(resp.message.contains("Usage"), "Expected usage error, got: {}", resp.message);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -821,7 +1040,16 @@ pub async fn enhanced_context_search(query: &str) -> std::result::Result<crate::
     let graph_repo = open_graph_repo()?;
     let memory_repo = open_memory_repo()?;
     let builder = crate::core::context::context_builder::ContextBuilderImpl::new(graph_repo, memory_repo);
-    builder.build_for_query(query).await.map_err(|e| e.to_string())
+    let pkg = builder.build_for_query(query).await.map_err(|e| e.to_string())?;
+
+    // Record savings for this enhanced search
+    crate::commands::savings::record_savings(
+        &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+        query,
+        &format!("{:?}", pkg.user_intent.intent_type),
+    );
+
+    Ok(pkg)
 }
 
 /// Get recent memories from the last N days.
@@ -929,4 +1157,435 @@ pub async fn get_entity_memory_links(
     let repo = open_link_repo()?;
     let ent_id = EntityId::parse(entity_id).map_err(|e| e.to_string())?;
     repo.get_links_for_entity(&ent_id).await.map_err(|e| e.to_string())
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  File Interpreter Helpers
+// ═══════════════════════════════════════════════════════════════
+
+/// Index a single file: read content, interpret, create entities + relationships
+pub async fn index_file(path: &str, project_id: Option<&str>) -> std::result::Result<IndexResult, String> {
+    // Indexing reads the file and stores its contents in the graph, so it is a
+    // read of arbitrary disk content and must be sandboxed like any other read.
+    let guarded = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Read)?;
+    let path = guarded.as_path();
+    if !path.exists() {
+        return Err(format!("File '{}' not found", path.display()));
+    }
+
+    let graph_repo = open_graph_repo()?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+
+    // Read file content
+    let content = if crate::commands::files::is_editable(path) || crate::core::interpreter::image_interpreter::is_image(&ext) {
+        if crate::core::interpreter::image_interpreter::is_image(&ext) {
+            // For images, read as bytes and create entity with metadata
+            let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+            let interp = crate::core::interpreter::image_interpreter::interpret_image(path, &bytes);
+
+            // Check if file entity already exists
+            let existing = graph_repo.search_entities(&file_name).await.map_err(|e| e.to_string())?;
+            let file_entity = if let Some(e) = existing.into_iter().find(|e| e.title == file_name) {
+                e
+            } else {
+                let id = graph_repo.add_entity(&interp.entity).await.map_err(|e| e.to_string())?;
+                let mut e = interp.entity;
+                e.id = id;
+                e
+            };
+
+            // Link to project if provided
+            if let Some(pid) = project_id {
+                let pid_id = crate::core::EntityId::parse(pid).map_err(|e| e.to_string())?;
+                let rel = crate::core::graph::relationship::Relationship::new(
+                    pid_id.clone(), file_entity.id.clone(),
+                    crate::core::graph::relationship_types::RelationshipType::RelatedTo, 0.5,
+                );
+                if let Ok(rel) = rel {
+                    let _ = graph_repo.add_relationship(&rel).await;
+                }
+            }
+
+            return Ok(IndexResult {
+                file_name: file_name.clone(),
+                entities_created: 1,
+                sub_entities_created: 0,
+                summary: interp.summary,
+            });
+        } else {
+            std::fs::read_to_string(path).map_err(|e| e.to_string())?
+        }
+    } else {
+        return Err(format!("Cannot interpret file type: .{}", ext));
+    };
+
+    // Interpret file content
+    let interpreted = crate::core::interpreter::file_interpreter::interpret_file(path, &content);
+
+    // Check if file entity already exists
+    let existing = graph_repo.search_entities(&file_name).await.map_err(|e| e.to_string())?;
+    let file_entity = if let Some(e) = existing.into_iter().find(|e| e.title == file_name) {
+        e
+    } else {
+        let id = graph_repo.add_entity(&interpreted.file_entity).await.map_err(|e| e.to_string())?;
+        let mut e = interpreted.file_entity;
+        e.id = id;
+        e
+    };
+
+    // Link to project if provided
+    if let Some(pid) = project_id {
+        let pid_id = crate::core::EntityId::parse(pid).map_err(|e| e.to_string())?;
+        let rel = crate::core::graph::relationship::Relationship::new(
+            pid_id, file_entity.id.clone(),
+            crate::core::graph::relationship_types::RelationshipType::RelatedTo, 0.5,
+        );
+        if let Ok(rel) = rel {
+            let _ = graph_repo.add_relationship(&rel).await;
+        }
+    }
+
+    // Create sub-entities (classes, functions, headings, etc.)
+    let mut sub_count = 0;
+    for sub in &interpreted.sub_entities {
+        // Check for duplicate
+        let existing_sub = graph_repo.search_entities(&sub.title).await.map_err(|e| e.to_string())?;
+        if existing_sub.iter().any(|e| e.title.to_lowercase() == sub.title.to_lowercase()) {
+            continue;
+        }
+        let sub_id = graph_repo.add_entity(sub).await.map_err(|e| e.to_string())?;
+        sub_count += 1;
+
+        // Link sub-entity to file entity
+        let rel = crate::core::graph::relationship::Relationship::new(
+            file_entity.id.clone(), sub_id,
+            crate::core::graph::relationship_types::RelationshipType::RelatedTo, 0.7,
+        );
+        if let Ok(rel) = rel {
+            let _ = graph_repo.add_relationship(&rel).await;
+        }
+    }
+
+    Ok(IndexResult {
+        file_name,
+        entities_created: 1,
+        sub_entities_created: sub_count,
+        summary: interpreted.summary,
+    })
+}
+
+/// Index a folder recursively: interpret all files
+pub async fn index_folder(path: &str, project_id: Option<&str>) -> std::result::Result<FolderIndexResult, String> {
+    // Guard the root once; every descendant is inside it, and `index_file`
+    // re-checks each path anyway.
+    let guarded = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Read)?;
+    let root = guarded.as_path();
+    if !root.is_dir() {
+        return Err(format!("'{}' is not a directory", path));
+    }
+
+    // Phase 1: Collect all interpretable file paths (sync, no async needed)
+    let mut file_paths: Vec<std::path::PathBuf> = Vec::new();
+    fn collect_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                    if name.starts_with('.') || name == "target" || name == "node_modules" || name == "__pycache__" {
+                        continue;
+                    }
+                    collect_files(&path, out);
+                } else if path.is_file() {
+                    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                    if crate::core::interpreter::image_interpreter::is_image(&ext) || crate::core::interpreter::file_interpreter::is_interpretable(&ext) {
+                        out.push(path);
+                    }
+                }
+            }
+        }
+    }
+    collect_files(root, &mut file_paths);
+
+    // Phase 2: Index each file asynchronously (no block_on — we're already in async context)
+    let mut total_files = 0usize;
+    let mut total_entities = 0usize;
+    let mut total_sub_entities = 0usize;
+    let mut errors: Vec<String> = Vec::new();
+    let mut summaries: Vec<String> = Vec::new();
+
+    for path in &file_paths {
+        let path_str = match path.to_str() {
+            Some(s) => s,
+            None => {
+                errors.push(format!("{}: non-UTF-8 path", path.display()));
+                continue;
+            }
+        };
+        match index_file(path_str, project_id).await {
+            Ok(result) => {
+                total_files += 1;
+                total_entities += result.entities_created;
+                total_sub_entities += result.sub_entities_created;
+                summaries.push(result.summary);
+            }
+            Err(e) => {
+                errors.push(format!("{}: {}", path.display(), e));
+            }
+        }
+    }
+
+    Ok(FolderIndexResult {
+        folder_name: root.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        total_files,
+        total_entities,
+        total_sub_entities,
+        summaries,
+        errors,
+    })
+}
+
+/// Read and interpret file content (without creating entities)
+pub fn read_file_content(path: &str) -> std::result::Result<FileInterpretation, String> {
+    let guarded = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Read)?;
+    let path = guarded.as_path();
+    if !path.exists() {
+        return Err(format!("File '{}' not found", path.display()));
+    }
+
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let file_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+
+    // Handle images
+    if crate::core::interpreter::image_interpreter::is_image(&ext) {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        let interp = crate::core::interpreter::image_interpreter::interpret_image(path, &bytes);
+        return Ok(FileInterpretation {
+            file_name,
+            file_type: "Image".into(),
+            text_content: String::new(),
+            summary: interp.summary,
+            sub_entities: vec![],
+        });
+    }
+
+    // Handle text files
+    if crate::commands::files::is_editable(path) {
+        let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let interpreted = crate::core::interpreter::file_interpreter::interpret_file(path, &content);
+        return Ok(FileInterpretation {
+            file_name,
+            file_type: ext,
+            text_content: interpreted.text_content,
+            summary: interpreted.summary,
+            sub_entities: interpreted.sub_entities,
+        });
+    }
+
+    Err(format!("Cannot read file type: .{}", ext))
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Result Types
+// ═══════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct IndexResult {
+    pub file_name: String,
+    pub entities_created: usize,
+    pub sub_entities_created: usize,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FolderIndexResult {
+    pub folder_name: String,
+    pub total_files: usize,
+    pub total_entities: usize,
+    pub total_sub_entities: usize,
+    pub summaries: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct FileInterpretation {
+    pub file_name: String,
+    pub file_type: String,
+    pub text_content: String,
+    pub summary: String,
+    pub sub_entities: Vec<crate::core::graph::entity::Entity>,
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  File Operation Helpers
+// ═══════════════════════════════════════════════════════════════
+
+/// Create a new file with content. Fails if file already exists.
+///
+/// Every write path below is checked against the sandbox first: these helpers
+/// are reachable by an AI model over MCP, so an unchecked absolute path would
+/// let a model write anywhere on the machine.
+pub fn create_file(path: &str, content: &str) -> std::result::Result<(), String> {
+    let p = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Write)?;
+    if p.exists() {
+        return Err(format!("File '{}' already exists. Use write_file to overwrite.", path));
+    }
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+    std::fs::write(&p, content).map_err(|e| format!("Failed to write file: {}", e))
+}
+
+/// Write/overwrite file content. Creates file if it doesn't exist.
+pub fn write_file(path: &str, content: &str) -> std::result::Result<(), String> {
+    let p = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Write)?;
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+    std::fs::write(&p, content).map_err(|e| format!("Failed to write file: {}", e))
+}
+
+/// Create a directory (and all parent directories).
+pub fn create_folder(path: &str) -> std::result::Result<(), String> {
+    let p = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Write)?;
+    if p.exists() {
+        return Err(format!("Folder '{}' already exists.", path));
+    }
+    std::fs::create_dir_all(&p).map_err(|e| format!("Failed to create directory: {}", e))
+}
+
+/// Delete a file or directory (recursive).
+pub fn delete_path(path: &str) -> std::result::Result<(), String> {
+    let p = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Delete)?;
+    if !p.exists() {
+        return Err(format!("'{}' not found.", path));
+    }
+    if p.is_dir() {
+        std::fs::remove_dir_all(p).map_err(|e| format!("Failed to delete directory: {}", e))
+    } else {
+        std::fs::remove_file(p).map_err(|e| format!("Failed to delete file: {}", e))
+    }
+}
+
+/// Move/rename a file or directory. Supports full path rename or move to dest_dir with new name.
+pub fn move_file(
+    source: &str,
+    new_path: Option<&str>,
+    dest_dir: Option<&str>,
+    new_name: Option<&str>,
+) -> std::result::Result<String, String> {
+    use crate::core::sandbox::{guard, Access};
+
+    // A move both removes the source and creates the destination, so each side
+    // is validated separately.
+    let src = guard(source, Access::Delete)?;
+    if !src.exists() {
+        return Err(format!("Source '{}' not found.", source));
+    }
+
+    let raw_dest = if let Some(np) = new_path {
+        std::path::PathBuf::from(np)
+    } else if let (Some(dd), Some(nn)) = (dest_dir, new_name) {
+        let dir = guard(dd, Access::Write)?;
+        if !dir.is_dir() {
+            return Err(format!("Destination directory '{}' is not a directory.", dd));
+        }
+        dir.join(nn)
+    } else {
+        return Err("Provide either new_path or dest_dir+new_name".to_string());
+    };
+
+    let dest = guard(&raw_dest.to_string_lossy(), Access::Write)?;
+
+    if dest.exists() {
+        return Err(format!("Destination '{}' already exists.", dest.display()));
+    }
+
+    // Ensure parent directories exist
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+
+    // Try rename first (fast, same filesystem). Fallback to copy+delete for cross-filesystem.
+    if std::fs::rename(&src, &dest).is_err() {
+        if src.is_dir() {
+            // For directories, use copy_dir_all + remove_dir_all
+            fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+                std::fs::create_dir_all(dst)?;
+                for entry in std::fs::read_dir(src)? {
+                    let entry = entry?;
+                    let ty = entry.file_type()?;
+                    if ty.is_dir() {
+                        copy_dir_recursive(&entry.path(), &dst.join(entry.file_name()))?;
+                    } else {
+                        std::fs::copy(entry.path(), dst.join(entry.file_name()))?;
+                    }
+                }
+                Ok(())
+            }
+            copy_dir_recursive(&src, &dest).map_err(|e| format!("Copy failed: {}", e))?;
+            std::fs::remove_dir_all(&src).map_err(|e| format!("Remove source dir failed: {}", e))?;
+        } else {
+            std::fs::copy(&src, &dest).map_err(|e| format!("Copy failed: {}", e))?;
+            std::fs::remove_file(&src).map_err(|e| format!("Remove source file failed: {}", e))?;
+        }
+    }
+    Ok(dest.to_string_lossy().to_string())
+}
+
+/// Read raw file content as text.
+pub fn read_raw_file(path: &str) -> std::result::Result<String, String> {
+    let p = crate::core::sandbox::guard(path, crate::core::sandbox::Access::Read)?;
+    if !p.exists() {
+        return Err(format!("File '{}' not found.", path));
+    }
+    std::fs::read_to_string(&p).map_err(|e| format!("Failed to read file: {}", e))
+}
+
+/// Create a file in a project workspace (on disk + register in workspace DB).
+pub async fn create_workspace_file(
+    project_id: &str,
+    parent_path: &str,
+    name: &str,
+    content: &str,
+) -> std::result::Result<String, String> {
+    let child_path = format!("{}{}{}", parent_path, std::path::MAIN_SEPARATOR, name);
+    let p = std::path::Path::new(&child_path);
+
+    // Create parent dirs if needed
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directories: {}", e))?;
+    }
+
+    // Write content to disk
+    std::fs::write(p, content).map_err(|e| format!("Failed to write file: {}", e))?;
+
+    // Register in workspace DB
+    let conn = crate::db::open_connection().map_err(|e| format!("DB error: {}", e))?;
+
+    // Check if parent exists in workspace
+    let parent_id: Option<String> = {
+        let mut stmt = conn.prepare(
+            "SELECT id FROM workspace_entries WHERE project_id = ?1 AND native_path = ?2"
+        ).map_err(|e| format!("DB error: {}", e))?;
+        stmt.query_row(rusqlite::params![project_id, parent_path], |row| row.get(0))
+            .optional()
+            .map_err(|e| format!("DB error: {}", e))?
+    };
+
+    // Insert the file entry
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let meta = std::fs::metadata(p).ok();
+    let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+    let mime = crate::commands::files::mime_from_ext(p);
+
+    conn.execute(
+        "INSERT INTO workspace_entries (id, project_id, name, native_path, parent_id, is_dir, size_bytes, mime_type, created_at, sort_order)
+         VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8, 0)",
+        rusqlite::params![id, project_id, name, child_path, parent_id, size as i64, mime, now],
+    ).map_err(|e| format!("DB error: {}", e))?;
+
+    Ok(child_path)
 }

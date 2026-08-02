@@ -1,4 +1,4 @@
-import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen } from 'lucide-react';
+import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
 import { NexusLogo } from './NexusLogo';
@@ -67,6 +67,15 @@ export function Sidebar() {
           </nav>
 
           <div className="sidebar-footer">
+            <button
+              className={`sidebar-item ${activeView === 'savings' ? 'active' : ''}`}
+              onClick={() => setActiveView('savings')}
+            >
+              <div className={`sidebar-item-indicator ${activeView === 'savings' ? 'active' : ''}`} />
+              <TrendingDown size={16} className="sidebar-item-icon" />
+              <span className="sidebar-item-text">Savings</span>
+              <span className="sidebar-item-shortcut">Ctrl+5</span>
+            </button>
             <button
               className={`sidebar-item ${activeView === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveView('settings')}

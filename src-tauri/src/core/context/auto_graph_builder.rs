@@ -227,17 +227,19 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
             return Some((rest, status.to_string()));
         }
 
-        // Pattern: "- [ ] Task" or "- [x] Task" (markdown checkbox)
-        if text.starts_with("- [") {
-            let status = if text.starts_with("- [x]") || text.starts_with("- [X]") {
-                "Done"
-            } else if text.starts_with("- [ ]") {
-                "Pending"
-            } else {
-                "Active"
+        // Pattern: "- [ ] Task" or "- [x] Task" (markdown checkbox).
+        // Split on the closing bracket instead of slicing at a fixed byte offset:
+        // `text[5..]` panics on short input ("- [x") and on multi-byte markers ("- [✓]").
+        if let Some(rest) = text.strip_prefix("- [")
+            && let Some((marker, task)) = rest.split_once(']')
+        {
+            let status = match marker.trim() {
+                "x" | "X" => "Done",
+                "" => "Pending",
+                _ => "Active",
             };
-            
-            let task_text = text[5..].trim().to_string();
+
+            let task_text = task.trim().to_string();
             if !task_text.is_empty() {
                 return Some((task_text, status.to_string()));
             }

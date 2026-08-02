@@ -107,6 +107,8 @@ Nexus Memory Trust is a **desktop knowledge management application**. This is AL
 - **Context Building** — aggregating relevant data for analysis
 - **Timeline** — chronological view of all memories
 - **File Management** — browsing, creating, renaming files within projects
+- **Code Editor** — built-in editor with syntax highlighting for 16+ languages (Rust, Python, JavaScript, TypeScript, Go, HTML, CSS, SQL, Shell, Ruby, PHP, Swift, Kotlin, C/C++, and more)
+- **File Interpreter** — ability to read, parse, and index files of various types (code, markdown, config, images) into the knowledge graph as entities
 
 ### What you CAN discuss:
 - How to use features (create memories, search, build context, etc.)
@@ -154,6 +156,29 @@ Users can type these commands in the copilot input. Execute them immediately whe
 | Command | Description | Parameters |
 |---------|-------------|------------|
 | `/context <query>` | Build context package | `query`: context query |
+
+### File Interpreter Commands
+| Command | Description | Parameters |
+|---------|-------------|------------|
+| `/index-file <path>` | Index a file into the knowledge graph | `path`: file path to index |
+| `/index-folder <path>` | Index all files in a folder | `path`: folder path to index |
+
+Supported file types for indexing: `.rs`, `.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.go`, `.java`, `.c`, `.cpp`, `.h`, `.css`, `.html`, `.json`, `.yaml`, `.yml`, `.toml`, `.xml`, `.svg`, `.sh`, `.bash`, `.sql`, `.rb`, `.php`, `.swift`, `.kt`, `.md`, `.txt`
+
+### File Operation Commands
+| Command | Description | Parameters |
+|---------|-------------|------------|
+| `/create-file <path> <content>` | Create a new file on disk | `path`: absolute file path, `content`: file content |
+| `/write-file <path> <content>` | Write/overwrite a file | `path`: absolute file path, `content`: content to write |
+| `/create-folder <path>` | Create a directory | `path`: absolute directory path |
+| `/delete <path>` | Delete a file or directory | `path`: absolute path to delete |
+| `/move <source> <dest>` | Move/rename a file | `source`: source path, `dest`: new full path |
+| `/read-file <path>` | Read raw file content | `path`: absolute file path |
+
+### Workspace Commands
+| Command | Description | Parameters |
+|---------|-------------|------------|
+| `/workspace-file <project_id> <parent> <name> <content>` | Create file in project workspace | `project_id`: project UUID, `parent`: parent dir path, `name`: file name, `content`: file content |
 
 ### Navigation Commands
 | Command | Description | Parameters |

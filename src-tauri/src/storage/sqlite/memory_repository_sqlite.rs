@@ -124,6 +124,9 @@ fn parse_source(s: &str) -> MemorySource {
         "Meeting" => MemorySource::Meeting,
         "Document" => MemorySource::Document,
         "AiGenerated" => MemorySource::AiGenerated,
+        // Was missing, so `source_to_string` wrote "Compressed" but reading it
+        // back silently downgraded the record to `Manual`.
+        "Compressed" => MemorySource::Compressed,
         _ => MemorySource::Manual,
     }
 }
@@ -363,7 +366,11 @@ impl MemoryRepository for SqliteMemoryRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let attached_json = serde_json::to_string(&record.attached_files)
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let derived_from_json = serde_json::to_string(&record.derived_from)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        // Persists the versioning columns too — without them `touch()` bumps
+        // `version` in memory but the DB keeps the stale value forever.
         let rows = conn
             .execute(
                 "UPDATE memory_records SET
@@ -371,7 +378,8 @@ impl MemoryRepository for SqliteMemoryRepository {
                     author = ?7, source = ?8, confidence_score = ?9, importance_score = ?10,
                     visibility = ?11, capture_mode = ?12, project_space_id = ?13,
                     linked_entity_ids_json = ?14, latest_version_id = ?15, status = ?16, layer = ?17,
-                    attached_files_json = ?18
+                    attached_files_json = ?18, derived_from_json = ?19, reason = ?20,
+                    version = ?21, updated_by = ?22
                  WHERE id = ?1",
                 params![
                     record.id.as_str(),
@@ -392,6 +400,10 @@ impl MemoryRepository for SqliteMemoryRepository {
                     status_to_string(&record.status),
                     layer_to_string(&record.layer),
                     attached_json,
+                    derived_from_json,
+                    record.reason,
+                    record.version as i32,
+                    record.updated_by,
                 ],
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -517,6 +529,76 @@ mod tests {
         let record = sample_record();
         let result = r.update(&record).await;
         assert!(result.is_err());
+    }
+
+    /// Regression: `update()` used to omit the versioning columns, so `touch()`
+    /// bumped `version` in memory while the DB kept the stale value.
+    #[tokio::test]
+    async fn update_persists_versioning_columns() {
+        let r = repo();
+        let mut record = sample_record();
+        r.save(&record).await.unwrap();
+        assert_eq!(record.version, 1);
+
+        record.touch();
+        record.reason = Some("edited by user".to_string());
+        record.updated_by = Some("tester".to_string());
+        record.derived_from = vec!["origin-1".to_string()];
+        r.update(&record).await.unwrap();
+
+        let fetched = r.get_by_id(&record.id).await.unwrap().unwrap();
+        assert_eq!(fetched.version, 2, "version must survive a round-trip");
+        assert_eq!(fetched.reason.as_deref(), Some("edited by user"));
+        assert_eq!(fetched.updated_by.as_deref(), Some("tester"));
+        assert_eq!(fetched.derived_from, vec!["origin-1".to_string()]);
+    }
+
+    /// Regression: `Compressed` was written by `source_to_string` but missing
+    /// from `parse_source`, so reading it back silently downgraded to `Manual`.
+    #[tokio::test]
+    async fn every_source_survives_a_round_trip() {
+        let r = repo();
+        let sources = [
+            MemorySource::Manual,
+            MemorySource::Git,
+            MemorySource::Telegram,
+            MemorySource::Email,
+            MemorySource::Meeting,
+            MemorySource::Document,
+            MemorySource::AiGenerated,
+            MemorySource::Compressed,
+        ];
+
+        for source in sources {
+            let mut record = sample_record();
+            record.source = source.clone();
+            let id = r.save(&record).await.unwrap();
+            let fetched = r.get_by_id(&id).await.unwrap().unwrap();
+            assert_eq!(
+                source_to_string(&fetched.source),
+                source_to_string(&source),
+                "source {:?} was mangled on read",
+                source
+            );
+        }
+    }
+
+    /// Cyrillic content must round-trip byte-for-byte through SQLite.
+    #[tokio::test]
+    async fn cyrillic_content_round_trips() {
+        let r = repo();
+        let record = MemoryRecord::new(
+            "Заголовок памяти".to_string(),
+            "Содержимое с эмодзи 🚀 и юникодом".to_string(),
+            "автор".to_string(),
+            MemorySource::Manual,
+        )
+        .unwrap();
+        let id = r.save(&record).await.unwrap();
+        let fetched = r.get_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(fetched.title, "Заголовок памяти");
+        assert_eq!(fetched.content, "Содержимое с эмодзи 🚀 и юникодом");
+        assert_eq!(fetched.author, "автор");
     }
 
     #[tokio::test]

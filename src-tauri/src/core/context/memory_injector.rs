@@ -47,8 +47,13 @@ impl<M: MemoryRepository> MemoryInjector<M> {
         let important = self.get_important_memories(0.7, 5).await?;
         records.extend(important);
 
-        // Deduplicate by ID
-        records.dedup_by_key(|r| r.id.clone());
+        // Deduplicate by ID. `dedup_by_key` only collapses *adjacent* duplicates,
+        // and these records come from four unsorted sources, so the same memory
+        // appeared multiple times and ate the 15-record budget.
+        {
+            let mut seen = std::collections::HashSet::new();
+            records.retain(|r| seen.insert(r.id.as_str().to_string()));
+        }
 
         // Sort by importance (descending)
         records.sort_by(|a, b| {

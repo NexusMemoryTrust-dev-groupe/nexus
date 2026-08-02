@@ -1,6 +1,7 @@
 use chrono::Utc;
 
 use crate::core::context::context_package::{ContextPackage, UserIntent};
+use crate::core::context::provenance::ScorePart;
 
 /// Ranks entities and memory records by relevance to the user's intent.
 /// Now with enhanced recency scoring and importance weighting.
@@ -15,10 +16,23 @@ impl ContextRanker {
     pub fn rank(&self, package: &ContextPackage) -> ContextPackage {
         let mut ranked = package.clone();
 
-        // Score and rank entities
-        for entity in &ranked.entities {
-            let score = self.calculate_score(entity, &ranked.user_intent);
-            ranked.relevance_scores.insert(entity.id.to_string(), score);
+        // Score and rank entities.
+        //
+        // The breakdown is captured alongside the score so the "why is this in
+        // my context?" panel can show the arithmetic instead of a bare number.
+        // Collected first, then written, because `ranked` is borrowed here.
+        let entity_scores: Vec<(String, f64, Vec<ScorePart>)> = ranked
+            .entities
+            .iter()
+            .map(|entity| {
+                let (score, parts) = self.score_entity_parts(entity, &ranked.user_intent);
+                (entity.id.to_string(), score, parts)
+            })
+            .collect();
+
+        for (id, score, parts) in entity_scores {
+            ranked.relevance_scores.insert(id.clone(), score);
+            ranked.provenance.set_score(&id, score, parts);
         }
 
         // Sort entities by score (descending)
@@ -30,9 +44,18 @@ impl ContextRanker {
 
         // Score and rank memory records — store scores in relevance_scores
         // so compressor can prune low-relevance memories
-        for memory in &ranked.memory_records {
-            let score = self.calculate_memory_score(memory, &ranked.user_intent);
-            ranked.relevance_scores.insert(memory.id.to_string(), score);
+        let memory_scores: Vec<(String, f64, Vec<ScorePart>)> = ranked
+            .memory_records
+            .iter()
+            .map(|memory| {
+                let (score, parts) = self.score_memory_parts(memory, &ranked.user_intent);
+                (memory.id.to_string(), score, parts)
+            })
+            .collect();
+
+        for (id, score, parts) in memory_scores {
+            ranked.relevance_scores.insert(id.clone(), score);
+            ranked.provenance.set_score(&id, score, parts);
         }
 
         // Sort memory records by score (descending)
@@ -47,6 +70,21 @@ impl ContextRanker {
 
     /// Calculate relevance score for a single entity.
     pub fn calculate_score(&self, entity: &crate::core::graph::entity::Entity, intent: &UserIntent) -> f64 {
+        self.score_entity_parts(entity, intent).0
+    }
+
+    /// Score an entity *and* return the breakdown that produced it.
+    ///
+    /// The plain score alone cannot answer "why is this in my context?" — a
+    /// single 0.7 tells the user nothing. Returning the addends lets the UI show
+    /// the arithmetic, which is what makes the ranking auditable rather than
+    /// something to be taken on faith.
+    pub fn score_entity_parts(
+        &self,
+        entity: &crate::core::graph::entity::Entity,
+        intent: &UserIntent,
+    ) -> (f64, Vec<ScorePart>) {
+        let mut parts: Vec<ScorePart> = Vec::new();
         let mut score = 0.0;
 
         // Relevance to intent (keyword matching)
@@ -54,12 +92,14 @@ impl ContextRanker {
         let title_lower = entity.title.to_lowercase();
         if !query_lower.is_empty() && title_lower.contains(&query_lower) {
             score += 0.4;
+            parts.push(ScorePart::new("titleMatch", 0.4));
         }
 
         // Keyword matching from extracted keywords
         for keyword in &intent.keywords {
             if title_lower.contains(&keyword.to_lowercase()) {
                 score += 0.2;
+                parts.push(ScorePart::new("keywordMatch", 0.2));
                 break;
             }
         }
@@ -68,57 +108,76 @@ impl ContextRanker {
         if let Some(importance) = entity.metadata.get("importance")
             && let Some(val) = importance.as_f64()
         {
-            score += val * 0.3;
+            let points = val * 0.3;
+            score += points;
+            parts.push(ScorePart::new("importance", points));
         }
 
         // Recency (newer = more relevant) with exponential decay
-        let age_days = (Utc::now() - entity.updated_at).num_days() as f64;
+        let age_days = (Utc::now() - entity.updated_at).num_days().max(0) as f64;
         let recency_score = 1.0 / (1.0 + age_days / 7.0); // Faster decay
-        score += recency_score * 0.2;
+        let recency_points = recency_score * 0.2;
+        score += recency_points;
+        parts.push(ScorePart::new("recency", recency_points));
 
         // Base confidence
         score += 0.1;
+        parts.push(ScorePart::new("base", 0.1));
 
-        score.min(1.0)
+        (score.min(1.0), parts)
     }
 
-    /// Calculate relevance score for a memory record.
-    pub fn calculate_memory_score(&self, memory: &crate::core::memory::memory_record::MemoryRecord, intent: &UserIntent) -> f64 {
+    /// Score a memory record *and* return the breakdown.
+    pub fn score_memory_parts(
+        &self,
+        memory: &crate::core::memory::memory_record::MemoryRecord,
+        intent: &UserIntent,
+    ) -> (f64, Vec<ScorePart>) {
+        let mut parts: Vec<ScorePart> = Vec::new();
         let mut score = 0.0;
 
-        // Title matching
         let query_lower = intent.query.to_lowercase();
         let title_lower = memory.title.to_lowercase();
         if !query_lower.is_empty() && title_lower.contains(&query_lower) {
             score += 0.3;
+            parts.push(ScorePart::new("titleMatch", 0.3));
         }
 
-        // Content matching
         let content_lower = memory.content.to_lowercase();
         if !query_lower.is_empty() && content_lower.contains(&query_lower) {
             score += 0.2;
+            parts.push(ScorePart::new("contentMatch", 0.2));
         }
 
-        // Keyword matching
         for keyword in &intent.keywords {
-            if title_lower.contains(&keyword.to_lowercase()) || content_lower.contains(&keyword.to_lowercase()) {
+            if title_lower.contains(&keyword.to_lowercase())
+                || content_lower.contains(&keyword.to_lowercase())
+            {
                 score += 0.2;
+                parts.push(ScorePart::new("keywordMatch", 0.2));
                 break;
             }
         }
 
-        // Importance score
-        score += memory.importance_score * 0.2;
+        let importance_points = memory.importance_score * 0.2;
+        score += importance_points;
+        parts.push(ScorePart::new("importance", importance_points));
 
-        // Confidence score
-        score += memory.confidence_score * 0.1;
+        let confidence_points = memory.confidence_score * 0.1;
+        score += confidence_points;
+        parts.push(ScorePart::new("confidence", confidence_points));
 
-        // Recency (newer = more relevant)
-        let age_days = (Utc::now() - memory.created_at).num_days() as f64;
-        let recency_score = 1.0 / (1.0 + age_days / 7.0);
-        score += recency_score * 0.1;
+        let age_days = (Utc::now() - memory.created_at).num_days().max(0) as f64;
+        let recency_points = (1.0 / (1.0 + age_days / 7.0)) * 0.1;
+        score += recency_points;
+        parts.push(ScorePart::new("recency", recency_points));
 
-        score.min(1.0)
+        (score.min(1.0), parts)
+    }
+
+    /// Calculate relevance score for a memory record.
+    pub fn calculate_memory_score(&self, memory: &crate::core::memory::memory_record::MemoryRecord, intent: &UserIntent) -> f64 {
+        self.score_memory_parts(memory, intent).0
     }
 }
 

@@ -18,7 +18,31 @@ pub fn db_path() -> PathBuf {
     PathBuf::from(".nexus/nexus.db")
 }
 
+/// Busy timeout for every connection. The app opens several independent
+/// connections to the same file (graph, memory, snapshots, savings), so a
+/// concurrent writer must wait instead of failing fast with SQLITE_BUSY.
+const BUSY_TIMEOUT_MS: u32 = 5_000;
+
+/// Apply the pragmas every connection needs.
+///
+/// `foreign_keys` is OFF by default in SQLite — without it the
+/// `ON DELETE CASCADE` clauses on `graph_relationships` are silently ignored,
+/// which leaves orphaned edges pointing at deleted entities.
+fn configure(conn: &Connection) -> Result<(), String> {
+    conn.busy_timeout(std::time::Duration::from_millis(BUSY_TIMEOUT_MS as u64))
+        .map_err(|e| format!("Failed to set busy_timeout: {}", e))?;
+    conn.execute_batch(
+        "PRAGMA journal_mode=WAL;\
+         PRAGMA foreign_keys=ON;\
+         PRAGMA synchronous=NORMAL;",
+    )
+    .map_err(|e| format!("Failed to configure DB: {}", e))?;
+    Ok(())
+}
+
 /// Open a new SQLite connection to the canonical database.
 pub fn open_connection() -> Result<Connection, String> {
-    Connection::open(db_path()).map_err(|e| format!("Failed to open DB: {}", e))
+    let conn = Connection::open(db_path()).map_err(|e| format!("Failed to open DB: {}", e))?;
+    configure(&conn)?;
+    Ok(conn)
 }

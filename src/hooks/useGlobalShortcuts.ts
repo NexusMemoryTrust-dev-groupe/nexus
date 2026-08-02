@@ -6,6 +6,14 @@ import { useMemoryStore } from '../stores/memoryStore';
 /**
  * Global keyboard shortcuts for the application.
  * All shortcuts use Ctrl (Windows) — detected via e.ctrlKey.
+ *
+ * Layout independence: letter shortcuts use e.code (physical key position),
+ * not e.key (which changes with OS keyboard layout). On a Russian layout,
+ * e.key === 'л' for the K key, so e.key === 'k' would silently fail.
+ * e.code === 'KeyK' is layout-independent and works everywhere.
+ *
+ * Non-letter keys (digits, comma, F5, Escape) remain as e.key comparisons
+ * because their e.key value is layout-stable.
  */
 export function useGlobalShortcuts() {
   const { toggleCommandBar, setActiveView, commandBarOpen } = useUiStore();
@@ -18,7 +26,7 @@ export function useGlobalShortcuts() {
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
       // Ctrl+K — Command bar (always works, even in inputs)
-      if (e.ctrlKey && e.key === 'k') {
+      if (e.ctrlKey && e.code === 'KeyK') {
         e.preventDefault();
         toggleCommandBar();
         return;
@@ -69,7 +77,7 @@ export function useGlobalShortcuts() {
         return;
       }
 
-      // Ctrl+, (comma) — Settings
+      // Ctrl+, (comma) — Settings. e.key === ',' is layout-stable.
       if (e.ctrlKey && e.key === ',') {
         e.preventDefault();
         setActiveView('settings');
@@ -77,7 +85,7 @@ export function useGlobalShortcuts() {
       }
 
       // Ctrl+N — New memory
-      if (e.ctrlKey && e.key === 'n') {
+      if (e.ctrlKey && e.code === 'KeyN') {
         e.preventDefault();
         invoke('create_memory', {
           title: 'New Memory',
@@ -91,7 +99,7 @@ export function useGlobalShortcuts() {
       }
 
       // Ctrl+R or F5 — Refresh memories
-      if ((e.ctrlKey && e.key === 'r') || e.key === 'F5') {
+      if ((e.ctrlKey && e.code === 'KeyR') || e.key === 'F5') {
         e.preventDefault();
         fetchMemories();
         return;

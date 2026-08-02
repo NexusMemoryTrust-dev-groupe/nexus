@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useContextStore } from '../../stores/contextStore';
 import { useLocale } from '../../stores/localeStore';
+import { WhyPanel } from './WhyPanel';
 import {
   Brain, Layers, Sparkles, Network, Link2,
   Hash, ArrowRight, Loader2, Search, ChevronRight, ChevronDown,
+  Download, Copy, Check, FileJson, FileText, Type,
 } from 'lucide-react';
 
 const entityColors: Record<string, string> = {
@@ -164,6 +166,12 @@ export function ContextView() {
               </div>
             </div>
           </div>
+
+          {/* Why is this in my context? — the part no note-taking app can show. */}
+          <WhyPanel traces={context.provenance} />
+
+          {/* Export — hands the package to any model, not just the bundled one. */}
+          <ExportBar />
 
           {/* Entities */}
           {context.entities.length > 0 && (
@@ -384,6 +392,200 @@ function CollapsibleSection({ title, icon: Icon, count, color, open, onToggle, c
       {open && (
         <div style={{ padding: '0 16px 12px' }}>
           {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Export bar ──
+//
+// Lets the package leave Nexus for any model, not just the one wired through
+// OpenCode. Three formats because the audiences differ: Markdown to paste into
+// a chat, JSON for another program to consume, Plain for models where every
+// token of scaffolding is a cost the user pays.
+const EXPORT_FORMATS = [
+  { id: 'markdown' as const, icon: FileText, labelKey: 'export.markdown' },
+  { id: 'plain' as const, icon: Type, labelKey: 'export.plain' },
+  { id: 'json' as const, icon: FileJson, labelKey: 'export.json' },
+];
+
+function ExportBar() {
+  const { t } = useLocale();
+  const { exportContext, lastExport, isExporting } = useContextStore();
+  const [copied, setCopied] = useState(false);
+
+  const handleExport = useCallback(
+    async (format: 'markdown' | 'json' | 'plain') => {
+      const result = await exportContext(format);
+      if (!result) return;
+      // Copy immediately: the point of exporting is to paste it somewhere, and
+      // an extra click between "export" and "paste" is a step nobody wants.
+      try {
+        await navigator.clipboard.writeText(result.content);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard can be denied; the payload is still on screen below.
+      }
+    },
+    [exportContext],
+  );
+
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--radius)',
+        padding: '14px 16px',
+        marginBottom: '16px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <Download size={14} style={{ color: 'var(--mint)', flexShrink: 0 }} />
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--bone)' }}>
+          {t('export.title')}
+        </span>
+        {copied && (
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginLeft: 'auto',
+              fontSize: '11px',
+              color: 'var(--mint)',
+              fontWeight: 600,
+            }}
+          >
+            <Check size={12} />
+            {t('export.copied')}
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
+        {t('export.subtitle')}
+      </p>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {EXPORT_FORMATS.map(({ id, icon: Icon, labelKey }) => (
+          <button
+            key={id}
+            onClick={() => handleExport(id)}
+            disabled={isExporting}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              background: 'var(--carbon)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-xs)',
+              color: 'var(--bone)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.5 : 1,
+            }}
+          >
+            {isExporting ? <Loader2 size={12} className="spinning" /> : <Icon size={12} />}
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {lastExport && (
+        <div style={{ marginTop: '12px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              marginBottom: '8px',
+              fontSize: '11px',
+              color: 'var(--muted-2)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--muted)' }}>
+              {lastExport.filename}
+            </span>
+            {/* The measured cost of what is about to be pasted, including the
+                formatting scaffolding, so the figure is honest. */}
+            <span
+              style={{
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: 'var(--gold-soft)',
+                color: 'var(--gold)',
+                fontWeight: 600,
+              }}
+            >
+              {lastExport.tokens} {t('export.tokens')}
+            </span>
+            <span
+              title={t(
+                lastExport.tokenMethod === 'exact'
+                  ? 'export.methodExactHint'
+                  : 'export.methodEstimatedHint',
+              )}
+              style={{ color: 'var(--muted-3)' }}
+            >
+              {t(
+                lastExport.tokenMethod === 'exact'
+                  ? 'export.methodExact'
+                  : 'export.methodEstimated',
+              )}
+            </span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(lastExport.content).then(
+                  () => {
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 2000);
+                  },
+                  () => undefined,
+                );
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                marginLeft: 'auto',
+                padding: '4px 10px',
+                background: 'none',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--radius-xs)',
+                color: 'var(--muted)',
+                fontSize: '11px',
+                cursor: 'pointer',
+              }}
+            >
+              <Copy size={11} />
+              {t('export.copy')}
+            </button>
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: '12px',
+              maxHeight: '220px',
+              overflow: 'auto',
+              background: 'var(--carbon)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--radius-xs)',
+              fontSize: '11px',
+              lineHeight: 1.5,
+              color: 'var(--muted)',
+              fontFamily: 'var(--mono)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {lastExport.content}
+          </pre>
         </div>
       )}
     </div>

@@ -44,18 +44,22 @@ export function MarkdownEditor({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Use e.code (physical key) for letter shortcuts so they work on any
+      // OS keyboard layout. On a Russian layout e.key === 'и' for the B key,
+      // so e.key === 'b' would never fire.
       // Ctrl+B — bold
-      if (e.ctrlKey && e.key === 'b') {
+      if (e.ctrlKey && e.code === 'KeyB') {
         e.preventDefault();
         insertAtCursor('**', '**');
       }
       // Ctrl+I — italic
-      if (e.ctrlKey && e.key === 'i') {
+      if (e.ctrlKey && e.code === 'KeyI') {
         e.preventDefault();
         insertAtCursor('*', '*');
       }
-      // Ctrl+` — inline code
-      if (e.ctrlKey && e.key === '`') {
+      // Ctrl+` — inline code. Backquote key is layout-stable on all QWERTY
+      // boards (it sits left of 1). e.code is the cleanest check here.
+      if (e.ctrlKey && e.code === 'Backquote') {
         e.preventDefault();
         insertAtCursor('`', '`');
       }

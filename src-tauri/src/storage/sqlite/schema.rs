@@ -11,6 +11,8 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (7, include_str!("migrations/V7_create_context_tables.sql")),
     (8, include_str!("migrations/V8_create_workspace_and_links.sql")),
     (9, include_str!("migrations/V9_create_semantic_fingerprints.sql")),
+    (10, include_str!("migrations/V10_create_savings_tracking.sql")),
+    (11, include_str!("migrations/V11_savings_measured_baseline.sql")),
 ];
 
 /// Table that tracks which migrations have been applied.

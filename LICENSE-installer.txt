@@ -1,0 +1,486 @@
+================================================================================
+
+                    PROPRIETARY SOFTWARE LICENSE AGREEMENT
+
+                            NEXUS MEMORY TRUST
+                        AI Memory Operating System
+                              Version 1.0.0
+
+                          Developed by NexusTeam
+                CEO & Founder: Danila Sergeevich Shanin
+
+             Copyright (c) 2026 NexusTeam. All Rights Reserved.
+
+================================================================================
+
+  This is the installer copy of the license agreement. It is intentionally
+  ASCII-only, because the Windows Installer database stores dialog text in a
+  single legacy code page and cannot represent Cyrillic and Latin together.
+
+  The authoritative bilingual text (Russian and English) ships with the
+  application as LICENSE and is published at:
+  https://github.com/NexusMemoryTrust-dev-groupe/nexus/blob/master/LICENSE
+
+  Where the two differ, the bilingual text governs, and its Russian version
+  prevails.
+
+================================================================================
+
+IMPORTANT - READ CAREFULLY BEFORE INSTALLING OR USING THIS SOFTWARE.
+
+This is a legally binding agreement. By installing, copying, accessing, or
+otherwise using the Software, you accept every term below. If you do not
+accept these terms, do not install or use the Software, and destroy all
+copies in your possession.
+
+================================================================================
+  ARTICLE 1 - DEFINITIONS
+================================================================================
+
+1.1 "Software" means Nexus Memory Trust in its entirety, including but not
+    limited to:
+
+    - Rust source code and compiled binaries
+    - TypeScript and React source code
+    - Database schema and migration files
+    - Model Context Protocol (MCP) server implementation
+    - Installers (NSIS, MSI), npm package, PowerShell scripts
+    - Icons, styles, visual design, 3D scenes, animations
+    - Documentation, comments, architecture decision records
+    - The name "Nexus Memory Trust", the "Nexus" mark, and all branding
+    - Algorithms: context assembly, ranking, compression, provenance
+      tracing, level-of-detail rendering, token accounting
+
+1.2 "Licensor" means NexusTeam and Danila Sergeevich Shanin, the sole and
+    exclusive rights holder.
+
+1.3 "You" / "Licensee" means the individual or legal entity that installs,
+    accesses, or uses the Software.
+
+1.4 "Derivative Work" means any work based upon the Software: translations,
+    adaptations, modifications, ports, forks, reimplementations that
+    reproduce its structure or algorithms, and any product that incorporates
+    any portion of the Software.
+
+1.5 "Source Availability" - the source code is published for TRANSPARENCY and
+    SECURITY AUDIT only. Publication does NOT make this open-source software
+    and does NOT grant any right to copy, reuse, or redistribute.
+
+================================================================================
+  ARTICLE 2 - GRANT OF LICENSE
+================================================================================
+
+Subject to full compliance with this Agreement, the Licensor grants you a
+limited, personal, non-exclusive, non-transferable, revocable license to:
+
+2.1 INSTALL AND USE the Software on devices you own or control, for personal
+    purposes or internal business operations.
+
+2.2 READ the published source code for the purposes of security audit,
+    verification of the Licensor's claims, and personal education.
+
+2.3 CREATE BACKUPS of your own data produced with the Software.
+
+2.4 USE the MCP server interface to connect your own AI assistants to your
+    own data.
+
+WHAT IS NOT GRANTED:
+
+Any right not expressly granted above is reserved by the Licensor. This
+license conveys NO ownership, NO title, and NO intellectual property rights.
+The Software is LICENSED, NOT SOLD.
+
+================================================================================
+  ARTICLE 3 - PROHIBITED CONDUCT
+================================================================================
+
+The following are STRICTLY PROHIBITED without prior written permission from
+the Licensor. Each constitutes a material breach and an infringement of
+exclusive rights.
+
+3.1  COPYING AND DISTRIBUTION
+     - Copying source code, in whole or in part, into any other project
+     - Redistributing binaries, installers, or source
+     - Publishing the Software on any repository, marketplace, or file host
+     - Sharing the Software with third parties
+     - Mirroring the repository with intent to redistribute
+
+3.2  DERIVATIVE WORKS
+     - Creating forks intended for independent release
+     - Modifying the Software and distributing the result
+     - Reimplementing the Software's algorithms from its source
+     - Translating the code into another programming language
+     - Building any product that incorporates any part of the Software
+
+3.3  COMMERCIAL EXPLOITATION
+     - Selling, reselling, sublicensing, renting, or leasing
+     - Offering the Software as a hosted or managed service (SaaS)
+     - Bundling the Software with any commercial offering
+     - Using the Software to build a competing product
+     - Charging third parties for access to the Software
+
+3.4  REVERSE ENGINEERING AND CIRCUMVENTION
+     - Decompiling or disassembling the binaries
+     - Circumventing, disabling, or removing licensing or security controls
+     - Extracting proprietary algorithms for use elsewhere
+     - Defeating the file-system sandbox or its path whitelist
+
+3.5  ATTRIBUTION AND BRANDING
+     - Removing or altering copyright notices
+     - Removing or altering the attribution "Developed by NexusTeam" or
+       "CEO & Founder: Danila Sergeevich Shanin"
+     - Claiming authorship of the Software or any portion of it
+     - Using the "Nexus Memory Trust" or "Nexus" marks for your own product
+     - Presenting the Software as your own work
+
+3.6  MISUSE
+     - Using the Software for unlawful purposes
+     - Using the Software to process unlawfully obtained data
+     - Using the MCP interface to reach systems you are not authorized
+       to access
+
+================================================================================
+  ARTICLE 4 - LEGAL LIABILITY
+================================================================================
+
+Infringement of the Licensor's rights carries CIVIL, ADMINISTRATIVE, and
+CRIMINAL liability under applicable law. The provisions cited below are real
+and currently in force. Nothing here is invented for effect.
+
+--------------------------------------------------------------------------------
+4.1  RUSSIAN FEDERATION
+--------------------------------------------------------------------------------
+
+  CRIMINAL LIABILITY
+
+  Criminal Code of the Russian Federation, Article 146
+    - Infringement of copyright and neighbouring rights
+    Part 2: unlawful use of copyrighted works on a large scale -
+            fine up to RUB 200,000, or compulsory labour,
+            or forced labour up to 2 years, or imprisonment up to 2 years
+    Part 3: the same acts committed by a group acting on prior agreement,
+            on an especially large scale, or by abuse of official position -
+            IMPRISONMENT UP TO 6 YEARS with a fine up to RUB 500,000
+
+  Criminal Code of the Russian Federation, Article 272
+    - Unlawful access to computer information
+    Part 1: fine up to RUB 200,000 or imprisonment up to 2 years
+    Part 2: for personal gain or causing major damage - up to 4 years
+    Part 3: by a group or by abuse of official position - up to 5 years
+    Part 4: where grave consequences follow - IMPRISONMENT UP TO 7 YEARS
+
+  Criminal Code of the Russian Federation, Article 273
+    - Creation, use, and distribution of malicious computer programs
+    Part 1: imprisonment up to 4 years
+    Part 2: by a group, for personal gain, or causing major damage -
+            up to 5 years
+    Part 3: where grave consequences follow - IMPRISONMENT UP TO 7 YEARS
+
+  CIVIL LIABILITY
+
+  Civil Code of the Russian Federation
+    Article 1259 - computer programs are objects of copyright and are
+                   protected as literary works
+    Article 1261 - copyright in all types of computer programs is protected
+                   in the same manner as rights in literary works
+    Article 1270 - the exclusive right to use a work belongs to the
+                   rights holder
+    Article 1252 - protection of exclusive rights: injunction, recovery of
+                   damages, seizure of media, publication of the judgment
+
+    Article 1301 - COMPENSATION for infringement of an exclusive right:
+                   - from RUB 10,000 to RUB 5,000,000 at the court's
+                     discretion, OR
+                   - twice the value of the infringing copies, OR
+                   - twice the value of the right of use
+
+                   Compensation is awarded INSTEAD of damages and does NOT
+                   require proof of their amount.
+
+    Article 1253 - liquidation of a legal entity or termination of the
+                   activity of a sole proprietor for repeated or gross
+                   infringement of exclusive rights
+
+  ADMINISTRATIVE LIABILITY
+
+  Code of Administrative Offences, Article 7.12
+    - Infringement of copyright and neighbouring rights
+    - individuals:        fine RUB 1,500 - 2,000 with confiscation
+    - officials:          fine RUB 10,000 - 20,000 with confiscation
+    - legal entities:     fine RUB 30,000 - 40,000 with confiscation
+
+  Code of Administrative Offences, Article 14.33
+    - Unfair competition: up to RUB 500,000 or up to 15% of revenue
+
+--------------------------------------------------------------------------------
+4.2  UNITED STATES OF AMERICA
+--------------------------------------------------------------------------------
+
+  17 U.S.C. Sec. 501  - Copyright infringement (civil liability)
+  17 U.S.C. Sec. 504  - Statutory damages:
+                        up to $30,000 per work infringed
+                        up to $150,000 per work if the infringement is WILLFUL
+  17 U.S.C. Sec. 505  - Recovery of full costs and attorney's fees
+  17 U.S.C. Sec. 506  - Criminal infringement
+  17 U.S.C. Sec. 1201 - DMCA anti-circumvention provisions
+  17 U.S.C. Sec. 1203 - Civil remedies for circumvention
+  17 U.S.C. Sec. 1204 - Criminal penalties: up to $1,000,000 fine and
+                        up to 10 YEARS IMPRISONMENT for a repeat offense
+
+  18 U.S.C. Sec. 2319 - Criminal infringement of a copyright:
+                        up to 5 YEARS for a first offense
+                        up to 10 YEARS for a subsequent offense
+
+  18 U.S.C. Sec. 1030 - Computer Fraud and Abuse Act
+  18 U.S.C. Sec. 1832 - Theft of trade secrets: up to 10 YEARS
+  18 U.S.C. Sec. 1836 - Defend Trade Secrets Act: civil seizure available
+
+--------------------------------------------------------------------------------
+4.3  INTERNATIONAL
+--------------------------------------------------------------------------------
+
+  Berne Convention for the Protection of Literary and Artistic Works
+    Article 2  - computer programs protected as literary works
+    Article 9  - exclusive right of reproduction
+    (181 contracting states - protection is automatic and cross-border)
+
+  WIPO Copyright Treaty (1996)
+    Article 4  - computer programs protected as literary works
+    Article 11 - obligations concerning technological measures
+
+  TRIPS Agreement (WTO)
+    Article 10 - computer programs protected as literary works
+    Article 61 - CRIMINAL PROCEDURES: imprisonment and monetary fines
+                 sufficient to provide a deterrent
+
+  European Union
+    Directive 2009/24/EC    - legal protection of computer programs
+    Directive 2004/48/EC    - enforcement of intellectual property rights
+    Directive (EU) 2019/790 - copyright in the Digital Single Market
+
+  The Russian Federation is a party to the Berne Convention, the WIPO
+  Copyright Treaty, and the TRIPS Agreement. Protection applies automatically
+  in all contracting states, without registration.
+
+--------------------------------------------------------------------------------
+4.4  ENFORCEMENT POLICY
+--------------------------------------------------------------------------------
+
+The Licensor actively monitors for infringement and WILL pursue violations.
+Enforcement includes, and is not limited to:
+
+  - Automated scanning of public repositories for copied code
+  - DMCA takedown notices to GitHub, GitLab, npm, and hosting providers
+  - Cease and desist letters
+  - Civil suits for damages and statutory compensation
+  - Criminal complaints to law enforcement where warranted
+  - Notification of app stores and marketplaces
+  - Public disclosure of infringement
+
+The publication of source code is an act of good faith toward the community.
+It is NOT a waiver of rights. Any attempt to exploit that good faith will be
+treated accordingly.
+
+================================================================================
+  ARTICLE 5 - OWNERSHIP
+================================================================================
+
+5.1 The Software is the exclusive property of the Licensor. All right, title,
+    and interest - including all intellectual property rights - remain with
+    NexusTeam and Danila Sergeevich Shanin at all times.
+
+5.2 This includes, without limitation:
+    - Copyright in all source code, binaries, and documentation
+    - The architecture and design of the context assembly pipeline
+    - The provenance tracing model and its taxonomy of inclusion and
+      exclusion causes
+    - The level-of-detail rendering algorithm and its budget heuristics
+    - The measured token accounting method
+    - The sandbox path validation model
+    - Trademarks and trade dress
+    - Trade secrets embodied in the implementation
+
+5.3 Feedback you provide (bug reports, suggestions, feature requests) may be
+    used by the Licensor without restriction, obligation, or compensation.
+
+5.4 Data YOU create with the Software - your memories, entities, notes, and
+    projects - belongs to YOU. The Licensor claims no ownership over your
+    content and never transmits it anywhere.
+
+================================================================================
+  ARTICLE 6 - PRIVACY
+================================================================================
+
+6.1 The Software stores all data locally in an SQLite database on your device
+    at %LOCALAPPDATA%\Nexus\.
+
+6.2 The Software contains NO telemetry, NO analytics, NO usage tracking, and
+    NO crash reporting to the Licensor.
+
+6.3 Network requests occur only when:
+    - You invoke an AI model (the request goes to your configured provider)
+    - The embedding model is downloaded once on first semantic search
+    - You explicitly check for updates
+
+6.4 Your API keys are stored by the OpenCode credential store, not by the
+    Software's database.
+
+================================================================================
+  ARTICLE 7 - NO WARRANTY
+================================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT.
+
+THE LICENSOR DOES NOT WARRANT THAT:
+  - The Software will be uninterrupted, timely, secure, or error-free
+  - Results obtained will be accurate or reliable
+  - Defects will be corrected
+  - AI-generated output will be correct, complete, or suitable for any
+    particular purpose
+
+YOU ARE SOLELY RESPONSIBLE FOR BACKING UP YOUR DATA.
+
+================================================================================
+  ARTICLE 8 - LIMITATION OF LIABILITY
+================================================================================
+
+8.1 TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE
+    FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
+    DAMAGES, INCLUDING LOSS OF PROFITS, DATA, GOODWILL, OR BUSINESS
+    INTERRUPTION.
+
+8.2 The Licensor's total aggregate liability shall not exceed the amount you
+    actually paid for the Software, or USD 10.00 if you paid nothing.
+
+8.3 Nothing in this Agreement excludes liability that cannot lawfully be
+    excluded, including liability for gross negligence or wilful misconduct
+    where applicable law so provides.
+
+================================================================================
+  ARTICLE 9 - THIRD-PARTY COMPONENTS
+================================================================================
+
+The Software incorporates third-party open-source components, each governed
+by its own license:
+
+  Rust, Tauri 2, React 19, TypeScript, Three.js, SQLite, ONNX Runtime,
+  fastembed, tokenizers, rusqlite, tokio, serde, zustand, TipTap,
+  lucide-react, framer-motion, and others.
+
+These components remain under their respective licenses (MIT, Apache-2.0,
+BSD, Public Domain). This Agreement applies ONLY to the original work
+authored by the Licensor - not to those components.
+
+A full inventory is available in package.json and src-tauri/Cargo.toml.
+
+================================================================================
+  ARTICLE 10 - TERM AND TERMINATION
+================================================================================
+
+10.1 This Agreement is effective upon installation and remains in force until
+     terminated.
+
+10.2 It terminates AUTOMATICALLY AND IMMEDIATELY, without notice, upon any
+     breach of Article 3.
+
+10.3 Upon termination you must immediately cease all use, uninstall the
+     Software, and destroy all copies in your possession.
+
+10.4 Termination does not limit the Licensor's other rights or remedies.
+     Articles 4, 5, 7, 8, and 11 survive termination.
+
+================================================================================
+  ARTICLE 11 - GOVERNING LAW
+================================================================================
+
+11.1 This Agreement is governed by the laws of the Russian Federation,
+     without regard to conflict-of-law principles.
+
+11.2 Disputes are subject to the exclusive jurisdiction of the competent
+     courts of the Russian Federation.
+
+11.3 The Licensor additionally reserves the right to seek relief in any
+     jurisdiction where infringement occurs, including injunctive relief and
+     DMCA remedies.
+
+11.4 The Russian-language text of the bilingual LICENSE prevails in the event
+     of any discrepancy between language versions.
+
+================================================================================
+  ARTICLE 12 - GENERAL
+================================================================================
+
+12.1 ENTIRE AGREEMENT. This is the complete agreement regarding the Software
+     and supersedes all prior communications.
+
+12.2 SEVERABILITY. If any provision is held unenforceable, the remainder
+     stays in full force.
+
+12.3 NO WAIVER. Failure to enforce any provision is not a waiver of it.
+
+12.4 AMENDMENT. The Licensor may revise this Agreement for future versions.
+     Continued use after notice constitutes acceptance.
+
+12.5 ASSIGNMENT. You may not assign or transfer this Agreement. The Licensor
+     may assign it freely.
+
+12.6 EXPORT. You must comply with all applicable export control laws.
+
+================================================================================
+  ARTICLE 13 - COMMERCIAL LICENSING
+================================================================================
+
+Need something this license does not permit? Talk to us. We are open to:
+
+  - Enterprise and site licenses
+  - OEM and redistribution agreements
+  - Custom development and integration
+  - Academic and research licensing
+  - White-label arrangements
+
+  Telegram:    @nexus_memory_team
+  Repository:  https://github.com/NexusMemoryTrust-dev-groupe/nexus
+
+================================================================================
+  SUPPORT THE PROJECT
+================================================================================
+
+Nexus is built by a small independent team with no outside funding. Donations
+go directly into development - code signing certificates, infrastructure, and
+new capabilities.
+
+  ByBit / TRC-20 (Tron):  TP4SPiuxgw2uXYyxAhq2VBxw16UcLuaQ21
+  Accepted:               USDT, USDC, TRX
+
+  Telegram:               @nexus_memory_team
+
+================================================================================
+  DISCLAIMER REGARDING THIS DOCUMENT
+================================================================================
+
+The statutory provisions cited in Article 4 are real and were accurate as of
+the date of this document. They are reproduced for informational purposes, to
+inform users of the seriousness of infringement. They do not constitute legal
+advice, and penalties in any actual case depend on the facts, the
+jurisdiction, and judicial discretion.
+
+The Licensor recommends that any party relying on this Agreement in a legal
+proceeding obtain independent review by a qualified attorney.
+
+================================================================================
+
+                          NEXUS MEMORY TRUST v1.0.0
+                     A new era of AI memory management
+
+                          Developed by NexusTeam
+                CEO & Founder: Danila Sergeevich Shanin
+
+             Copyright (c) 2026 NexusTeam. All Rights Reserved.
+
+                          Document version: 1.0
+                          Effective date: 2026
+
+================================================================================

@@ -6,12 +6,22 @@ use crate::core::context::context_request::ContextRequest;
 use crate::core::context::graph_seeder::GraphSeeder;
 use crate::core::context::intent_detector::IntentDetector;
 use crate::core::context::memory_injector::MemoryInjector;
+use crate::core::context::provenance::{DropCause, ItemKind, Provenance, Reason};
 use crate::core::context::ranker::ContextRanker;
 use crate::core::entity_id::EntityId;
 use crate::core::graph::relationship::Relationship;
 use crate::core::graph::graph_store::GraphStore;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::result::Result;
+
+/// Importance at or above which a memory is reported as included *because* the
+/// user marked it important. Mirrors the threshold `MemoryInjector` uses when it
+/// pulls important records, so the explanation matches the actual behaviour.
+const HIGH_IMPORTANCE: f64 = 0.7;
+
+/// Age in days below which a memory is reported as recent. Same window the
+/// injector uses, for the same reason.
+const RECENT_DAYS: i64 = 7;
 
 /// Builds context packages from requests through a 6-step pipeline:
 /// Intent Detection → Graph Seeding → Expansion → Memory Injection → Compression → Ranking
@@ -53,6 +63,49 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilderImpl<G, M> {
         }
     }
 
+    /// Calculate dynamic token limit based on actual content size.
+    /// Formula: entities * 50 + relationships * 15 + memories * 100 + base 500
+    /// Clamped between 1000 and 10000.
+    fn calculate_dynamic_token_limit(&self, package: &ContextPackage) -> u32 {
+        let entity_tokens = package.entities.len() as u32 * 50;
+        let relationship_tokens = package.relationships.len() as u32 * 15;
+        let memory_tokens = package.memory_records.len() as u32 * 100;
+        let base = 500;
+        let total = entity_tokens + relationship_tokens + memory_tokens + base;
+        total.clamp(1000, 10000)
+    }
+
+    /// Measure what the model would have consumed had it read the whole
+    /// candidate set, and store it on the package.
+    ///
+    /// Must be called *before* compression, while every candidate is still
+    /// present. Counted with the same tokenizer as the final payload, so the
+    /// two figures are directly comparable and the resulting saving is a
+    /// measurement rather than the old hardcoded 800-token guess.
+    fn record_baseline(package: &mut ContextPackage) {
+        let mut baseline: u32 = 0;
+
+        for entity in &package.entities {
+            baseline = baseline.saturating_add(crate::core::tokenizer::count(&entity.title));
+            baseline = baseline.saturating_add(crate::core::tokenizer::count(&entity.description));
+        }
+
+        // Reading a memory outright means reading its full body, not the summary.
+        for record in &package.memory_records {
+            baseline = baseline.saturating_add(crate::core::tokenizer::count(&record.title));
+            baseline = baseline.saturating_add(crate::core::tokenizer::count(&record.content));
+        }
+
+        for rel in &package.relationships {
+            baseline = baseline
+                .saturating_add(crate::core::tokenizer::count(rel.relationship_type.as_str()));
+        }
+
+        package.baseline_tokens = baseline;
+        package.candidate_entities = package.entities.len() as u32;
+        package.candidate_memories = package.memory_records.len() as u32;
+    }
+
     /// Collect relationships for all given entity IDs from the graph store.
     /// Deduplicates by relationship ID.
     async fn collect_relationships(
@@ -75,7 +128,7 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
     /// Full 6-step pipeline:
     /// 1. Intent Detection
     /// 2. Graph Seeding (search by query)
-    /// 3. Expansion (1-hop neighbors)
+    /// 3. Expansion (N-hop neighbors based on max_depth)
     /// 4. Memory Injection (search memory for each entity)
     /// 5. Ranking (score entities)
     /// 6. Compression (fit within max_tokens)
@@ -85,13 +138,62 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
         // Step 1: Intent Detection
         let intent = self.intent_detector.detect(&request.query);
 
+        // Provenance is accumulated as the pipeline runs, because *why* an item
+        // is present is only knowable at the moment it enters. Reconstructing it
+        // afterwards from the finished package is impossible: by then a direct
+        // query hit and a third-hop neighbour look identical.
+        let mut prov = Provenance::new();
+
         // Step 2: Graph Seeding — search for entities matching the query
         let mut entities = self.graph_seeder.seed(&intent).await?;
+        for e in &entities {
+            prov.record(
+                e.id.as_str(),
+                ItemKind::Entity,
+                &e.title,
+                Reason::QueryMatch { query: request.query.clone() },
+            );
+            // A seed can also owe its presence to a keyword rather than the whole
+            // phrase; record that separately so the panel can show both.
+            let title_lower = e.title.to_lowercase();
+            for kw in &intent.keywords {
+                if title_lower.contains(&kw.to_lowercase()) {
+                    prov.record(
+                        e.id.as_str(),
+                        ItemKind::Entity,
+                        &e.title,
+                        Reason::KeywordMatch { keyword: kw.clone() },
+                    );
+                }
+            }
+        }
 
-        // Step 3: Expansion — 1-hop neighbors for each seeded entity
+        // Step 3: Expansion — N-hop neighbors based on max_depth
+        let seeds: Vec<(EntityId, String)> =
+            entities.iter().map(|e| (e.id.clone(), e.title.clone())).collect();
         let mut expanded = Vec::new();
-        for entity in &entities {
-            let neighbors = self.graph_seeder.seed_entity(&entity.id).await?;
+        for (seed_id, seed_title) in &seeds {
+            let neighbors = self
+                .graph_seeder
+                .seed_entity_deep(seed_id, request.max_depth)
+                .await?;
+            for n in &neighbors {
+                // The seed itself comes back from a BFS walk; attributing it to
+                // expansion would bury the fact that it matched the query.
+                if &n.id == seed_id {
+                    continue;
+                }
+                prov.record(
+                    n.id.as_str(),
+                    ItemKind::Entity,
+                    &n.title,
+                    Reason::GraphExpansion {
+                        from_id: seed_id.as_str().to_string(),
+                        from_title: seed_title.clone(),
+                        hops: request.max_depth,
+                    },
+                );
+            }
             expanded.extend(neighbors);
         }
         entities.extend(expanded);
@@ -103,6 +205,10 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
         // Respect max_entities limit
         if entities.len() > request.max_entities as usize {
             entities.truncate(request.max_entities as usize);
+            // Everything traced but no longer present fell off this limit. Saying
+            // so is more useful than silently omitting it.
+            let kept: Vec<String> = entities.iter().map(|e| e.id.as_str().to_string()).collect();
+            prov.reconcile(&kept, DropCause::EntityCap { cap: request.max_entities });
         }
 
         // Collect relationships for all entities
@@ -111,18 +217,52 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
 
         // Step 4: Memory Injection
         let memory_records = self.memory_injector.inject(&entities, &intent).await?;
+        for m in &memory_records {
+            prov.record(
+                m.id.as_str(),
+                ItemKind::Memory,
+                &m.title,
+                Reason::MemorySearch { query: request.query.clone() },
+            );
+            if m.importance_score >= HIGH_IMPORTANCE {
+                prov.record(
+                    m.id.as_str(),
+                    ItemKind::Memory,
+                    &m.title,
+                    Reason::HighImportance { importance: m.importance_score },
+                );
+            }
+            let age_days = (chrono::Utc::now() - m.created_at).num_days();
+            if age_days <= RECENT_DAYS {
+                prov.record(
+                    m.id.as_str(),
+                    ItemKind::Memory,
+                    &m.title,
+                    Reason::RecentActivity { age_days },
+                );
+            }
+        }
 
         // Build initial package
         let mut package = ContextPackage::new(intent);
         package.entities = entities;
         package.relationships = relationships;
         package.memory_records = memory_records;
+        package.provenance = prov;
+
+        // Measure the baseline *before* compression, while the full candidate
+        // set is still present: this is what the model would have consumed had
+        // it read everything we found. Comparing it with the post-compression
+        // `token_count` yields a saving that is measured, not assumed.
+        Self::record_baseline(&mut package);
 
         // Step 5: Ranking
         package = self.ranker.rank(&package);
 
-        // Step 6: Compression
-        package = self.compressor.compress(&package, request.max_tokens)?;
+        // Step 6: Compression — honour the request's relevance floor
+        package = self
+            .compressor
+            .compress(&package, request.max_tokens, request.min_relevance)?;
 
         Ok(package)
     }
@@ -130,10 +270,11 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
     async fn build_for_entity(
         &self,
         entity_id: &EntityId,
-        _depth: u32,
+        depth: u32,
     ) -> Result<ContextPackage> {
-        // Seed from a specific entity and its neighbors
-        let entities = self.graph_seeder.seed_entity(entity_id).await?;
+        // Seed from a specific entity with N-hop traversal
+        let depth = if depth == 0 { 1 } else { depth };
+        let entities = self.graph_seeder.seed_entity_deep(entity_id, depth).await?;
 
         let entity_ids: Vec<EntityId> = entities.iter().map(|e| e.id.clone()).collect();
         let relationships = self.collect_relationships(&entity_ids).await?;
@@ -148,13 +289,60 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
 
         let memory_records = self.memory_injector.inject(&entities, &intent).await?;
 
+        // Entity-centred builds have one seed and everything else arrives by
+        // walking the graph, so the trace reads as a provenance chain: this is
+        // the entity you asked about, and these are its neighbours N hops out.
+        let mut prov = Provenance::new();
+        for (i, e) in entities.iter().enumerate() {
+            if i == 0 && &e.id == entity_id {
+                prov.record(
+                    e.id.as_str(),
+                    ItemKind::Entity,
+                    &e.title,
+                    Reason::QueryMatch { query: e.title.clone() },
+                );
+            } else {
+                prov.record(
+                    e.id.as_str(),
+                    ItemKind::Entity,
+                    &e.title,
+                    Reason::GraphExpansion {
+                        from_id: entity_id.as_str().to_string(),
+                        from_title: entities
+                            .first()
+                            .map(|s| s.title.clone())
+                            .unwrap_or_default(),
+                        hops: depth,
+                    },
+                );
+            }
+        }
+        for m in &memory_records {
+            prov.record(
+                m.id.as_str(),
+                ItemKind::Memory,
+                &m.title,
+                Reason::MemorySearch { query: entity_id.as_str().to_string() },
+            );
+        }
+
         let mut package = ContextPackage::new(intent);
         package.entities = entities;
         package.relationships = relationships;
         package.memory_records = memory_records;
+        package.provenance = prov;
+
+        Self::record_baseline(&mut package);
 
         package = self.ranker.rank(&package);
-        package = self.compressor.compress(&package, 4000)?;
+
+        // Dynamic token limit: scale with content size
+        let max_tokens = self.calculate_dynamic_token_limit(&package);
+        package = self.compressor.compress(
+            &package,
+            max_tokens,
+            ContextCompressor::DEFAULT_MIN_RELEVANCE,
+        )?;
 
         Ok(package)
     }

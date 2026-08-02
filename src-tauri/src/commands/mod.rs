@@ -7,3 +7,5 @@ pub mod ai_prompt;
 pub mod copilot;
 pub mod files;
 pub mod workspace;
+pub mod savings;
+pub mod setup;

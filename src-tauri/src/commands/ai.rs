@@ -25,38 +25,110 @@ fn build_prompt(messages: &[ChatMessage]) -> String {
     crate::commands::ai_prompt::build_full_prompt(messages)
 }
 
-/// Find the opencode binary path.
-fn find_opencode_binary() -> Result<String, String> {
-    let candidates = if cfg!(target_os = "windows") {
-        vec![
-            "C:\\Users\\User\\AppData\\Roaming\\npm\\node_modules\\opencode-ai\\bin\\opencode.exe",
-            "C:\\Users\\User\\AppData\\Roaming\\npm\\opencode.cmd",
-        ]
-    } else {
-        vec![
-            "/usr/local/bin/opencode",
-            "/usr/bin/opencode",
-        ]
-    };
+/// Relative location of the real executable inside a global npm install.
+///
+/// npm puts a `opencode.cmd` shim in the prefix directory and the actual binary
+/// one level down, inside the package itself.
+#[cfg(target_os = "windows")]
+const NPM_EXE_SUFFIX: &str = "node_modules\\opencode-ai\\bin\\opencode.exe";
 
-    for path in &candidates {
-        if std::path::Path::new(path).exists() {
-            return Ok(path.to_string());
+/// Map a discovered path to something that can be spawned directly.
+///
+/// `.cmd`/`.bat` shims are replaced by the executable they wrap. Everything
+/// else passes through untouched.
+///
+/// Why not just run the shim: since the fix for CVE-2024-24576 Rust refuses to
+/// pass arguments to a batch file when they contain characters it cannot safely
+/// escape. Every real chat prompt contains such characters (newlines, quotes),
+/// so `Command::spawn` fails with "batch file arguments are invalid". That is
+/// exactly the error seen in the Co-Pilot, and it explains why listing models
+/// still worked: `models` is a single tidy argument with nothing to escape.
+///
+/// The tempting workaround — `cmd.exe /C <shim> <args>` — is worse than the
+/// bug. It hands user-authored prompt text to the command interpreter, where
+/// `&` or `|` would be read as operators rather than data. Resolving to the
+/// executable keeps Rust's argument handling, and its protection, intact.
+fn resolve_to_exe(path: &str) -> Option<String> {
+    let lower = path.to_lowercase();
+    if !(lower.ends_with(".cmd") || lower.ends_with(".bat")) {
+        return Some(path.to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let dir = std::path::Path::new(path).parent()?;
+        let exe = dir.join(NPM_EXE_SUFFIX);
+        if exe.is_file() {
+            return Some(exe.to_string_lossy().to_string());
         }
     }
 
+    None
+}
+
+/// Find a directly spawnable opencode binary.
+///
+/// Candidates are probed in order and each one is passed through
+/// [`resolve_to_exe`], so a `.cmd` shim still leads to a usable path.
+fn find_opencode_binary() -> Result<String, String> {
+    let mut candidates: Vec<String> = Vec::new();
+
+    if cfg!(target_os = "windows") {
+        for prefix in [
+            std::env::var("APPDATA").map(|v| format!("{}\\npm", v)),
+            std::env::var("USERPROFILE").map(|v| format!("{}\\AppData\\Roaming\\npm", v)),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            candidates.push(format!("{}\\node_modules\\opencode-ai\\bin\\opencode.exe", prefix));
+            candidates.push(format!("{}\\opencode.cmd", prefix));
+        }
+    } else {
+        candidates.push("/usr/local/bin/opencode".to_string());
+        candidates.push("/usr/bin/opencode".to_string());
+    }
+
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            if let Some(exe) = resolve_to_exe(path) {
+                return Ok(exe);
+            }
+        }
+    }
+
+    // Last resort: ask the OS where the command lives. `where` can return
+    // several lines; a real executable is preferred over a shim.
     let which_cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
     if let Ok(output) = Command::new(which_cmd).arg("opencode").output() {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let first_line = stdout.lines().next().unwrap_or("").trim();
-            if !first_line.is_empty() {
-                return Ok(first_line.to_string());
+            let found: Vec<&str> = stdout
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect();
+            let ordered = found
+                .iter()
+                .filter(|l| l.to_lowercase().ends_with(".exe"))
+                .chain(found.iter());
+            for path in ordered {
+                if let Some(exe) = resolve_to_exe(path) {
+                    return Ok(exe);
+                }
             }
         }
     }
 
     Err("opencode binary not found. Install with: npm install -g opencode-ai".to_string())
+}
+
+/// Public probe used by the setup wizard: the OpenCode binary path, or `None`.
+///
+/// Thin wrapper so the wizard can report presence without duplicating the
+/// discovery logic (npm prefix, user profile, then `where`/`which`).
+pub fn opencode_path() -> Option<String> {
+    find_opencode_binary().ok()
 }
 
 /// Read the configured model from DB, falling back to DEFAULT_MODEL.
@@ -168,6 +240,8 @@ pub async fn ai_chat_stream(
             .spawn()
             .map_err(|e| format!("Failed to start opencode: {}", e))?;
 
+        // Capture stderr BEFORE taking stdout to avoid data loss
+        let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
         let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
         let reader = BufReader::new(stdout);
 
@@ -229,11 +303,14 @@ pub async fn ai_chat_stream(
         // Wait for process to finish
         let _ = child.wait();
 
+        // Read remaining stderr content
+        let mut stderr_buf = String::new();
+        use std::io::Read;
+        let mut stderr_reader = std::io::BufReader::new(stderr);
+        let _ = stderr_reader.read_to_string(&mut stderr_buf);
+
         if full_text.trim().is_empty() && thinking_text.trim().is_empty() {
-            let stderr_output = child.wait_with_output()
-                .map(|o| String::from_utf8_lossy(&o.stderr).trim().to_string())
-                .unwrap_or_default();
-            return Err(format!("Empty response from AI. {}", stderr_output));
+            return Err(format!("Empty response from AI. {}", stderr_buf.trim()));
         }
 
         // If no text but there was thinking, use thinking as response

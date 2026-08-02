@@ -9,6 +9,9 @@ const MAX_PROMPT_CHARS: usize = 16000;
 /// Max conversation messages to include (recent only).
 const MAX_CONVERSATION_MESSAGES: usize = 20;
 
+/// Max bytes kept per individual message.
+const MAX_MESSAGE_CHARS: usize = 500;
+
 /// Get the system rules prompt. Loaded once, cached.
 pub fn get_system_rules() -> &'static str {
     SYSTEM_RULES
@@ -26,20 +29,20 @@ pub fn build_full_prompt(conversation: &[super::ai::ChatMessage]) -> String {
 
     for msg in recent_messages {
         let label = if msg.role == "user" { "User" } else { "Assistant" };
-        // Truncate individual messages to 500 chars each
-        let content = if msg.content.len() > 500 {
-            format!("{}...", &msg.content[..500])
-        } else {
-            msg.content.clone()
-        };
+        // Truncate individual messages (UTF-8 safe — Cyrillic is 2 bytes/char)
+        let content = crate::core::text::truncate_with_suffix(&msg.content, MAX_MESSAGE_CHARS, "...");
         parts.push(format!("{}: {}", label, content));
     }
 
     let full = parts.join("\n\n");
-    
-    // Final safety: truncate entire prompt if still too long
+
+    // Final safety: truncate entire prompt if still too long (UTF-8 safe)
     if full.len() > MAX_PROMPT_CHARS {
-        format!("{}\n\n[Conversation truncated — {} chars total]", &full[..MAX_PROMPT_CHARS], full.len())
+        format!(
+            "{}\n\n[Conversation truncated — {} chars total]",
+            crate::core::text::truncate_chars(&full, MAX_PROMPT_CHARS),
+            full.len()
+        )
     } else {
         full
     }

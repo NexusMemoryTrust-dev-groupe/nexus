@@ -23,17 +23,31 @@ impl<B: ContextBuilder, C: ContextCache, S: ContextStore> ContextService<B, C, S
         }
     }
 
-    /// Build a context, using cache if available.
-    pub async fn build_context(&self, request: &ContextRequest) -> Result<ContextPackage> {
-        let cache_key = format!(
-            "{}:{}",
+    /// Cache key for a request.
+    ///
+    /// Must cover every field that changes the produced package. Keying on
+    /// `query` + `project_id` alone meant two requests differing only in
+    /// `max_tokens`/`max_entities`/`max_depth`/`min_relevance` collided, so the
+    /// second one silently got the first one's package.
+    fn cache_key(request: &ContextRequest) -> String {
+        format!(
+            "{}|{}|t={}|e={}|d={}|r={:.4}",
             request.query,
             request
                 .project_id
                 .as_ref()
-                .map(|p| p.as_str().to_string())
-                .unwrap_or_default()
-        );
+                .map(|p| p.as_str())
+                .unwrap_or(""),
+            request.max_tokens,
+            request.max_entities,
+            request.max_depth,
+            request.min_relevance,
+        )
+    }
+
+    /// Build a context, using cache if available.
+    pub async fn build_context(&self, request: &ContextRequest) -> Result<ContextPackage> {
+        let cache_key = Self::cache_key(request);
 
         if let Some(cached) = self.cache.get(&cache_key).await? {
             return Ok(cached);
