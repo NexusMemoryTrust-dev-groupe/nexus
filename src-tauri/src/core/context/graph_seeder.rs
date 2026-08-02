@@ -18,7 +18,16 @@ impl<G: GraphStore> GraphSeeder<G> {
 
     /// Find entities matching the intent query.
     pub async fn seed(&self, intent: &UserIntent) -> Result<Vec<Entity>> {
-        let entities = self.graph_store.search_entities(&intent.query).await?;
+        // Prefer already-normalized keywords (stop words stripped, lowercased).
+        // Fall back to the raw query — `search_entities` normalizes internally
+        // too, so a stop-word-only query degrades to an empty result instead
+        // of a false AND across meaningless words.
+        let query = if intent.keywords.is_empty() {
+            intent.query.clone()
+        } else {
+            intent.keywords.join(" ")
+        };
+        let entities = self.graph_store.search_entities(&query).await?;
         Ok(entities)
     }
 

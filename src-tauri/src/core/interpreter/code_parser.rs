@@ -121,12 +121,17 @@ fn parse_js_ts(content: &str, lang: &str) -> ParsedCode {
             }
         }
 
-        // Arrow functions: const name = (
-        if ((trimmed.starts_with("const ")
+        // Arrow functions: const f = (...) =>, const f = async (...) =>,
+        // const f = useCallback((...) =>, export const f = (...) =>
+        // (excludes method chains like `arr.reduce((a, r) => ...` and
+        // destructuring like `const [a, b] = ...` — see is_js_arrow_binding)
+        if (trimmed.starts_with("const ")
             || trimmed.starts_with("let ")
-            || trimmed.starts_with("var "))
-            && trimmed.contains("= (")
-            || trimmed.contains("= async ("))
+            || trimmed.starts_with("var ")
+            || trimmed.starts_with("export const ")
+            || trimmed.starts_with("export let ")
+            || trimmed.starts_with("export var "))
+            && is_js_arrow_binding(trimmed)
             && let Some(name) = extract_const_name(trimmed)
         {
             let mut e = Entity::new(
@@ -600,19 +605,47 @@ fn extract_params(text: &str) -> String {
     }
 }
 
+/// True when a `const/let/var` line binds an arrow function, e.g.
+/// `const f = () => ...`, `const f = async () => ...`,
+/// `const f = useCallback(async () => ...` (wrapper call without a dot-chain).
+/// False for method chains (`arr.reduce((a, r) => ...`), `require(...)`
+/// and plain assignments — they contain `=>` but do not declare a function.
+fn is_js_arrow_binding(text: &str) -> bool {
+    let Some(eq_idx) = text.find('=') else {
+        return false;
+    };
+    let rhs = text[eq_idx + 1..].trim_start();
+    if !rhs.contains("=>") {
+        return false;
+    }
+    // Inspect the text between the assignment and the first arrow: the part
+    // up to the first '(' (or the whole prefix when there is no '(').
+    // A '.' there means a method chain (`arr.reduce((a, r) => ...`) whose
+    // callback is not the declared function. A '[' there means indexed access.
+    let arrow_idx = rhs.find("=>").unwrap_or(rhs.len() + 1);
+    let paren_idx = rhs.find('(').unwrap_or(arrow_idx + 1);
+    let prefix = &rhs[..paren_idx.min(arrow_idx)];
+    !prefix.contains('.') && !prefix.contains('[')
+}
+
 /// Extract const/let name from declaration
 fn extract_const_name(text: &str) -> Option<String> {
     let clean = text
+        .trim_start_matches("export ")
         .trim_start_matches("const ")
         .trim_start_matches("let ")
-        .trim_start_matches("var ")
-        .trim_start_matches("export ");
+        .trim_start_matches("var ");
     let name: String = clean
         .chars()
         .take_while(|c| *c != '=' && *c != ':' && !c.is_whitespace())
         .collect();
     let name = name.trim();
     if name.is_empty() || name.contains("require") || name.contains("import") {
+        return None;
+    }
+    // Destructuring declarations bind many names at once —
+    // `const [a, setA] = ...` / `const {a} = ...` — not a single function.
+    if name.starts_with('[') || name.starts_with('{') {
         return None;
     }
     Some(name.to_string())
@@ -676,4 +709,91 @@ fn extract_method_name(text: &str) -> Option<String> {
         return None;
     }
     Some(name.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn js_entities(content: &str) -> Vec<Entity> {
+        parse_js_ts(content, "javascript").entities
+    }
+
+    #[test]
+    fn js_counts_class_function_import_export() {
+        let code = "\
+class App extends Component {
+}
+export function helper(a) {
+}
+const loadFile = async () => {
+};
+import fs from 'fs';
+";
+        let parsed = parse_js_ts(code, "javascript");
+        assert!(parsed.summary.contains("1 classes"));
+        assert!(parsed.summary.contains("2 functions"));
+        assert!(parsed.summary.contains("1 imports"));
+        assert!(parsed.summary.contains("1 exports"));
+    }
+
+    #[test]
+    fn js_plain_arrow_function_is_detected() {
+        let entities = js_entities("const greet = (name) => `hi ${name}`;\n");
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].title, "greet");
+        assert_eq!(entities[0].metadata.get("kind").unwrap(), "function");
+    }
+
+    #[test]
+    fn js_async_arrow_function_is_detected() {
+        let entities = js_entities("const loadFile = async () => { return 1; };\n");
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].title, "loadFile");
+    }
+
+    #[test]
+    fn js_wrapper_arrow_function_is_detected() {
+        // React-хук, оборачивающий стрелочную функцию: `useCallback(async () =>`.
+        let entities = js_entities("const memoized = useCallback(async () => { run(); }, []);\n");
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].title, "memoized");
+    }
+
+    #[test]
+    fn js_export_arrow_function_is_detected() {
+        let entities = js_entities("export const getStats = () => 42;\n");
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].title, "getStats");
+    }
+
+    #[test]
+    fn js_no_paren_arrow_function_is_detected() {
+        let entities = js_entities("const double = x => x * 2;\n");
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].title, "double");
+    }
+
+    #[test]
+    fn js_method_chain_is_not_a_function_declaration() {
+        // `arr.reduce((a, r) => ...` — вызов метода, а не объявление функции.
+        let entities = js_entities("const sum = arr.reduce((a, r) => a + r, 0);\n");
+        assert!(entities.is_empty());
+    }
+
+    #[test]
+    fn js_destructuring_is_not_a_function_declaration() {
+        let entities = js_entities("const [x, setX] = useState(0);\n");
+        assert!(entities.is_empty());
+    }
+
+    #[test]
+    fn js_require_and_assignments_are_ignored() {
+        let code = "\
+const fs = require('fs');
+const version = '1.0.0';
+let counter = 0;
+";
+        assert!(js_entities(code).is_empty());
+    }
 }

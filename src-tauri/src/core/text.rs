@@ -32,6 +32,60 @@ pub fn truncate_with_suffix(text: &str, max_bytes: usize, suffix: &str) -> Strin
     format!("{}{}", truncate_chars(text, max_bytes), suffix)
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Query normalization (shared by intent detection and search)
+// ═══════════════════════════════════════════════════════════════
+
+/// Words that carry no search signal. Shared between `IntentDetector` keyword
+/// extraction and entity/memory search so every path treats a query the same
+/// way. Kept as a flat lowercase list — membership tests dominate over size.
+pub const STOP_WORDS: &[&str] = &[
+    // English
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+    "by", "from", "as", "is", "was", "are", "were", "be", "been", "being", "have",
+    "has", "had", "do", "does", "did", "will", "would", "could", "should", "may",
+    "might", "can", "shall", "all", "this", "that", "these", "those", "it", "its",
+    "my", "your", "his", "her", "our", "their", "what", "which", "who", "whom", "how",
+    "when", "where", "why", "not", "no", "nor", "if", "then", "else", "than", "too",
+    "very", "just", "about", "also", "now", "here", "there", "only", "own", "same",
+    "so", "some", "such", "into", "over", "after", "before", "between", "through",
+    "during", "without", "again", "further", "once", "each", "every", "both", "few",
+    "more", "most", "other", "any", "much", "many", "well", "back", "even", "still",
+    "new",
+    // Russian
+    "и", "а", "но", "в", "на", "с", "для", "от", "по", "из", "к", "что", "как", "где",
+    "когда", "почему", "кто", "чем", "это", "все", "не", "ни", "да", "нет", "уже",
+    "еще", "ещё", "тоже", "также", "только", "каждый", "каждая", "каждое", "можно",
+    "нужно", "надо", "быть", "был", "была", "было", "были", "будет", "будут", "есть",
+    "является", "являются", "этот", "эта", "эти", "тот", "та", "те", "такой", "такая",
+    "такие", "такое", "какой", "какая", "какие", "чей", "чья", "чьи", "мой", "моя", "мои",
+    "твой", "твоя", "твои", "наш", "наша", "наши", "ваш", "ваша", "ваши", "его",
+    "её", "ее", "их", "себя", "себе", "собой", "сам", "сама", "само", "сами", "тут",
+    "там", "здесь", "потом", "тогда", "сейчас", "потому", "поэтому", "однако",
+    "всё", "если", "чтобы", "чтоб", "который", "которая", "которое", "которые",
+];
+
+/// Split a free-text query into normalized search keywords.
+///
+/// Each word is lowercased, stripped of punctuation (alphanumerics, `-` and `_`
+/// survive — `focus-tracker` must stay intact), dropped when it is a stop word
+/// or shorter than 3 characters, and deduplicated while preserving order. An
+/// empty result means the query carries no searchable signal.
+pub fn normalize_search_words(query: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    query
+        .split_whitespace()
+        .map(|w| {
+            w.to_lowercase()
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                .collect::<String>()
+        })
+        .filter(|w| w.len() > 2 && !STOP_WORDS.contains(&w.as_str()))
+        .filter(|w| seen.insert(w.clone()))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,5 +140,35 @@ mod tests {
     #[test]
     fn floor_boundary_clamps_to_len() {
         assert_eq!(floor_char_boundary("abc", 99), 3);
+    }
+
+    #[test]
+    fn normalize_removes_stopwords_and_punctuation() {
+        // Стоп-слова и пунктуация уходят; «focus-tracker» с дефисом сохраняется.
+        let words = normalize_search_words("Что такое focus-tracker, на чём он написан и как работает?");
+        assert!(words.contains(&"focus-tracker".to_string()));
+        assert!(!words.iter().any(|w| w == "что" || w == "на" || w == "и" || w == "как"));
+    }
+
+    #[test]
+    fn normalize_keeps_meaningful_english_words() {
+        let words = normalize_search_words("find all project tasks");
+        assert!(words.contains(&"find".to_string()));
+        assert!(words.contains(&"project".to_string()));
+        assert!(words.contains(&"tasks".to_string()));
+        assert!(!words.contains(&"all".to_string()));
+    }
+
+    #[test]
+    fn normalize_deduplicates_and_orders() {
+        let words = normalize_search_words("rust vs rust project");
+        assert_eq!(words.iter().filter(|w| *w == "rust").count(), 1);
+        assert_eq!(words[0], "rust");
+    }
+
+    #[test]
+    fn normalize_empty_query_yields_nothing() {
+        assert!(normalize_search_words("и на по из").is_empty());
+        assert!(normalize_search_words("   ").is_empty());
     }
 }

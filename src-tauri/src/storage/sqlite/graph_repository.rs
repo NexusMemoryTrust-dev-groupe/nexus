@@ -271,23 +271,30 @@ impl GraphStore for SqliteGraphRepository {
 
     async fn search_entities(&self, query: &str) -> Result<Vec<Entity>> {
         let conn = lock(&self.conn)?;
-        let words: Vec<&str> = query.split_whitespace().collect();
+        // Normalize the same way intent detection does: lowercase, strip
+        // punctuation/stop words, dedupe. A natural-language query like
+        // "Что такое focus-tracker и как он работает?" collapses to
+        // ["focus-tracker", "работает"] instead of ANDing every word
+        // (which matched nothing because of case-sensitivity + stop words).
+        let words = crate::core::text::normalize_search_words(query);
         if words.is_empty() {
             return Ok(vec![]);
         }
-        // Build WHERE clause: each word must match title OR description (AND across words)
+        // OR across words (same semantics as memory FTS search): any single
+        // keyword is enough to surface a candidate; relevance is computed
+        // below by counting how many keywords actually matched.
         let mut conditions = Vec::new();
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
         for (i, word) in words.iter().enumerate() {
             let pattern = format!("%{}%", word);
             conditions.push(format!(
-                "(title LIKE ?{} OR description LIKE ?{})",
+                "(LOWER(title) LIKE ?{} OR LOWER(description) LIKE ?{})",
                 i + 1,
                 i + 1
             ));
             params.push(Box::new(pattern));
         }
-        let where_clause = conditions.join(" AND ");
+        let where_clause = conditions.join(" OR ");
         let sql = format!(
             "SELECT {} FROM graph_entities WHERE {}",
             ENTITY_COLS, where_clause
@@ -300,8 +307,25 @@ impl GraphStore for SqliteGraphRepository {
         let rows = stmt
             .query_map(param_refs.as_slice(), row_to_entity)
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        rows.map(|r| r.map_err(|e| AppError::Internal(e.to_string())))
-            .collect()
+        let mut entities: Vec<Entity> = rows
+            .map(|r| r.map_err(|e| AppError::Internal(e.to_string())))
+            .collect::<Result<_>>()?;
+
+        // Rank by how many keywords matched (title matches weigh double).
+        entities.sort_by_key(|e| {
+            let title = e.title.to_lowercase();
+            let description = e.description.to_lowercase();
+            let score: usize = words
+                .iter()
+                .map(|w| {
+                    let t = title.contains(w.as_str()) as usize * 2;
+                    let d = description.contains(w.as_str()) as usize;
+                    t + d
+                })
+                .sum();
+            std::cmp::Reverse(score)
+        });
+        Ok(entities)
     }
 
     async fn count_entities(&self) -> Result<u64> {
@@ -787,6 +811,42 @@ mod tests {
         let results = r.search_entities("Alice").await.unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Alice Smith");
+    }
+
+    #[tokio::test]
+    async fn search_entities_natural_language_cyrillic() {
+        let r = repo();
+        r.add_entity(&sample_entity("focus-tracker")).await.unwrap();
+        r.add_entity(&sample_entity("Node.js")).await.unwrap();
+
+        // Стоп-слова, пунктуация, регистр и порядок слов не должны ломать поиск.
+        let results = r
+            .search_entities("Что такое FOCUS-TRACKER, на чём он написан?")
+            .await
+            .unwrap();
+        assert!(!results.is_empty());
+        assert_eq!(results[0].title, "focus-tracker");
+    }
+
+    #[tokio::test]
+    async fn search_entities_or_semantics() {
+        let r = repo();
+        r.add_entity(&sample_entity("Alice Smith")).await.unwrap();
+        r.add_entity(&sample_entity("Bob Jones")).await.unwrap();
+
+        // OR: совпадение любого значимого слова даёт кандидата, даже если
+        // остальные слова запроса ничему не соответствуют.
+        let results = r.search_entities("find Alice everywhere").await.unwrap();
+        assert!(results.iter().any(|e| e.title == "Alice Smith"));
+    }
+
+    #[tokio::test]
+    async fn search_entities_stop_words_only_returns_nothing() {
+        let r = repo();
+        r.add_entity(&sample_entity("Alice Smith")).await.unwrap();
+
+        let results = r.search_entities("и на по из в").await.unwrap();
+        assert!(results.is_empty());
     }
 
     #[tokio::test]
