@@ -355,49 +355,6 @@ pub async fn ai_chat_stream(
     Ok(result)
 }
 
-/// Non-streaming chat — uses configured model unless overridden. 5 min timeout.
-#[tauri::command]
-pub async fn ai_chat(messages: Vec<ChatMessage>, model: Option<String>) -> Result<String, String> {
-    let binary = find_opencode_binary()?;
-    let resolved_model = model
-        .filter(|m| !m.is_empty())
-        .unwrap_or_else(get_configured_model);
-    let prompt = build_prompt(&messages);
-
-    tokio::time::timeout(
-        Duration::from_secs(300),
-        tokio::task::spawn_blocking(move || -> Result<String, String> {
-            let output = Command::new(&binary)
-                .args(["run", "--model", &resolved_model, &prompt])
-                .output()
-                .map_err(|e| format!("Failed to run opencode: {}", e))?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let msg = if !stderr.is_empty() {
-                    stderr.trim().to_string()
-                } else {
-                    stdout.trim().to_string()
-                };
-                return Err(format!("opencode error: {}", msg));
-            }
-
-            let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if result.is_empty() {
-                return Err("Empty response from AI".to_string());
-            }
-
-            Ok(result)
-        }),
-    )
-    .await
-    .map_err(|_| {
-        "AI request timed out (5 min limit). Try a shorter question or switch model.".to_string()
-    })?
-    .map_err(|e| format!("AI error: {}", e))?
-}
-
 /// Health check — uses configured model unless overridden.
 #[tauri::command]
 pub async fn ai_health_check(model: Option<String>) -> Result<String, String> {

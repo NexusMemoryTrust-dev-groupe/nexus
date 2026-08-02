@@ -7,7 +7,6 @@ pub mod context;
 pub mod domain_event;
 pub mod entity_id;
 pub mod event_bus;
-pub mod execution;
 pub mod graph;
 pub mod interpreter;
 pub mod mcp_register;

@@ -109,7 +109,6 @@ fn main() {
             commands::config::delete_config,
             commands::config::get_db_stats,
             commands::ai::ai_health_check,
-            commands::ai::ai_chat,
             commands::ai::ai_chat_stream,
             commands::ai::ai_list_models,
             commands::files::scan_folder,
