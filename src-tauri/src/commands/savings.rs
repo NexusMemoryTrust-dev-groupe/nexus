@@ -535,22 +535,12 @@ pub fn get_savings_report() -> std::result::Result<SavingsReport, String> {
 /// Returns the model pricing + how much it saved with the total tokens.
 #[tauri::command]
 pub fn get_model_savings(model: &str) -> std::result::Result<serde_json::Value, String> {
-    let stats = get_savings_stats()?;
-    match find_model(model) {
-        Some(m) => Ok(serde_json::json!({
-            "model": {
-                "company": m.company,
-                "name": m.name,
-                "input_per_m": m.input_per_m,
-                "output_per_m": m.output_per_m,
-                "context": m.context,
-                "purpose": m.purpose,
-            },
-            "total_tokens_saved": stats.total_tokens_saved,
-            "cost_saved_usd": cost_for_tokens(stats.total_tokens_saved, m.input_per_m),
-            "total_interactions": stats.total_interactions,
-        })),
-        None => Err(format!(
+    // Resolve the model BEFORE touching the database. `get_savings_stats` reads
+    // `savings_log`, which may not exist in a fresh/read-only environment; an
+    // unknown model must be reported as such instead of being swallowed by a
+    // "no such table" error.
+    let m = find_model(model).ok_or_else(|| {
+        format!(
             "Unknown model '{}'. Known models: {}",
             model,
             ALL_MODELS
@@ -558,8 +548,23 @@ pub fn get_model_savings(model: &str) -> std::result::Result<serde_json::Value, 
                 .map(|m| m.name)
                 .collect::<Vec<_>>()
                 .join(", ")
-        )),
-    }
+        )
+    })?;
+
+    let stats = get_savings_stats()?;
+    Ok(serde_json::json!({
+        "model": {
+            "company": m.company,
+            "name": m.name,
+            "input_per_m": m.input_per_m,
+            "output_per_m": m.output_per_m,
+            "context": m.context,
+            "purpose": m.purpose,
+        },
+        "total_tokens_saved": stats.total_tokens_saved,
+        "cost_saved_usd": cost_for_tokens(stats.total_tokens_saved, m.input_per_m),
+        "total_interactions": stats.total_interactions,
+    }))
 }
 
 fn query_period_tokens(

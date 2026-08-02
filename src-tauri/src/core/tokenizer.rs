@@ -178,8 +178,10 @@ const CHUNK_BYTES: usize = 64 * 1024;
 ///
 /// Calibrated per script rather than on raw byte length:
 /// * Latin words average ~4 characters per token.
-/// * Cyrillic averages ~2.2 characters per token (subword splits are finer
-///   because the vocabulary is English-dominant).
+/// * Cyrillic averages ~1.8 characters per token (subword splits are finer
+///   because the vocabulary is English-dominant). Kept below 2.0 chars per
+///   token so the fallback never under-reports Cyrillic relative to the legacy
+///   byte heuristic (`bytes/4` ≈ 0.5 tokens/character for 2-byte characters).
 /// * CJK is close to one token per character.
 /// * Runs of punctuation and symbols tokenize almost one-to-one.
 fn estimate(text: &str) -> u32 {
@@ -212,7 +214,7 @@ fn estimate(text: &str) -> u32 {
 
     // Integer arithmetic scaled by 10 to avoid float rounding drift.
     let tokens = (latin * 10 / 40) // 4.0 chars/token
-        + (cyrillic * 10 / 22)     // 2.2 chars/token
+        + (cyrillic * 10 / 18)     // 1.8 chars/token (see module docs)
         + cjk                      // ~1 token/char
         + symbols                  // punctuation is ~1:1
         + whitespace_runs / 4; // word boundaries add a little overhead
