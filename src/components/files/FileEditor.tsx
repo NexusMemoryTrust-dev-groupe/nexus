@@ -104,7 +104,7 @@ export function FileEditor({ filePath, onClose, onSaved }: FileEditorProps) {
       setDirtyTick(0);
       setError(null);
       if (!info.isEditable) setIsPreview(true);
-    } catch (e) {
+    } catch {
       // File was deleted from disk — show "not found" state
       setError('FILE_NOT_FOUND');
       setFile(null);

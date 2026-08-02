@@ -1,10 +1,24 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   base: './',
   plugins: [react()],
   clearScreen: false,
+  // Vitest owns the unit tests under src/ only.
+  //
+  // Its default `include` glob also swept up two files it cannot run:
+  //   - e2e/smoke.spec.ts            — Playwright; test.describe() throws
+  //                                    outside the Playwright runner
+  //   - npm-package/scripts/*.test.js — node:test; exposes no Vitest suite
+  //
+  // Both are real tests, just run by their own runners (`npx playwright test`
+  // and `node ...test.js`), so the fix is to scope Vitest rather than delete
+  // or rewrite them.
+  test: {
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['node_modules', 'dist', 'e2e', 'npm-package', 'src-tauri'],
+  },
   server: {
     port: 5173,
     strictPort: true,

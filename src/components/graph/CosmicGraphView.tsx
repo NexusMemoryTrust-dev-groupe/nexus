@@ -267,8 +267,12 @@ const SatelliteInstances = memo(function SatelliteInstances({
     if (hoverIdx.current >= 0 && hoverIdx.current < satellites.length) onNodeClick(satellites[hoverIdx.current]);
   }, [satellites, onNodeClick]);
 
-  if (satellites.length === 0) return null;
-  // Set instance colors imperatively after mount
+  // Set instance colors imperatively after mount.
+  //
+  // This must stay above the early return below: React requires the same hooks
+  // in the same order on every render, and returning first made this effect
+  // conditional on there being satellites. Its own guard already handles the
+  // empty case.
   useEffect(() => {
     if (!meshRef.current || satellites.length === 0) return;
     const mesh = meshRef.current;
@@ -277,6 +281,8 @@ const SatelliteInstances = memo(function SatelliteInstances({
       glowRef.current.instanceColor = new THREE.InstancedBufferAttribute(glowColors, 3);
     }
   }, [instanceColors, glowColors, satellites.length]);
+
+  if (satellites.length === 0) return null;
 
   return (
     <>
@@ -591,7 +597,9 @@ function Scene({
     }
   });
 
-  const orbitControlsRef = useRef<any>(null);
+  // Ref type comes from drei's own forwardRef signature, so it stays correct if
+  // drei swaps its underlying OrbitControls implementation.
+  const orbitControlsRef = useRef<React.ComponentRef<typeof OrbitControls> | null>(null);
   useFrame(() => {
     if (orbitControlsRef.current) orbitControlsRef.current.enabled = dragRef.current === null;
   });

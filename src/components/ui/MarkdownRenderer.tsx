@@ -171,7 +171,7 @@ function renderMarkdown(text: string): string {
   const blockEls = ['h[1-6]', 'pre', 'div', 'ul', 'ol', 'blockquote', 'hr', 'table'];
   for (const tag of blockEls) {
     result = result.replace(new RegExp(`<p class="md-p">(<${tag})`, 'g'), '$1');
-    result = result.replace(new RegExp(`(<\/${tag}>)<\\/p>`, 'g'), '$1');
+    result = result.replace(new RegExp(`(<\\/${tag}>)<\\/p>`, 'g'), '$1');
   }
 
   return result;

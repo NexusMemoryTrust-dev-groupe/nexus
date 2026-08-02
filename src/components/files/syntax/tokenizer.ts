@@ -61,7 +61,7 @@ const R_STRING_SQ   = /'(?:\\.|[^'\\])*'/;
 const R_STRING_BT   = /`(?:\\.|[^`\\])*`/;
 const R_NUMBER      = /\b\d+\.?\d*\b/;
 const R_IDENT_UC    = /\b[A-Z]\w*\b/;
-const R_BRACKET     = /[{}()\[\]]/;
+const R_BRACKET     = /[{}()[\]]/;
 const R_COMMA_SEMI  = /[,;]|\.\.\.?|=>|::|->/;
 const R_OP          = /[+\-*/%&|^~!<>=:]+/;
 
@@ -138,7 +138,7 @@ const STR_HTML = /"[^"]*"|'[^']*'/;
 function tokenizeHTML(line: string): Token[] {
   return tokenizeGeneric(line, [
     [/<!--[\s\S]*?-->/, 'cmt'], [TAG_HTML, 'tag'], [ATTR_HTML, 'attr'],
-    [STR_HTML, 'str'], [/<\/?/, 'tag'], [/\/?>/, 'tag'], [/<(?![\/\s])/, 'tag'],
+    [STR_HTML, 'str'], [/<\/?/, 'tag'], [/\/?>/, 'tag'], [/<(?![/\s])/, 'tag'],
     [R_NUMBER, 'num'], [/@\w[\w-]*/, 'dec'],
     [R_BRACKET, 'br'], [R_COMMA_SEMI, 'op'], [R_OP, 'op'],
   ]);

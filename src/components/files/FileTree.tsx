@@ -26,7 +26,7 @@ interface TreeCallbacks {
 const _cb: { current: TreeCallbacks } = { current: { projectId: undefined, onRefresh: () => {}, onFileSelect: () => {} } };
 
 // ── Module-level mouse DnD state ──
-let _drag = {
+const _drag = {
   active: false,
   sourcePath: '',
   startX: 0,

@@ -448,7 +448,11 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
         try {
           const info = await invoke<{ content: string }>('read_file', { filePath: path });
           content = info.content;
-        } catch {}
+        } catch {
+          // Undo only needs the content to restore a file; if it is unreadable
+          // (binary, deleted, locked) an empty string still lets the entry be
+          // recreated, so this is not worth surfacing to the user.
+        }
       }
       undoStackRef.current.push({
         type: 'detach', path, name: path.split(/[/\\]/).pop() || path,
