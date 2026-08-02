@@ -1,4 +1,4 @@
-import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown } from 'lucide-react';
+import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown, Layers } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
 import { NexusLogo } from './NexusLogo';
@@ -12,6 +12,7 @@ export function Sidebar() {
     { icon: Brain, labelKey: 'sidebar.memories', view: 'memory', shortcut: 'Ctrl+1' },
     { icon: Network, labelKey: 'sidebar.graph', view: 'graph', shortcut: 'Ctrl+2' },
     { icon: Clock, labelKey: 'sidebar.timeline', view: 'timeline', shortcut: 'Ctrl+3' },
+    { icon: Layers, labelKey: 'sidebar.context', view: 'context', shortcut: 'Ctrl+6' },
     { icon: FolderOpen, labelKey: 'sidebar.projects', view: 'projects', shortcut: 'Ctrl+4' },
   ];
 
@@ -73,7 +74,7 @@ export function Sidebar() {
             >
               <div className={`sidebar-item-indicator ${activeView === 'savings' ? 'active' : ''}`} />
               <TrendingDown size={16} className="sidebar-item-icon" />
-              <span className="sidebar-item-text">Savings</span>
+              <span className="sidebar-item-text">{t('savings.title')}</span>
               <span className="sidebar-item-shortcut">Ctrl+5</span>
             </button>
             <button
