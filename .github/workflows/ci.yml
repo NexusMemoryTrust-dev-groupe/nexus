@@ -1,59 +1,105 @@
 name: CI
 
+# Paths are relative to the repository root, which *is* the app directory:
+# `package.json`, `src-tauri/` and `npm-package/` all sit at the top level.
+# An earlier version of this file prefixed everything with `nexus/`, so every
+# step ran in a directory that does not exist.
+
+# The default branch is `master`. This previously said `main`, so CI never ran
+# on any push or pull request.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust-tests:
-    runs-on: ubuntu-latest
+  # Windows, not Ubuntu: the `tauri` crate links against WebKitGTK on Linux, so
+  # `cargo build` there needs system libraries this app will never ship with.
+  # Nexus is a Windows-only application; build it where it runs.
+  rust:
+    name: Rust
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: nexus/src-tauri
+          workspaces: src-tauri
+
       - name: Format check
         run: cargo fmt --all -- --check
-        working-directory: nexus/src-tauri
+        working-directory: src-tauri
+
+      # `-D warnings` after `--` scopes the promotion to our crate. As a global
+      # RUSTFLAGS it would also fail on warnings inside third-party crates,
+      # letting an unrelated upstream release break CI.
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
-        working-directory: nexus/src-tauri
-      - name: Build
-        run: cargo build --verbose
-        working-directory: nexus/src-tauri
-      - name: Test
-        run: cargo test --verbose
-        working-directory: nexus/src-tauri
+        working-directory: src-tauri
 
-  frontend-tests:
+      - name: Test
+        run: cargo test --all-targets
+        working-directory: src-tauri
+
+  frontend:
+    name: Frontend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: nexus/package-lock.json
+          cache-dependency-path: package-lock.json
+
       - name: Install
         run: npm ci
-        working-directory: nexus
+
       - name: Type check
         run: npx tsc --noEmit
-        working-directory: nexus
+
       - name: Lint
         run: npm run lint
-        working-directory: nexus
+
       - name: Test
         run: npm test -- --run
-        working-directory: nexus
+
       - name: Build
         run: npm run build
-        working-directory: nexus
+
+  installer-scripts:
+    name: Installer scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # These files ship inside the npm package and run on users' machines, so a
+      # syntax error would only surface after `npm install -g`.
+      - name: Parse check
+        run: |
+          for f in \
+            npm-package/bin/nexus.js \
+            npm-package/index.js \
+            npm-package/scripts/postinstall.js \
+            npm-package/scripts/nexus-install-lib.js
+          do
+            node --check "$f"
+            echo "  OK $f"
+          done
+
+      # Asset-name resolution lives here. If it regresses, every install 404s.
+      - name: Unit tests
+        run: node npm-package/scripts/nexus-install-lib.test.js

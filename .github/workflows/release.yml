@@ -4,17 +4,18 @@ name: Release
 #
 # Why this shape
 # --------------
-# The previous workflow built a single x64 target and published whatever
-# tauri-action happened to produce. The npm postinstall script and the
-# PowerShell installer, meanwhile, downloaded `nexus-windows-x64.exe` — an
-# asset name this pipeline has never emitted. Every install therefore failed
-# with a 404.
-#
-# Two changes stop that class of failure from recurring:
-#   1. `verify-asset-names` asserts, before publishing, that the filenames the
+# The npm postinstall script and the PowerShell installer download an asset
+# matched by `setup` + architecture. Two steps keep that contract honest:
+#   1. `Collect artifacts` asserts, before publishing, that the filenames the
 #      installers look for are the filenames the bundler actually produced.
 #   2. `SHA256SUMS.txt` is generated so both installers can verify downloads
 #      instead of trusting the network.
+#
+# Paths are relative to the repository root, which *is* the app directory:
+# `package.json`, `src-tauri/` and `npm-package/` all sit at the top level.
+# An earlier version of this file prefixed everything with `nexus/`, so
+# `actions/setup-node` could not find the lock file and the whole run died at
+# "Some specified paths were not resolved, unable to cache dependencies."
 #
 # Architectures: x64 and ARM64. 32-bit (i686) is deliberately absent — the ONNX
 # runtime behind semantic search publishes no i686 binaries (`ort-sys` fails the
@@ -35,8 +36,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Fail fast on warnings in CI while keeping local builds ergonomic.
-  RUSTFLAGS: -D warnings
 
 jobs:
   # ── Gate: the code must be sound before we spend time on installers ───────
@@ -47,61 +46,86 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: nexus/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: nexus/src-tauri
+          workspaces: src-tauri
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: nexus
 
       - name: TypeScript type check
         run: npx tsc --noEmit
-        working-directory: nexus
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npm test -- --run
+
+      - name: Rust format check
+        run: cargo fmt --all -- --check
+        working-directory: src-tauri
+
+      # `-D warnings` is applied here via `--` so it scopes to our crate only.
+      # Setting RUSTFLAGS globally would also promote warnings inside third-party
+      # dependencies, letting an unrelated upstream release break our releases.
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
 
       - name: Rust tests
         run: cargo test --all-targets
-        working-directory: nexus/src-tauri
+        working-directory: src-tauri
 
-      - name: MCP server smoke test
+      - name: Installer scripts parse
         shell: pwsh
         run: |
-          # The MCP server is plain Node; a parse error here would only surface
-          # at runtime inside a customer's editor, so check it in CI.
-          foreach ($f in @('server.js', 'tools.js', 'db.js')) {
-            node --check "nexus-mcp-server/$f"
+          # These files are shipped to users inside the npm package and run on
+          # their machines. A syntax error here would only surface after install.
+          foreach ($f in @(
+            'npm-package/bin/nexus.js',
+            'npm-package/index.js',
+            'npm-package/scripts/postinstall.js',
+            'npm-package/scripts/nexus-install-lib.js'
+          )) {
+            node --check $f
             if ($LASTEXITCODE -ne 0) { throw "$f failed to parse" }
             Write-Host "  OK $f"
           }
 
       - name: Installer library unit tests
         shell: pwsh
-        run: node scripts/nexus-install-lib.test.js
+        run: |
+          # Asset-name resolution lives here. If it regresses, every `npm
+          # install -g nexus-memory-trust` 404s, so it is gated before release.
+          node npm-package/scripts/nexus-install-lib.test.js
 
       - name: Version consistency
         shell: pwsh
         run: |
           # A version mismatch silently produces installers whose filenames do
           # not match what the download scripts expect.
-          $tauri = (Get-Content nexus/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
-          $root  = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $front = (Get-Content nexus/package.json -Raw | ConvertFrom-Json).version
-          $cargo = ((Get-Content nexus/src-tauri/Cargo.toml) -match '^version\s*=' |
+          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $front = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $npm   = (Get-Content npm-package/package.json -Raw | ConvertFrom-Json).version
+          $cargo = ((Get-Content src-tauri/Cargo.toml) -match '^version\s*=' |
                     Select-Object -First 1) -replace '.*"(.*)".*', '$1'
 
-          Write-Host "  tauri.conf.json : $tauri"
-          Write-Host "  package.json    : $root"
-          Write-Host "  nexus/package   : $front"
-          Write-Host "  Cargo.toml      : $cargo"
+          Write-Host "  tauri.conf.json      : $tauri"
+          Write-Host "  package.json         : $front"
+          Write-Host "  npm-package/package  : $npm"
+          Write-Host "  Cargo.toml           : $cargo"
 
-          $all = @($tauri, $root, $front, $cargo) | Select-Object -Unique
+          $all = @($tauri, $front, $npm, $cargo) | Select-Object -Unique
           if ($all.Count -ne 1) { throw "Version mismatch across manifests: $($all -join ', ')" }
 
           if ($env:GITHUB_REF -like 'refs/tags/v*') {
@@ -134,30 +158,27 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: nexus/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: nexus/src-tauri
+          workspaces: src-tauri
           key: ${{ matrix.target }}
 
       - name: Install frontend dependencies
         run: npm ci
-        working-directory: nexus
 
       - name: Build frontend
         run: npm run build
-        working-directory: nexus
 
       - name: Build installers
         run: npx tauri build --target ${{ matrix.target }} --bundles nsis,msi
-        working-directory: nexus
 
       - name: Collect artifacts
         id: collect
         shell: pwsh
         run: |
-          $bundle = "nexus/src-tauri/target/${{ matrix.target }}/release/bundle"
+          $bundle = "src-tauri/target/${{ matrix.target }}/release/bundle"
           $out = "artifacts"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
 
@@ -192,7 +213,11 @@ jobs:
   publish:
     name: Publish release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # A manual run defaults to dry_run=true so the installers can be built and
+    # inspected without touching the release. Tag pushes always publish.
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      inputs.dry_run != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -216,9 +241,9 @@ jobs:
       - name: Verify the download scripts can resolve these assets
         run: |
           cd staging
-          # Final guard against the 404 that broke installation before: prove an
-          # x64 and an ARM64 setup executable are both present and discoverable
-          # by the same substring match the installers use.
+          # Final guard against a 404 on install: prove an x64 and an ARM64 setup
+          # executable are both present and discoverable by the same substring
+          # match the installers use.
           for arch in x64 arm64; do
             if ! ls | grep -i "setup" | grep -qi "$arch"; then
               echo "No installer discoverable for $arch"
@@ -228,12 +253,15 @@ jobs:
             echo "  $arch installer present"
           done
 
-      - name: Create release
+      - name: Create or update release
         uses: softprops/action-gh-release@v2
         with:
           name: Nexus Memory Trust ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          draft: true
+          # Left published on purpose: re-running this workflow on an existing
+          # tag (for example to add a missing ARM64 asset) must not flip an
+          # already-published release back to draft.
+          draft: false
           files: staging/*
           body: |
             ## Nexus Memory Trust ${{ github.ref_name }}
