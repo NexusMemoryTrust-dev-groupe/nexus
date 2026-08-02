@@ -4,6 +4,12 @@ use crate::core::context::provenance::DropCause;
 /// Compresses a context package to fit within token limits.
 pub struct ContextCompressor;
 
+impl Default for ContextCompressor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextCompressor {
     pub fn new() -> Self {
         Self
@@ -58,26 +64,40 @@ impl ContextCompressor {
                 .unwrap_or(0.0);
             compressed.provenance.mark_dropped(
                 &trace_id,
-                DropCause::BelowRelevance { score, floor: min_relevance },
+                DropCause::BelowRelevance {
+                    score,
+                    floor: min_relevance,
+                },
             );
         }
 
         // Step 2: Remove relationships weaker than the same relevance floor
-        compressed.relationships.retain(|r| r.weight >= min_relevance);
+        compressed
+            .relationships
+            .retain(|r| r.weight >= min_relevance);
 
         // Step 3: If still too large, progressively remove lowest-scoring entities
-        while self.calculate_token_count(&compressed) > max_tokens && !compressed.entities.is_empty() {
+        while self.calculate_token_count(&compressed) > max_tokens
+            && !compressed.entities.is_empty()
+        {
             // Remove the last entity (lowest score due to descending sort)
             compressed.entities.pop();
             // Also remove relationships that reference the removed entity
-            let remaining_ids: std::collections::HashSet<String> = compressed.entities.iter().map(|e| e.id.to_string()).collect();
+            let remaining_ids: std::collections::HashSet<String> = compressed
+                .entities
+                .iter()
+                .map(|e| e.id.to_string())
+                .collect();
             compressed.relationships.retain(|r| {
-                remaining_ids.contains(r.source_entity_id.as_str()) && remaining_ids.contains(r.target_entity_id.as_str())
+                remaining_ids.contains(r.source_entity_id.as_str())
+                    && remaining_ids.contains(r.target_entity_id.as_str())
             });
         }
 
         // Step 4: If still too large, trim memory records by truncating content
-        while self.calculate_token_count(&compressed) > max_tokens && !compressed.memory_records.is_empty() {
+        while self.calculate_token_count(&compressed) > max_tokens
+            && !compressed.memory_records.is_empty()
+        {
             compressed.memory_records.pop();
         }
 
@@ -106,8 +126,8 @@ impl ContextCompressor {
             compressed.provenance.set_tokens(&e.id.to_string(), tokens);
         }
         for m in &compressed.memory_records {
-            let tokens = crate::core::tokenizer::count(&m.title)
-                + crate::core::tokenizer::count(&m.content);
+            let tokens =
+                crate::core::tokenizer::count(&m.title) + crate::core::tokenizer::count(&m.content);
             compressed.provenance.set_tokens(&m.id.to_string(), tokens);
         }
 
@@ -149,7 +169,11 @@ impl ContextCompressor {
     }
 
     /// Remove entities and memory records below min_relevance.
-    pub fn prune_low_relevance(&self, package: &ContextPackage, min_relevance: f64) -> ContextPackage {
+    pub fn prune_low_relevance(
+        &self,
+        package: &ContextPackage,
+        min_relevance: f64,
+    ) -> ContextPackage {
         let mut pruned = package.clone();
 
         pruned.entities.retain(|e| {
@@ -188,9 +212,21 @@ mod tests {
             temporal: None,
         });
         // Add some entities with varying relevance
-        let e1 = Entity::new(EntityType::Person, "Alice".to_string(), "Engineer".to_string());
-        let e2 = Entity::new(EntityType::Project, "Nexus".to_string(), "AI Memory OS".to_string());
-        let e3 = Entity::new(EntityType::Task, "Task1".to_string(), "Do stuff".to_string());
+        let e1 = Entity::new(
+            EntityType::Person,
+            "Alice".to_string(),
+            "Engineer".to_string(),
+        );
+        let e2 = Entity::new(
+            EntityType::Project,
+            "Nexus".to_string(),
+            "AI Memory OS".to_string(),
+        );
+        let e3 = Entity::new(
+            EntityType::Task,
+            "Task1".to_string(),
+            "Do stuff".to_string(),
+        );
         pkg.relevance_scores.insert(e1.id.to_string(), 0.9);
         pkg.relevance_scores.insert(e2.id.to_string(), 0.5);
         pkg.relevance_scores.insert(e3.id.to_string(), 0.1);
@@ -248,6 +284,10 @@ mod tests {
         assert_eq!(lenient.entities.len(), 3, "floor of 0.0 keeps everything");
 
         let strict = c.compress(&pkg, 10_000, 0.6).unwrap();
-        assert_eq!(strict.entities.len(), 1, "floor of 0.6 keeps only the 0.9 entity");
+        assert_eq!(
+            strict.entities.len(),
+            1,
+            "floor of 0.6 keeps only the 0.9 entity"
+        );
     }
 }

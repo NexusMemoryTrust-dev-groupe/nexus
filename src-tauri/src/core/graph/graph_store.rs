@@ -32,10 +32,7 @@ pub trait GraphStore: Send + Sync {
     async fn delete_relationship(&self, id: &EntityId) -> Result<()>;
 
     /// Get all relationships where the given entity is source or target.
-    async fn get_entity_relationships(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<Vec<Relationship>>;
+    async fn get_entity_relationships(&self, entity_id: &EntityId) -> Result<Vec<Relationship>>;
 
     /// Get all entities of a given type.
     async fn get_entities_by_type(&self, entity_type: &EntityType) -> Result<Vec<Entity>>;

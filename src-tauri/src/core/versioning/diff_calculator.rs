@@ -14,11 +14,7 @@ pub trait DiffCalculator: Send + Sync {
     fn calculate_structured_diff<T: Serialize>(&self, old: &T, new: &T) -> Result<String>;
 
     /// Calculate a JSON diff between two JSON values.
-    fn calculate_json_diff(
-        &self,
-        old: &serde_json::Value,
-        new: &serde_json::Value,
-    ) -> String;
+    fn calculate_json_diff(&self, old: &serde_json::Value, new: &serde_json::Value) -> String;
 }
 
 /// Simple diff calculator using text-based diff.
@@ -54,18 +50,14 @@ impl DiffCalculator for SimpleDiffCalculator {
     }
 
     fn calculate_structured_diff<T: Serialize>(&self, old: &T, new: &T) -> Result<String> {
-        let old_json =
-            serde_json::to_value(old).map_err(|e| crate::core::result::AppError::Internal(e.to_string()))?;
-        let new_json =
-            serde_json::to_value(new).map_err(|e| crate::core::result::AppError::Internal(e.to_string()))?;
+        let old_json = serde_json::to_value(old)
+            .map_err(|e| crate::core::result::AppError::Internal(e.to_string()))?;
+        let new_json = serde_json::to_value(new)
+            .map_err(|e| crate::core::result::AppError::Internal(e.to_string()))?;
         Ok(self.calculate_json_diff(&old_json, &new_json))
     }
 
-    fn calculate_json_diff(
-        &self,
-        old: &serde_json::Value,
-        new: &serde_json::Value,
-    ) -> String {
+    fn calculate_json_diff(&self, old: &serde_json::Value, new: &serde_json::Value) -> String {
         if old == new {
             return "(no changes)".to_string();
         }
@@ -84,10 +76,7 @@ impl DiffCalculator for SimpleDiffCalculator {
                 for (key, new_val) in new_map {
                     match old_map.get(key) {
                         Some(old_val) if old_val != new_val => {
-                            diff.push_str(&format!(
-                                "~ {}: {} → {}\n",
-                                key, old_val, new_val
-                            ));
+                            diff.push_str(&format!("~ {}: {} → {}\n", key, old_val, new_val));
                         }
                         None => {
                             diff.push_str(&format!("+ {}: {}\n", key, new_val));

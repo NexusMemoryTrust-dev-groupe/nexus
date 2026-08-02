@@ -122,10 +122,7 @@ mod tests {
     #[test]
     fn in_memory_config_get_or_default() {
         let config = InMemoryConfig::new();
-        assert_eq!(
-            config.get_or_default("missing", "fallback"),
-            "fallback"
-        );
+        assert_eq!(config.get_or_default("missing", "fallback"), "fallback");
     }
 
     #[tokio::test]

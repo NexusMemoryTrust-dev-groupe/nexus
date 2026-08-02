@@ -51,9 +51,7 @@ impl AutomaticCommit {
             ));
         }
         if self.hash.is_empty() {
-            return Err(AppError::Validation(
-                "hash cannot be empty".to_string(),
-            ));
+            return Err(AppError::Validation("hash cannot be empty".to_string()));
         }
         Ok(())
     }
@@ -125,7 +123,11 @@ mod tests {
 
     #[test]
     fn change_type_serialization() {
-        for ct in [ChangeType::Created, ChangeType::Modified, ChangeType::Deleted] {
+        for ct in [
+            ChangeType::Created,
+            ChangeType::Modified,
+            ChangeType::Deleted,
+        ] {
             let json = serde_json::to_string(&ct).unwrap();
             let decoded: ChangeType = serde_json::from_str(&json).unwrap();
             assert_eq!(ct, decoded);

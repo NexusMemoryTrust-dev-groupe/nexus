@@ -9,8 +9,8 @@ use crate::core::context::memory_injector::MemoryInjector;
 use crate::core::context::provenance::{DropCause, ItemKind, Provenance, Reason};
 use crate::core::context::ranker::ContextRanker;
 use crate::core::entity_id::EntityId;
-use crate::core::graph::relationship::Relationship;
 use crate::core::graph::graph_store::GraphStore;
+use crate::core::graph::relationship::Relationship;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::result::Result;
 
@@ -31,11 +31,7 @@ pub trait ContextBuilder: Send + Sync {
     async fn build(&self, request: &ContextRequest) -> Result<ContextPackage>;
 
     /// Build context centered on a specific entity.
-    async fn build_for_entity(
-        &self,
-        entity_id: &EntityId,
-        depth: u32,
-    ) -> Result<ContextPackage>;
+    async fn build_for_entity(&self, entity_id: &EntityId, depth: u32) -> Result<ContextPackage>;
 
     /// Build context for a free-text query.
     async fn build_for_query(&self, query: &str) -> Result<ContextPackage>;
@@ -97,8 +93,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilderImpl<G, M> {
         }
 
         for rel in &package.relationships {
-            baseline = baseline
-                .saturating_add(crate::core::tokenizer::count(rel.relationship_type.as_str()));
+            baseline = baseline.saturating_add(crate::core::tokenizer::count(
+                rel.relationship_type.as_str(),
+            ));
         }
 
         package.baseline_tokens = baseline;
@@ -108,13 +105,14 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilderImpl<G, M> {
 
     /// Collect relationships for all given entity IDs from the graph store.
     /// Deduplicates by relationship ID.
-    async fn collect_relationships(
-        &self,
-        entity_ids: &[EntityId],
-    ) -> Result<Vec<Relationship>> {
+    async fn collect_relationships(&self, entity_ids: &[EntityId]) -> Result<Vec<Relationship>> {
         let mut all_rels: Vec<Relationship> = Vec::new();
         for eid in entity_ids {
-            let rels = self.graph_seeder.graph_store.get_entity_relationships(eid).await?;
+            let rels = self
+                .graph_seeder
+                .graph_store
+                .get_entity_relationships(eid)
+                .await?;
             all_rels.extend(rels);
         }
         all_rels.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
@@ -151,7 +149,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
                 e.id.as_str(),
                 ItemKind::Entity,
                 &e.title,
-                Reason::QueryMatch { query: request.query.clone() },
+                Reason::QueryMatch {
+                    query: request.query.clone(),
+                },
             );
             // A seed can also owe its presence to a keyword rather than the whole
             // phrase; record that separately so the panel can show both.
@@ -162,15 +162,19 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
                         e.id.as_str(),
                         ItemKind::Entity,
                         &e.title,
-                        Reason::KeywordMatch { keyword: kw.clone() },
+                        Reason::KeywordMatch {
+                            keyword: kw.clone(),
+                        },
                     );
                 }
             }
         }
 
         // Step 3: Expansion — N-hop neighbors based on max_depth
-        let seeds: Vec<(EntityId, String)> =
-            entities.iter().map(|e| (e.id.clone(), e.title.clone())).collect();
+        let seeds: Vec<(EntityId, String)> = entities
+            .iter()
+            .map(|e| (e.id.clone(), e.title.clone()))
+            .collect();
         let mut expanded = Vec::new();
         for (seed_id, seed_title) in &seeds {
             let neighbors = self
@@ -208,7 +212,12 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
             // Everything traced but no longer present fell off this limit. Saying
             // so is more useful than silently omitting it.
             let kept: Vec<String> = entities.iter().map(|e| e.id.as_str().to_string()).collect();
-            prov.reconcile(&kept, DropCause::EntityCap { cap: request.max_entities });
+            prov.reconcile(
+                &kept,
+                DropCause::EntityCap {
+                    cap: request.max_entities,
+                },
+            );
         }
 
         // Collect relationships for all entities
@@ -222,14 +231,18 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
                 m.id.as_str(),
                 ItemKind::Memory,
                 &m.title,
-                Reason::MemorySearch { query: request.query.clone() },
+                Reason::MemorySearch {
+                    query: request.query.clone(),
+                },
             );
             if m.importance_score >= HIGH_IMPORTANCE {
                 prov.record(
                     m.id.as_str(),
                     ItemKind::Memory,
                     &m.title,
-                    Reason::HighImportance { importance: m.importance_score },
+                    Reason::HighImportance {
+                        importance: m.importance_score,
+                    },
                 );
             }
             let age_days = (chrono::Utc::now() - m.created_at).num_days();
@@ -267,11 +280,7 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
         Ok(package)
     }
 
-    async fn build_for_entity(
-        &self,
-        entity_id: &EntityId,
-        depth: u32,
-    ) -> Result<ContextPackage> {
+    async fn build_for_entity(&self, entity_id: &EntityId, depth: u32) -> Result<ContextPackage> {
         // Seed from a specific entity with N-hop traversal
         let depth = if depth == 0 { 1 } else { depth };
         let entities = self.graph_seeder.seed_entity_deep(entity_id, depth).await?;
@@ -299,7 +308,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
                     e.id.as_str(),
                     ItemKind::Entity,
                     &e.title,
-                    Reason::QueryMatch { query: e.title.clone() },
+                    Reason::QueryMatch {
+                        query: e.title.clone(),
+                    },
                 );
             } else {
                 prov.record(
@@ -322,7 +333,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
                 m.id.as_str(),
                 ItemKind::Memory,
                 &m.title,
-                Reason::MemorySearch { query: entity_id.as_str().to_string() },
+                Reason::MemorySearch {
+                    query: entity_id.as_str().to_string(),
+                },
             );
         }
 
@@ -363,10 +376,7 @@ mod tests {
     use crate::storage::sqlite::graph_repository::SqliteGraphRepository;
     use crate::storage::sqlite::memory_repository_sqlite::SqliteMemoryRepository;
 
-    fn test_repo() -> (
-        SqliteGraphRepository,
-        SqliteMemoryRepository,
-    ) {
+    fn test_repo() -> (SqliteGraphRepository, SqliteMemoryRepository) {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         crate::storage::sqlite::schema::apply_migrations(&conn).unwrap();
         let graph = SqliteGraphRepository::new(conn).unwrap();
@@ -422,7 +432,11 @@ mod tests {
         use crate::core::graph::entity_types::EntityType;
         use crate::core::graph::graph_store::GraphStore;
 
-        let e1 = Entity::new(EntityType::Person, "Alice".to_string(), "Engineer".to_string());
+        let e1 = Entity::new(
+            EntityType::Person,
+            "Alice".to_string(),
+            "Engineer".to_string(),
+        );
         let e2 = Entity::new(EntityType::Person, "Bob".to_string(), "Manager".to_string());
         let id1 = graph.add_entity(&e1).await.unwrap();
         let id2 = graph.add_entity(&e2).await.unwrap();

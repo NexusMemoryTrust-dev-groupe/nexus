@@ -15,8 +15,9 @@ fn open_config_db() -> Result<Connection, String> {
         "CREATE TABLE IF NOT EXISTS configuration_kv (
             key TEXT PRIMARY KEY NOT NULL,
             value TEXT NOT NULL
-        );"
-    ).map_err(|e| e.to_string())?;
+        );",
+    )
+    .map_err(|e| e.to_string())?;
     Ok(conn)
 }
 
@@ -94,15 +95,21 @@ pub async fn get_db_stats() -> Result<DbStats, String> {
         .unwrap_or(0);
 
     let relationship_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM graph_relationships", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM graph_relationships", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     let commit_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM automatic_commits", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM automatic_commits", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     let snapshot_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM context_snapshots", [], |row| row.get(0))
+        .query_row("SELECT COUNT(*) FROM context_snapshots", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(0);
 
     // Get DB file size

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::Mutex;
 
 use crate::core::entity_id::EntityId;
@@ -14,7 +14,7 @@ pub struct SqliteVersioningRepository {
 }
 
 impl SqliteVersioningRepository {
-        pub fn new(conn: Connection) -> Result<Self> {
+    pub fn new(conn: Connection) -> Result<Self> {
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -89,10 +89,7 @@ fn change_type_to_string(ct: &ChangeType) -> String {
 
 #[async_trait]
 impl CommitService for SqliteVersioningRepository {
-    async fn create_automatic_commit(
-        &self,
-        params: CreateCommitParams,
-    ) -> Result<AutomaticCommit> {
+    async fn create_automatic_commit(&self, params: CreateCommitParams) -> Result<AutomaticCommit> {
         let conn = self
             .conn
             .lock()
@@ -108,10 +105,11 @@ impl CommitService for SqliteVersioningRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let id = EntityId::new().as_str().to_string();
-        let data_str = serde_json::to_string(&params.data)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let linked_json = serde_json::to_string(&params.linked_entities.clone().unwrap_or_default())
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let data_str =
+            serde_json::to_string(&params.data).map_err(|e| AppError::Internal(e.to_string()))?;
+        let linked_json =
+            serde_json::to_string(&params.linked_entities.clone().unwrap_or_default())
+                .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Simple deterministic hash for commit integrity
         let hash_input = format!("{}:{}", id, version_number);
@@ -270,7 +268,10 @@ impl crate::core::versioning::snapshot_service::SnapshotService for SqliteVersio
         entity_type: &str,
         entity_id: &EntityId,
     ) -> crate::core::Result<String> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let id = EntityId::new().as_str().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let size = snapshot.len() as i64;
@@ -285,7 +286,10 @@ impl crate::core::versioning::snapshot_service::SnapshotService for SqliteVersio
     }
 
     async fn get(&self, snapshot_id: &str) -> crate::core::Result<Option<Vec<u8>>> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT snapshot_data FROM entity_snapshots WHERE id = ?1")
             .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
@@ -301,7 +305,10 @@ impl crate::core::versioning::snapshot_service::SnapshotService for SqliteVersio
         entity_type: &str,
         entity_id: &EntityId,
     ) -> crate::core::Result<Option<String>> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT id FROM entity_snapshots
@@ -310,7 +317,9 @@ impl crate::core::versioning::snapshot_service::SnapshotService for SqliteVersio
             )
             .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let result = stmt
-            .query_row(params![entity_type, entity_id.as_str()], |row| row.get::<_, String>(0))
+            .query_row(params![entity_type, entity_id.as_str()], |row| {
+                row.get::<_, String>(0)
+            })
             .optional()
             .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         Ok(result)
@@ -326,7 +335,10 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
         entity_id: &EntityId,
         version_id: &str,
     ) -> crate::core::Result<Vec<crate::core::versioning::causality_record::CausalityRecord>> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT id, entity_id, version_id, reason, affected_entities_json, created_at
@@ -352,8 +364,7 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
         for row in rows {
             let (id, eid_str, vid, reason, affected_json, created_at_str) =
                 row.map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
-            let affected: Vec<String> =
-                serde_json::from_str(&affected_json).unwrap_or_default();
+            let affected: Vec<String> = serde_json::from_str(&affected_json).unwrap_or_default();
             let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
                 .map(|dt| dt.with_timezone(&chrono::Utc))
                 .unwrap_or_else(|_| chrono::Utc::now());
@@ -375,7 +386,10 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
         &self,
         cause_id: &str,
     ) -> crate::core::Result<Vec<crate::core::versioning::causality_record::CausalityRecord>> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         // Find all causality records where the cause_id appears in affected_entities
         let mut stmt = conn
             .prepare(
@@ -403,8 +417,7 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
         for row in rows {
             let (id, eid_str, vid, reason, affected_json, created_at_str) =
                 row.map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
-            let affected: Vec<String> =
-                serde_json::from_str(&affected_json).unwrap_or_default();
+            let affected: Vec<String> = serde_json::from_str(&affected_json).unwrap_or_default();
             // Verify the cause_id is actually in the affected list (not a substring match)
             if !affected.iter().any(|a| a == cause_id) {
                 continue;
@@ -433,7 +446,10 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
         reason: &str,
         affected: &[EntityId],
     ) -> crate::core::Result<()> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let id = EntityId::new().as_str().to_string();
         let affected_json = serde_json::to_vec(affected)
             .map_err(|e| crate::core::AppError::Serialization(e.to_string()))?;
@@ -455,12 +471,12 @@ impl crate::core::versioning::causality_chain::CausalityChain for SqliteVersioni
 
 #[async_trait]
 impl crate::core::versioning::version_graph::VersionGraph for SqliteVersioningRepository {
-    async fn get_lineage(
-        &self,
-        entity_id: &EntityId,
-    ) -> crate::core::Result<Vec<AutomaticCommit>> {
+    async fn get_lineage(&self, entity_id: &EntityId) -> crate::core::Result<Vec<AutomaticCommit>> {
         // Lineage = full commit history for this entity across ALL entity types
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT id, hash, version_number, entity_type, entity_id, change_type,
@@ -482,11 +498,11 @@ impl crate::core::versioning::version_graph::VersionGraph for SqliteVersioningRe
         Ok(commits)
     }
 
-    async fn get_dependents(
-        &self,
-        version_id: &str,
-    ) -> crate::core::Result<Vec<AutomaticCommit>> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+    async fn get_dependents(&self, version_id: &str) -> crate::core::Result<Vec<AutomaticCommit>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         // Find all commits that have an edge FROM version_id
         let mut stmt = conn
             .prepare(
@@ -520,7 +536,10 @@ impl crate::core::versioning::version_graph::VersionGraph for SqliteVersioningRe
         to: &str,
         edge_type: crate::core::versioning::version_edge::VersionEdgeType,
     ) -> crate::core::Result<()> {
-        let conn = self.conn.lock().map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
         let id = EntityId::new().as_str().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let edge_type_str = match edge_type {
@@ -677,7 +696,12 @@ mod tests {
         let r = repo();
         let eid = EntityId::new();
         use crate::core::versioning::snapshot_service::SnapshotService as SS;
-        assert!(SS::get_baseline(&r, "MemoryRecord", &eid).await.unwrap().is_none());
+        assert!(
+            SS::get_baseline(&r, "MemoryRecord", &eid)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     // ── CausalityChain tests ──
@@ -731,8 +755,8 @@ mod tests {
 
     #[tokio::test]
     async fn version_graph_add_edge_and_dependents() {
-        use crate::core::versioning::version_graph::VersionGraph;
         use crate::core::versioning::version_edge::VersionEdgeType;
+        use crate::core::versioning::version_graph::VersionGraph;
 
         let r = repo();
         // Create two commits

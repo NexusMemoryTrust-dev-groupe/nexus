@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::core::entity_id::EntityId;
-use crate::core::memory::memory_recall::{RecallContext, RecallResult, MemoryRecallService};
+use crate::core::memory::memory_recall::{MemoryRecallService, RecallContext, RecallResult};
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::result::Result;
@@ -158,18 +158,19 @@ mod tests {
         let repo = Arc::new(MockRepo::new());
         let svc = InMemoryRecallService::new(repo.clone());
         repo.save(&sample_record("Rust basics", 0.9)).await.unwrap();
-        repo.save(&sample_record("Rust advanced", 0.7)).await.unwrap();
-        repo.save(&sample_record("Python basics", 0.5)).await.unwrap();
+        repo.save(&sample_record("Rust advanced", 0.7))
+            .await
+            .unwrap();
+        repo.save(&sample_record("Python basics", 0.5))
+            .await
+            .unwrap();
         svc
     }
 
     #[tokio::test]
     async fn recall_finds_matching() {
         let svc = setup_service().await;
-        let result = svc
-            .recall("Rust", &RecallContext::default())
-            .await
-            .unwrap();
+        let result = svc.recall("Rust", &RecallContext::default()).await.unwrap();
         assert_eq!(result.records.len(), 2);
         // Sorted by confidence desc
         assert!(result.records[0].confidence_score >= result.records[1].confidence_score);
@@ -219,10 +220,7 @@ mod tests {
     #[tokio::test]
     async fn recall_score_averages_confidence() {
         let svc = setup_service().await;
-        let result = svc
-            .recall("Rust", &RecallContext::default())
-            .await
-            .unwrap();
+        let result = svc.recall("Rust", &RecallContext::default()).await.unwrap();
         let expected_score = (0.9 + 0.7) / 2.0;
         assert!((result.score - expected_score).abs() < f64::EPSILON);
     }

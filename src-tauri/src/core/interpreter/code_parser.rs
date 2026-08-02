@@ -21,26 +21,34 @@ pub fn parse_python(content: &str) -> ParsedCode {
         let trimmed = line.trim();
 
         // Classes: class ClassName(Base):
-        if trimmed.starts_with("class ") {
-            if let Some(name) = extract_word_after(trimmed, "class ", "(").or_else(|| extract_word_after(trimmed, "class ", ":")) {
-                let desc = extract_class_description(trimmed);
-                let mut e = Entity::new(EntityType::Document, name, desc);
-                e.metadata.insert("kind".into(), serde_json::json!("class"));
-                e.metadata.insert("language".into(), serde_json::json!("python"));
-                entities.push(e);
-                class_count += 1;
-            }
+        if trimmed.starts_with("class ")
+            && let Some(name) = extract_word_after(trimmed, "class ", "(")
+                .or_else(|| extract_word_after(trimmed, "class ", ":"))
+        {
+            let desc = extract_class_description(trimmed);
+            let mut e = Entity::new(EntityType::Document, name, desc);
+            e.metadata.insert("kind".into(), serde_json::json!("class"));
+            e.metadata
+                .insert("language".into(), serde_json::json!("python"));
+            entities.push(e);
+            class_count += 1;
         }
 
         // Functions: def function_name(
         if trimmed.starts_with("def ") || trimmed.starts_with("async def ") {
-            let prefix = if trimmed.starts_with("async def ") { "async def " } else { "def " };
+            let prefix = if trimmed.starts_with("async def ") {
+                "async def "
+            } else {
+                "def "
+            };
             if let Some(name) = extract_word_after(trimmed, prefix, "(") {
                 let params = extract_params(trimmed);
                 let desc = format!("Python function: {}({})", name, params);
                 let mut e = Entity::new(EntityType::Document, name, desc);
-                e.metadata.insert("kind".into(), serde_json::json!("function"));
-                e.metadata.insert("language".into(), serde_json::json!("python"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("function"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("python"));
                 entities.push(e);
                 func_count += 1;
             }
@@ -52,7 +60,10 @@ pub fn parse_python(content: &str) -> ParsedCode {
         }
     }
 
-    let summary = format!("Python: {} classes, {} functions, {} imports", class_count, func_count, import_count);
+    let summary = format!(
+        "Python: {} classes, {} functions, {} imports",
+        class_count, func_count, import_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -80,11 +91,17 @@ fn parse_js_ts(content: &str, lang: &str) -> ParsedCode {
 
         // Classes: class ClassName {
         if trimmed.starts_with("class ") || trimmed.starts_with("export class ") {
-            let clean = trimmed.trim_start_matches("export ").trim_start_matches("default ");
-            if let Some(name) = extract_word_after(clean, "class ", "{").or_else(|| extract_word_after(clean, "class ", "extends").or_else(|| extract_word_after(clean, "class ", "implements"))) {
+            let clean = trimmed
+                .trim_start_matches("export ")
+                .trim_start_matches("default ");
+            if let Some(name) = extract_word_after(clean, "class ", "{").or_else(|| {
+                extract_word_after(clean, "class ", "extends")
+                    .or_else(|| extract_word_after(clean, "class ", "implements"))
+            }) {
                 let mut e = Entity::new(EntityType::Document, name, format!("{} class", lang));
                 e.metadata.insert("kind".into(), serde_json::json!("class"));
-                e.metadata.insert("language".into(), serde_json::json!(lang));
+                e.metadata
+                    .insert("language".into(), serde_json::json!(lang));
                 entities.push(e);
                 class_count += 1;
             }
@@ -95,24 +112,34 @@ fn parse_js_ts(content: &str, lang: &str) -> ParsedCode {
             let clean = trimmed.trim_start_matches("export ");
             if let Some(name) = extract_word_after(clean, "function ", "(") {
                 let mut e = Entity::new(EntityType::Document, name, format!("{} function", lang));
-                e.metadata.insert("kind".into(), serde_json::json!("function"));
-                e.metadata.insert("language".into(), serde_json::json!(lang));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("function"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!(lang));
                 entities.push(e);
                 func_count += 1;
             }
         }
 
         // Arrow functions: const name = (
-        if (trimmed.starts_with("const ") || trimmed.starts_with("let ") || trimmed.starts_with("var "))
-            && trimmed.contains("= (") || trimmed.contains("= async (")
+        if ((trimmed.starts_with("const ")
+            || trimmed.starts_with("let ")
+            || trimmed.starts_with("var "))
+            && trimmed.contains("= (")
+            || trimmed.contains("= async ("))
+            && let Some(name) = extract_const_name(trimmed)
         {
-            if let Some(name) = extract_const_name(trimmed) {
-                let mut e = Entity::new(EntityType::Document, name, format!("{} arrow function", lang));
-                e.metadata.insert("kind".into(), serde_json::json!("function"));
-                e.metadata.insert("language".into(), serde_json::json!(lang));
-                entities.push(e);
-                func_count += 1;
-            }
+            let mut e = Entity::new(
+                EntityType::Document,
+                name,
+                format!("{} arrow function", lang),
+            );
+            e.metadata
+                .insert("kind".into(), serde_json::json!("function"));
+            e.metadata
+                .insert("language".into(), serde_json::json!(lang));
+            entities.push(e);
+            func_count += 1;
         }
 
         // Imports
@@ -126,8 +153,10 @@ fn parse_js_ts(content: &str, lang: &str) -> ParsedCode {
         }
     }
 
-    let summary = format!("{}: {} classes, {} functions, {} imports, {} exports",
-        lang, class_count, func_count, import_count, export_count);
+    let summary = format!(
+        "{}: {} classes, {} functions, {} imports, {} exports",
+        lang, class_count, func_count, import_count, export_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -149,11 +178,18 @@ pub fn parse_rust(content: &str) -> ParsedCode {
 
         // Structs: pub struct Name / struct Name
         if trimmed.contains("struct ") && !trimmed.starts_with("//") {
-            let clean = trimmed.trim_start_matches("pub ").trim_start_matches("pub(crate) ");
-            if let Some(name) = extract_word_after(clean, "struct ", "{").or_else(|| extract_word_after(clean, "struct ", "<").or_else(|| extract_word_after(clean, "struct ", ";"))) {
+            let clean = trimmed
+                .trim_start_matches("pub ")
+                .trim_start_matches("pub(crate) ");
+            if let Some(name) = extract_word_after(clean, "struct ", "{").or_else(|| {
+                extract_word_after(clean, "struct ", "<")
+                    .or_else(|| extract_word_after(clean, "struct ", ";"))
+            }) {
                 let mut e = Entity::new(EntityType::Document, name, "Rust struct".into());
-                e.metadata.insert("kind".into(), serde_json::json!("struct"));
-                e.metadata.insert("language".into(), serde_json::json!("rust"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("struct"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("rust"));
                 entities.push(e);
                 struct_count += 1;
             }
@@ -161,11 +197,16 @@ pub fn parse_rust(content: &str) -> ParsedCode {
 
         // Enums: pub enum Name / enum Name
         if trimmed.contains("enum ") && !trimmed.starts_with("//") {
-            let clean = trimmed.trim_start_matches("pub ").trim_start_matches("pub(crate) ");
-            if let Some(name) = extract_word_after(clean, "enum ", "{").or_else(|| extract_word_after(clean, "enum ", "<")) {
+            let clean = trimmed
+                .trim_start_matches("pub ")
+                .trim_start_matches("pub(crate) ");
+            if let Some(name) = extract_word_after(clean, "enum ", "{")
+                .or_else(|| extract_word_after(clean, "enum ", "<"))
+            {
                 let mut e = Entity::new(EntityType::Document, name, "Rust enum".into());
                 e.metadata.insert("kind".into(), serde_json::json!("enum"));
-                e.metadata.insert("language".into(), serde_json::json!("rust"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("rust"));
                 entities.push(e);
                 enum_count += 1;
             }
@@ -173,11 +214,17 @@ pub fn parse_rust(content: &str) -> ParsedCode {
 
         // Functions: pub fn name / fn name
         if trimmed.contains("fn ") && !trimmed.starts_with("//") {
-            let clean = trimmed.trim_start_matches("pub ").trim_start_matches("pub(crate) ").trim_start_matches("pub async ").trim_start_matches("async ");
+            let clean = trimmed
+                .trim_start_matches("pub ")
+                .trim_start_matches("pub(crate) ")
+                .trim_start_matches("pub async ")
+                .trim_start_matches("async ");
             if let Some(name) = extract_word_after(clean, "fn ", "(") {
                 let mut e = Entity::new(EntityType::Document, name, "Rust function".into());
-                e.metadata.insert("kind".into(), serde_json::json!("function"));
-                e.metadata.insert("language".into(), serde_json::json!("rust"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("function"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("rust"));
                 entities.push(e);
                 fn_count += 1;
             }
@@ -194,10 +241,13 @@ pub fn parse_rust(content: &str) -> ParsedCode {
         // Traits: pub trait Name
         if trimmed.contains("trait ") && !trimmed.starts_with("//") {
             let clean = trimmed.trim_start_matches("pub ");
-            if let Some(name) = extract_word_after(clean, "trait ", "{").or_else(|| extract_word_after(clean, "trait ", "<")) {
+            if let Some(name) = extract_word_after(clean, "trait ", "{")
+                .or_else(|| extract_word_after(clean, "trait ", "<"))
+            {
                 let mut e = Entity::new(EntityType::Document, name, "Rust trait".into());
                 e.metadata.insert("kind".into(), serde_json::json!("trait"));
-                e.metadata.insert("language".into(), serde_json::json!("rust"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("rust"));
                 entities.push(e);
                 trait_count += 1;
             }
@@ -206,14 +256,18 @@ pub fn parse_rust(content: &str) -> ParsedCode {
         // Modules: pub mod name
         if trimmed.contains("mod ") && !trimmed.starts_with("//") && !trimmed.starts_with("#[") {
             let clean = trimmed.trim_start_matches("pub ");
-            if let Some(_name) = extract_word_after(clean, "mod ", "{").or_else(|| extract_word_after(clean, "mod ", ";")) {
+            if let Some(_name) = extract_word_after(clean, "mod ", "{")
+                .or_else(|| extract_word_after(clean, "mod ", ";"))
+            {
                 mod_count += 1;
             }
         }
     }
 
-    let summary = format!("Rust: {} structs, {} enums, {} fns, {} impls, {} traits, {} mods",
-        struct_count, enum_count, fn_count, impl_count, trait_count, mod_count);
+    let summary = format!(
+        "Rust: {} structs, {} enums, {} fns, {} impls, {} traits, {} mods",
+        struct_count, enum_count, fn_count, impl_count, trait_count, mod_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -235,7 +289,7 @@ pub fn parse_go(content: &str) -> ParsedCode {
             let clean = trimmed.trim_start_matches("func ");
             // Skip receiver
             let name_part = if clean.starts_with("(") {
-                match clean.splitn(2, ')').nth(1) {
+                match clean.split_once(')').map(|x| x.1) {
                     Some(s) => s.trim(),
                     None => continue,
                 }
@@ -244,37 +298,46 @@ pub fn parse_go(content: &str) -> ParsedCode {
             };
             if let Some(name) = extract_word_after(name_part, "", "(") {
                 let mut e = Entity::new(EntityType::Document, name, "Go function".into());
-                e.metadata.insert("kind".into(), serde_json::json!("function"));
-                e.metadata.insert("language".into(), serde_json::json!("go"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("function"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("go"));
                 entities.push(e);
                 func_count += 1;
             }
         }
 
         // Structs: type Name struct
-        if trimmed.contains("struct {") || trimmed.contains("struct{") {
-            if let Some(name) = extract_word_before(trimmed, "struct") {
-                let mut e = Entity::new(EntityType::Document, name, "Go struct".into());
-                e.metadata.insert("kind".into(), serde_json::json!("struct"));
-                e.metadata.insert("language".into(), serde_json::json!("go"));
-                entities.push(e);
-                struct_count += 1;
-            }
+        if (trimmed.contains("struct {") || trimmed.contains("struct{"))
+            && let Some(name) = extract_word_before(trimmed, "struct")
+        {
+            let mut e = Entity::new(EntityType::Document, name, "Go struct".into());
+            e.metadata
+                .insert("kind".into(), serde_json::json!("struct"));
+            e.metadata
+                .insert("language".into(), serde_json::json!("go"));
+            entities.push(e);
+            struct_count += 1;
         }
 
         // Interfaces: type Name interface
-        if trimmed.contains("interface {") || trimmed.contains("interface{") {
-            if let Some(name) = extract_word_before(trimmed, "interface") {
-                let mut e = Entity::new(EntityType::Document, name, "Go interface".into());
-                e.metadata.insert("kind".into(), serde_json::json!("interface"));
-                e.metadata.insert("language".into(), serde_json::json!("go"));
-                entities.push(e);
-                interface_count += 1;
-            }
+        if (trimmed.contains("interface {") || trimmed.contains("interface{"))
+            && let Some(name) = extract_word_before(trimmed, "interface")
+        {
+            let mut e = Entity::new(EntityType::Document, name, "Go interface".into());
+            e.metadata
+                .insert("kind".into(), serde_json::json!("interface"));
+            e.metadata
+                .insert("language".into(), serde_json::json!("go"));
+            entities.push(e);
+            interface_count += 1;
         }
     }
 
-    let summary = format!("Go: {} functions, {} structs, {} interfaces", func_count, struct_count, interface_count);
+    let summary = format!(
+        "Go: {} functions, {} structs, {} interfaces",
+        func_count, struct_count, interface_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -293,27 +356,42 @@ pub fn parse_java(content: &str) -> ParsedCode {
 
         // Classes: public class Name / class Name
         if trimmed.contains("class ") && !trimmed.starts_with("//") && !trimmed.starts_with("*") {
-            let clean = trimmed.trim_start_matches("public ").trim_start_matches("abstract ").trim_start_matches("final ");
-            if let Some(name) = extract_word_after(clean, "class ", "{").or_else(|| extract_word_after(clean, "class ", "extends").or_else(|| extract_word_after(clean, "class ", "implements"))) {
+            let clean = trimmed
+                .trim_start_matches("public ")
+                .trim_start_matches("abstract ")
+                .trim_start_matches("final ");
+            if let Some(name) = extract_word_after(clean, "class ", "{").or_else(|| {
+                extract_word_after(clean, "class ", "extends")
+                    .or_else(|| extract_word_after(clean, "class ", "implements"))
+            }) {
                 let mut e = Entity::new(EntityType::Document, name, "Java class".into());
                 e.metadata.insert("kind".into(), serde_json::json!("class"));
-                e.metadata.insert("language".into(), serde_json::json!("java"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("java"));
                 entities.push(e);
                 class_count += 1;
             }
         }
 
         // Methods: public void name( / private String name(
-        if !trimmed.starts_with("//") && !trimmed.starts_with("*")
-            && (trimmed.contains("void ") || trimmed.contains("String ") || trimmed.contains("int ")
-                || trimmed.contains("boolean ") || trimmed.contains("long ") || trimmed.contains("double "))
-            && trimmed.contains("(") && trimmed.contains(")")
+        if !trimmed.starts_with("//")
+            && !trimmed.starts_with("*")
+            && (trimmed.contains("void ")
+                || trimmed.contains("String ")
+                || trimmed.contains("int ")
+                || trimmed.contains("boolean ")
+                || trimmed.contains("long ")
+                || trimmed.contains("double "))
+            && trimmed.contains("(")
+            && trimmed.contains(")")
         {
             // Heuristic: if it looks like a method declaration
             if let Some(name) = extract_method_name(trimmed) {
                 let mut e = Entity::new(EntityType::Document, name, "Java method".into());
-                e.metadata.insert("kind".into(), serde_json::json!("method"));
-                e.metadata.insert("language".into(), serde_json::json!("java"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("method"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("java"));
                 entities.push(e);
                 method_count += 1;
             }
@@ -325,7 +403,10 @@ pub fn parse_java(content: &str) -> ParsedCode {
         }
     }
 
-    let summary = format!("Java: {} classes, {} methods, {} imports", class_count, method_count, import_count);
+    let summary = format!(
+        "Java: {} classes, {} methods, {} imports",
+        class_count, method_count, import_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -354,47 +435,57 @@ pub fn parse_c_cpp(content: &str, ext: &str) -> ParsedCode {
             && trimmed.contains("(") && trimmed.contains(")")
             && !trimmed.contains("=")  // Skip assignments
             && !trimmed.contains("if ") && !trimmed.contains("for ") && !trimmed.contains("while ")
+            && let Some(name) = extract_word_before(trimmed, "(")
         {
-            if let Some(name) = extract_word_before(trimmed, "(") {
-                // Skip keywords
-                if !["if", "for", "while", "switch", "return", "sizeof", "typeof"].contains(&name.as_str()) {
-                    let mut e = Entity::new(EntityType::Document, name, format!("{} function", lang));
-                    e.metadata.insert("kind".into(), serde_json::json!("function"));
-                    e.metadata.insert("language".into(), serde_json::json!(lang));
-                    entities.push(e);
-                    func_count += 1;
-                }
+            // Skip keywords
+            if !["if", "for", "while", "switch", "return", "sizeof", "typeof"]
+                .contains(&name.as_str())
+            {
+                let mut e = Entity::new(EntityType::Document, name, format!("{} function", lang));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("function"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!(lang));
+                entities.push(e);
+                func_count += 1;
             }
         }
 
         // Structs: struct Name {
-        if trimmed.contains("struct ") && trimmed.contains("{") {
-            if let Some(name) = extract_word_after(trimmed, "struct ", "{").or_else(|| extract_word_after(trimmed, "struct ", ":")) {
-                let mut e = Entity::new(EntityType::Document, name, format!("{} struct", lang));
-                e.metadata.insert("kind".into(), serde_json::json!("struct"));
-                e.metadata.insert("language".into(), serde_json::json!(lang));
-                entities.push(e);
-                struct_count += 1;
-            }
+        if trimmed.contains("struct ")
+            && trimmed.contains("{")
+            && let Some(name) = extract_word_after(trimmed, "struct ", "{")
+                .or_else(|| extract_word_after(trimmed, "struct ", ":"))
+        {
+            let mut e = Entity::new(EntityType::Document, name, format!("{} struct", lang));
+            e.metadata
+                .insert("kind".into(), serde_json::json!("struct"));
+            e.metadata
+                .insert("language".into(), serde_json::json!(lang));
+            entities.push(e);
+            struct_count += 1;
         }
 
         // C++ classes: class Name {
-        if ext == "cpp" || ext == "hpp" {
-            if trimmed.contains("class ") && trimmed.contains("{") {
-                let clean = trimmed.trim_start_matches("class ");
-                if let Some(name) = extract_word_after(&clean, "", "{").or_else(|| extract_word_after(&clean, "", ":")) {
-                    let mut e = Entity::new(EntityType::Document, name, "C++ class".into());
-                    e.metadata.insert("kind".into(), serde_json::json!("class"));
-                    e.metadata.insert("language".into(), serde_json::json!("cpp"));
-                    entities.push(e);
-                    class_count += 1;
-                }
+        if (ext == "cpp" || ext == "hpp") && trimmed.contains("class ") && trimmed.contains("{") {
+            let clean = trimmed.trim_start_matches("class ");
+            if let Some(name) =
+                extract_word_after(clean, "", "{").or_else(|| extract_word_after(clean, "", ":"))
+            {
+                let mut e = Entity::new(EntityType::Document, name, "C++ class".into());
+                e.metadata.insert("kind".into(), serde_json::json!("class"));
+                e.metadata
+                    .insert("language".into(), serde_json::json!("cpp"));
+                entities.push(e);
+                class_count += 1;
             }
         }
     }
 
-    let summary = format!("{}: {} functions, {} structs, {} classes, {} includes",
-        lang, func_count, struct_count, class_count, include_count);
+    let summary = format!(
+        "{}: {} functions, {} structs, {} classes, {} includes",
+        lang, func_count, struct_count, class_count, include_count
+    );
     ParsedCode { entities, summary }
 }
 
@@ -405,11 +496,37 @@ pub fn parse_c_cpp(content: &str, ext: &str) -> ParsedCode {
 /// Extract word after a keyword until a delimiter
 fn extract_word_after(text: &str, keyword: &str, _until: &str) -> Option<String> {
     let after_keyword = text.strip_prefix(keyword)?.trim();
-    let word: String = after_keyword.chars()
-        .take_while(|c| *c != '(' && *c != '{' && *c != '<' && *c != ':' && *c != ';' && !c.is_whitespace())
+    let word: String = after_keyword
+        .chars()
+        .take_while(|c| {
+            *c != '(' && *c != '{' && *c != '<' && *c != ':' && *c != ';' && !c.is_whitespace()
+        })
         .collect();
     let word = word.trim();
-    if word.is_empty() || ["pub", "pub(crate)", "pub(super)", "async", "static", "const", "let", "var", "fn", "struct", "enum", "trait", "impl", "mod", "class", "function", "type", "interface", "func"].contains(&word) {
+    if word.is_empty()
+        || [
+            "pub",
+            "pub(crate)",
+            "pub(super)",
+            "async",
+            "static",
+            "const",
+            "let",
+            "var",
+            "fn",
+            "struct",
+            "enum",
+            "trait",
+            "impl",
+            "mod",
+            "class",
+            "function",
+            "type",
+            "interface",
+            "func",
+        ]
+        .contains(&word)
+    {
         return None;
     }
     Some(word.to_string())
@@ -419,13 +536,48 @@ fn extract_word_after(text: &str, keyword: &str, _until: &str) -> Option<String>
 fn extract_word_before(text: &str, before: &str) -> Option<String> {
     let before_idx = text.find(before)?;
     let before_part = &text[..before_idx].trim_end();
-    let word: String = before_part.chars().rev()
+    let word: String = before_part
+        .chars()
+        .rev()
         .take_while(|c| *c != ' ' && *c != '\t')
         .collect::<String>()
-        .chars().rev()
+        .chars()
+        .rev()
         .collect();
     let word = word.trim();
-    if word.is_empty() || ["pub", "pub(crate)", "pub(super)", "async", "static", "const", "let", "var", "fn", "struct", "enum", "trait", "impl", "mod", "class", "function", "type", "interface", "func", "return", "if", "else", "for", "while", "loop", "match", "switch", "case"].contains(&word) {
+    if word.is_empty()
+        || [
+            "pub",
+            "pub(crate)",
+            "pub(super)",
+            "async",
+            "static",
+            "const",
+            "let",
+            "var",
+            "fn",
+            "struct",
+            "enum",
+            "trait",
+            "impl",
+            "mod",
+            "class",
+            "function",
+            "type",
+            "interface",
+            "func",
+            "return",
+            "if",
+            "else",
+            "for",
+            "while",
+            "loop",
+            "match",
+            "switch",
+            "case",
+        ]
+        .contains(&word)
+    {
         return None;
     }
     Some(word.to_string())
@@ -450,8 +602,15 @@ fn extract_params(text: &str) -> String {
 
 /// Extract const/let name from declaration
 fn extract_const_name(text: &str) -> Option<String> {
-    let clean = text.trim_start_matches("const ").trim_start_matches("let ").trim_start_matches("var ").trim_start_matches("export ");
-    let name: String = clean.chars().take_while(|c| *c != '=' && *c != ':' && !c.is_whitespace()).collect();
+    let clean = text
+        .trim_start_matches("const ")
+        .trim_start_matches("let ")
+        .trim_start_matches("var ")
+        .trim_start_matches("export ");
+    let name: String = clean
+        .chars()
+        .take_while(|c| *c != '=' && *c != ':' && !c.is_whitespace())
+        .collect();
     let name = name.trim();
     if name.is_empty() || name.contains("require") || name.contains("import") {
         return None;
@@ -461,12 +620,15 @@ fn extract_const_name(text: &str) -> Option<String> {
 
 /// Extract class description from Python class definition
 fn extract_class_description(text: &str) -> String {
-    if text.contains('(') {
-        if let Some(paren_content) = text.splitn(2, '(').nth(1) {
-            let base = paren_content.trim_end_matches(':').trim_end_matches(')').trim();
-            if !base.is_empty() {
-                return format!("Python class (extends: {})", base);
-            }
+    if text.contains('(')
+        && let Some(paren_content) = text.split_once('(').map(|x| x.1)
+    {
+        let base = paren_content
+            .trim_end_matches(':')
+            .trim_end_matches(')')
+            .trim();
+        if !base.is_empty() {
+            return format!("Python class (extends: {})", base);
         }
     }
     "Python class".into()
@@ -478,13 +640,39 @@ fn extract_method_name(text: &str) -> Option<String> {
     let paren_idx = text.find('(')?;
     let before_paren = &text[..paren_idx].trim_end();
     // The method name is the last word before (
-    let name: String = before_paren.chars().rev()
+    let name: String = before_paren
+        .chars()
+        .rev()
         .take_while(|c| *c != ' ' && *c != '\t' && *c != '<' && *c != '>')
         .collect::<String>()
-        .chars().rev()
+        .chars()
+        .rev()
         .collect();
     let name = name.trim();
-    if name.is_empty() || ["void", "String", "int", "boolean", "long", "double", "float", "byte", "char", "short", "public", "private", "protected", "static", "final", "abstract", "synchronized", "native", "strictfp"].contains(&name) {
+    if name.is_empty()
+        || [
+            "void",
+            "String",
+            "int",
+            "boolean",
+            "long",
+            "double",
+            "float",
+            "byte",
+            "char",
+            "short",
+            "public",
+            "private",
+            "protected",
+            "static",
+            "final",
+            "abstract",
+            "synchronized",
+            "native",
+            "strictfp",
+        ]
+        .contains(&name)
+    {
         return None;
     }
     Some(name.to_string())

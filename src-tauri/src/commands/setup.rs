@@ -43,11 +43,23 @@ pub struct CheckResult {
 
 impl CheckResult {
     fn ok(id: &str, detail: impl Into<String>, version: Option<String>) -> Self {
-        Self { id: id.into(), ok: true, detail: detail.into(), version, fixable: false }
+        Self {
+            id: id.into(),
+            ok: true,
+            detail: detail.into(),
+            version,
+            fixable: false,
+        }
     }
 
     fn missing(id: &str, detail: impl Into<String>, fixable: bool) -> Self {
-        Self { id: id.into(), ok: false, detail: detail.into(), version: None, fixable }
+        Self {
+            id: id.into(),
+            ok: false,
+            detail: detail.into(),
+            version: None,
+            fixable,
+        }
     }
 }
 
@@ -120,7 +132,10 @@ fn which(program: &str) -> Option<String> {
     if !ok {
         return None;
     }
-    out.lines().map(str::trim).find(|l| !l.is_empty()).map(str::to_string)
+    out.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .map(str::to_string)
 }
 
 /// Locate `npm`. On Windows the executable is `npm.cmd`, which must be invoked

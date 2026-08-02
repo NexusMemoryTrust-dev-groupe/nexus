@@ -21,7 +21,7 @@
 
 use std::path::{Path, PathBuf};
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::core::result::{AppError, Result};
 
@@ -77,10 +77,10 @@ impl RegistrationOutcome {
 /// it resolves to `%USERPROFILE%\.config\opencode`. `XDG_CONFIG_HOME` wins when
 /// set so power users keep control.
 pub fn config_dir() -> Result<PathBuf> {
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        if !xdg.trim().is_empty() {
-            return Ok(PathBuf::from(xdg).join("opencode"));
-        }
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME")
+        && !xdg.trim().is_empty()
+    {
+        return Ok(PathBuf::from(xdg).join("opencode"));
     }
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
@@ -310,8 +310,8 @@ fn write_atomic(path: &Path, value: &Value) -> Result<()> {
     std::fs::create_dir_all(parent)
         .map_err(|e| AppError::Io(format!("Cannot create {}: {}", parent.display(), e)))?;
 
-    let mut text = serde_json::to_string_pretty(value)
-        .map_err(|e| AppError::Serialization(e.to_string()))?;
+    let mut text =
+        serde_json::to_string_pretty(value).map_err(|e| AppError::Serialization(e.to_string()))?;
     text.push('\n');
 
     let tmp = path.with_extension("json.tmp");
@@ -362,7 +362,7 @@ pub fn register_with_exe(exe: &Path) -> Result<RegistrationOutcome> {
                 "Cannot read {}: {}",
                 path.display(),
                 e
-            )))
+            )));
         }
     };
 
@@ -548,7 +548,10 @@ mod tests {
             }
         });
         let changed = apply_registration(&mut root, &exe()).unwrap();
-        assert_eq!(changed, Some(vec![r"C:\Old\Nexus.exe".into(), "--mcp".into()]));
+        assert_eq!(
+            changed,
+            Some(vec![r"C:\Old\Nexus.exe".into(), "--mcp".into()])
+        );
         assert_eq!(
             root["mcp"][SERVER_KEY]["command"][0],
             r"D:\Apps\Nexus\Nexus.exe"

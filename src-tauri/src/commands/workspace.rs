@@ -1,7 +1,7 @@
 use crate::commands::files::{self, FileEntry, normalize_path};
 use crate::db::open_connection;
-use rusqlite::params;
 use rusqlite::OptionalExtension;
+use rusqlite::params;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -61,16 +61,23 @@ fn read_rows(project_id: &str) -> Result<Vec<WsRow>, String> {
     Ok(result)
 }
 
-fn insert_row(
-    project_id: &str,
-    name: &str,
-    native_path: &str,
-    parent_id: Option<&str>,
+/// A row to insert into `workspace_entries`.
+///
+/// Grouped into a struct rather than passed as eight positional arguments:
+/// `native_path`, `name` and `mime_type` are all `&str`, and `is_dir` sits
+/// between them, so a transposed pair would compile silently.
+struct NewRow<'a> {
+    project_id: &'a str,
+    name: &'a str,
+    native_path: &'a str,
+    parent_id: Option<&'a str>,
     is_dir: bool,
     size_bytes: u64,
-    mime_type: &str,
+    mime_type: &'a str,
     sort_order: i32,
-) -> Result<String, String> {
+}
+
+fn insert_row(row: NewRow<'_>) -> Result<String, String> {
     let conn = open_connection()?;
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -79,15 +86,15 @@ fn insert_row(
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             id,
-            project_id,
-            name,
-            native_path,
-            parent_id,
-            is_dir as i32,
-            size_bytes as i64,
-            mime_type,
+            row.project_id,
+            row.name,
+            row.native_path,
+            row.parent_id,
+            row.is_dir as i32,
+            row.size_bytes as i64,
+            row.mime_type,
             now,
-            sort_order,
+            row.sort_order,
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -98,7 +105,10 @@ fn delete_by_native_path(project_id: &str, native_path: &str) -> Result<(), Stri
     let conn = open_connection()?;
     // Delete this entry AND all descendants (recursive)
     let children = read_rows(project_id)?;
-    let prefix = native_path.trim_end_matches('\\').trim_end_matches('/').to_string();
+    let prefix = native_path
+        .trim_end_matches('\\')
+        .trim_end_matches('/')
+        .to_string();
     let ids_to_delete: Vec<String> = children
         .iter()
         .filter(|r| {
@@ -151,14 +161,14 @@ fn build_tree(rows: &[WsRow]) -> Option<FileEntry> {
     // Map parent_id → children
     let mut children_of: HashMap<Option<String>, Vec<&WsRow>> = HashMap::new();
     for r in rows {
-        children_of
-            .entry(r.parent_id.clone())
-            .or_default()
-            .push(r);
+        children_of.entry(r.parent_id.clone()).or_default().push(r);
     }
 
     // Recursive builder
-    fn build_sub(parent_id: Option<&str>, children_of: &HashMap<Option<String>, Vec<&WsRow>>) -> Vec<FileEntry> {
+    fn build_sub(
+        parent_id: Option<&str>,
+        children_of: &HashMap<Option<String>, Vec<&WsRow>>,
+    ) -> Vec<FileEntry> {
         let key = parent_id.map(|s| s.to_string());
         let kids = children_of.get(&key).cloned().unwrap_or_default();
         let mut entries: Vec<FileEntry> = kids
@@ -179,7 +189,11 @@ fn build_tree(rows: &[WsRow]) -> Option<FileEntry> {
                 }
             })
             .collect();
-        entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        entries.sort_by(|a, b| {
+            b.is_dir
+                .cmp(&a.is_dir)
+                .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
         entries
     }
 
@@ -210,26 +224,45 @@ fn add_folder_recursive(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     let abs = folder_path.to_string_lossy().to_string();
-    let id = insert_row(project_id, &name, &abs, parent_id, true, 0, "inode/directory", *sort_order)?;
+    let id = insert_row(NewRow {
+        project_id,
+        name: &name,
+        native_path: &abs,
+        parent_id,
+        is_dir: true,
+        size_bytes: 0,
+        mime_type: "inode/directory",
+        sort_order: *sort_order,
+    })?;
     *sort_order += 1;
 
-    if folder_path.is_dir() {
-        if let Ok(entries) = fs::read_dir(folder_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    add_folder_recursive(project_id, &path, Some(&id), sort_order)?;
-                } else {
-                    let child_name = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    let meta = fs::metadata(&path).ok();
-                    let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
-                    let mime = files::mime_from_ext_public(&path);
-                    insert_row(project_id, &child_name, &path.to_string_lossy(), Some(&id), false, size, &mime, *sort_order)?;
-                    *sort_order += 1;
-                }
+    if folder_path.is_dir()
+        && let Ok(entries) = fs::read_dir(folder_path)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                add_folder_recursive(project_id, &path, Some(&id), sort_order)?;
+            } else {
+                let child_name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let meta = fs::metadata(&path).ok();
+                let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                let mime = files::mime_from_ext_public(&path);
+                let child_path = path.to_string_lossy();
+                insert_row(NewRow {
+                    project_id,
+                    name: &child_name,
+                    native_path: &child_path,
+                    parent_id: Some(&id),
+                    is_dir: false,
+                    size_bytes: size,
+                    mime_type: &mime,
+                    sort_order: *sort_order,
+                })?;
+                *sort_order += 1;
             }
         }
     }
@@ -255,12 +288,21 @@ pub async fn add_to_workspace(
     let existing_rows = read_rows(&project_id)?;
     let existing_paths: std::collections::HashSet<String> = existing_rows
         .iter()
-        .map(|r| r.native_path.trim_end_matches('\\').trim_end_matches('/').to_lowercase())
+        .map(|r| {
+            r.native_path
+                .trim_end_matches('\\')
+                .trim_end_matches('/')
+                .to_lowercase()
+        })
         .collect();
     let mut sort_order: i32 = existing_rows.len() as i32;
     for raw in &paths {
         let p = PathBuf::from(normalize_path(raw));
-        let normalized = p.to_string_lossy().trim_end_matches('\\').trim_end_matches('/').to_lowercase();
+        let normalized = p
+            .to_string_lossy()
+            .trim_end_matches('\\')
+            .trim_end_matches('/')
+            .to_lowercase();
         if existing_paths.contains(&normalized) {
             continue; // Already in workspace — skip
         }
@@ -274,7 +316,17 @@ pub async fn add_to_workspace(
             let meta = fs::metadata(&p).ok();
             let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
             let mime = files::mime_from_ext_public(&p);
-            insert_row(&project_id, &name, &p.to_string_lossy(), None, false, size, &mime, sort_order)?;
+            let native_path = p.to_string_lossy();
+            insert_row(NewRow {
+                project_id: &project_id,
+                name: &name,
+                native_path: &native_path,
+                parent_id: None,
+                is_dir: false,
+                size_bytes: size,
+                mime_type: &mime,
+                sort_order,
+            })?;
             sort_order += 1;
         }
     }
@@ -290,7 +342,11 @@ pub async fn create_workspace_entry(
     name: String,
     is_dir: bool,
 ) -> Result<FileEntry, String> {
-    let sep = if parent_path.contains('\\') { '\\' } else { '/' };
+    let sep = if parent_path.contains('\\') {
+        '\\'
+    } else {
+        '/'
+    };
     let child_path = format!("{}{}{}", parent_path, sep, name);
 
     // Create on disk
@@ -313,7 +369,16 @@ pub async fn create_workspace_entry(
     let meta = fs::metadata(&child_path).ok();
     let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
     let sort_order = count_children(&project_id, parent_id.as_deref()) as i32;
-    let _id = insert_row(&project_id, &name, &child_path, parent_id.as_deref(), is_dir, size, &mime, sort_order)?;
+    let _id = insert_row(NewRow {
+        project_id: &project_id,
+        name: &name,
+        native_path: &child_path,
+        parent_id: parent_id.as_deref(),
+        is_dir,
+        size_bytes: size,
+        mime_type: &mime,
+        sort_order,
+    })?;
 
     Ok(FileEntry {
         name,
@@ -375,10 +440,7 @@ pub async fn rename_workspace_entry(
 
 /// Delete a workspace entry (deletes from disk AND removes from DB).
 #[tauri::command]
-pub async fn delete_workspace_entry(
-    project_id: String,
-    file_path: String,
-) -> Result<(), String> {
+pub async fn delete_workspace_entry(project_id: String, file_path: String) -> Result<(), String> {
     let normalized = normalize_path(&file_path);
     let path = PathBuf::from(&normalized);
 
@@ -410,13 +472,19 @@ pub async fn move_workspace_entry(
         return Err(format!("Source does not exist: {}", src.display()));
     }
     if !dst_dir.is_dir() {
-        return Err(format!("Destination is not a directory: {}", dst_dir.display()));
+        return Err(format!(
+            "Destination is not a directory: {}",
+            dst_dir.display()
+        ));
     }
 
     let file_name = src.file_name().ok_or("Cannot get file name from source")?;
     let dest = dst_dir.join(file_name);
     if dest.exists() {
-        return Err(format!("A file or folder already exists at: {}", dest.display()));
+        return Err(format!(
+            "A file or folder already exists at: {}",
+            dest.display()
+        ));
     }
 
     let old_abs = src.to_string_lossy().to_string();
@@ -484,10 +552,7 @@ pub async fn move_workspace_entry(
 
 /// Remove an entry from the workspace DB only (does NOT delete from disk).
 #[tauri::command]
-pub async fn remove_from_workspace(
-    project_id: String,
-    file_path: String,
-) -> Result<(), String> {
+pub async fn remove_from_workspace(project_id: String, file_path: String) -> Result<(), String> {
     let normalized = normalize_path(&file_path);
     delete_by_native_path(&project_id, &normalized)
 }
@@ -503,10 +568,20 @@ pub async fn sync_workspace(project_id: String) -> Result<SyncResult, String> {
         let mut seen: std::collections::HashMap<String, String> = std::collections::HashMap::new(); // native_path → id to keep
         let mut dup_ids: Vec<String> = Vec::new();
         for row in &rows {
-            let key = row.native_path.trim_end_matches('\\').trim_end_matches('/').to_lowercase();
+            let key = row
+                .native_path
+                .trim_end_matches('\\')
+                .trim_end_matches('/')
+                .to_lowercase();
             if let Some(existing_id) = seen.get(&key) {
                 // Keep the one with lower sort_order
-                if row.sort_order < rows.iter().find(|r| &r.id == existing_id).map(|r| r.sort_order).unwrap_or(i32::MAX) {
+                if row.sort_order
+                    < rows
+                        .iter()
+                        .find(|r| &r.id == existing_id)
+                        .map(|r| r.sort_order)
+                        .unwrap_or(i32::MAX)
+                {
                     dup_ids.push(existing_id.clone());
                     seen.insert(key, row.id.clone());
                 } else {
@@ -547,16 +622,24 @@ pub async fn sync_workspace(project_id: String) -> Result<SyncResult, String> {
     let clean_rows = read_rows(&project_id)?;
 
     // 3. For root-level directories, scan for new files/folders on disk that aren't in DB
-    let root_entries: Vec<&WsRow> = clean_rows.iter().filter(|r| r.parent_id.is_none() && r.is_dir).collect();
+    let root_entries: Vec<&WsRow> = clean_rows
+        .iter()
+        .filter(|r| r.parent_id.is_none() && r.is_dir)
+        .collect();
     for root in &root_entries {
         let root_path = Path::new(&root.native_path);
-        if !root_path.is_dir() { continue; }
+        if !root_path.is_dir() {
+            continue;
+        }
         sync_scan_dir(&project_id, root_path, Some(&root.id), &clean_rows)?;
     }
 
     // 4. Return updated tree
     let final_rows = read_rows(&project_id)?;
-    Ok(SyncResult { tree: build_tree(&final_rows), stale_found })
+    Ok(SyncResult {
+        tree: build_tree(&final_rows),
+        stale_found,
+    })
 }
 
 /// Recursively scan a directory and add new entries to workspace DB.
@@ -584,14 +667,26 @@ fn sync_scan_dir(
                 continue;
             }
             // New entry — add it
-            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
             if path.is_dir() {
                 add_folder_recursive(project_id, &path, parent_id, &mut sort_order)?;
             } else {
                 let meta = fs::metadata(&path).ok();
                 let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
                 let mime = files::mime_from_ext_public(&path);
-                insert_row(project_id, &name, &abs, parent_id, false, size, &mime, sort_order)?;
+                insert_row(NewRow {
+                    project_id,
+                    name: &name,
+                    native_path: &abs,
+                    parent_id,
+                    is_dir: false,
+                    size_bytes: size,
+                    mime_type: &mime,
+                    sort_order,
+                })?;
                 sort_order += 1;
             }
         }
@@ -615,7 +710,9 @@ fn count_children(project_id: &str, parent_id: Option<&str>) -> usize {
         Ok(r) => r,
         Err(_) => return 0,
     };
-    rows.iter().filter(|r| r.parent_id.as_deref() == parent_id).count()
+    rows.iter()
+        .filter(|r| r.parent_id.as_deref() == parent_id)
+        .count()
 }
 
 /// Rename the managed (auto-created) project folder on disk and update all workspace entries.
@@ -643,7 +740,11 @@ pub async fn rename_managed_folder(
     let new_path = parent.join(&new_name);
 
     if new_path.exists() {
-        return Err(format!("A folder '{}' already exists at: {}", new_name, new_path.display()));
+        return Err(format!(
+            "A folder '{}' already exists at: {}",
+            new_name,
+            new_path.display()
+        ));
     }
 
     // Rename on disk (with cross-filesystem fallback)
@@ -663,7 +764,8 @@ pub async fn rename_managed_folder(
                 }
                 Ok(())
             }
-            copy_dir_recursive(&path, &new_path).map_err(|e| format!("Rename failed (copy): {}", e))?;
+            copy_dir_recursive(&path, &new_path)
+                .map_err(|e| format!("Rename failed (copy): {}", e))?;
             fs::remove_dir_all(&path).map_err(|e| format!("Rename failed (cleanup): {}", e))?;
         } else {
             fs::copy(&path, &new_path).map_err(|e| format!("Rename failed (copy): {}", e))?;
@@ -680,7 +782,10 @@ pub async fn rename_managed_folder(
     let offset = (old_prefix.len() + 1) as i32;
 
     // Update entry itself
-    let _old_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let _old_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     conn.execute(
         "UPDATE workspace_entries SET name = ?1, native_path = ?2 WHERE project_id = ?3 AND native_path = ?4",
         params![new_name, new_abs, project_id, old_abs],
@@ -722,7 +827,9 @@ pub async fn check_stale_projects() -> Result<Vec<String>, String> {
     let mut stale_projects: Vec<String> = Vec::new();
     for pid in &project_ids {
         let rows = read_rows(pid)?;
-        if rows.is_empty() { continue; }
+        if rows.is_empty() {
+            continue;
+        }
         let all_stale = rows.iter().all(|r| !Path::new(&r.native_path).exists());
         if all_stale {
             stale_projects.push(pid.clone());
@@ -735,7 +842,10 @@ pub async fn check_stale_projects() -> Result<Vec<String>, String> {
 #[tauri::command]
 pub async fn delete_workspace_for_project(project_id: String) -> Result<(), String> {
     let conn = open_connection()?;
-    conn.execute("DELETE FROM workspace_entries WHERE project_id = ?1", params![project_id])
-        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM workspace_entries WHERE project_id = ?1",
+        params![project_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }

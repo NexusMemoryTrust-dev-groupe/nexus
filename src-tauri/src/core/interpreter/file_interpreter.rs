@@ -17,12 +17,14 @@ pub struct InterpretedFile {
 
 /// Interpret a file by its extension and content
 pub fn interpret_file(path: &Path, content: &str) -> InterpretedFile {
-    let ext = path.extension()
+    let ext = path
+        .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
 
-    let file_name = path.file_name()
+    let file_name = path
+        .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
 
@@ -75,9 +77,7 @@ pub fn interpret_file(path: &Path, content: &str) -> InterpretedFile {
             (parsed.entities, parsed.summary)
         }
         // Everything else — just store as document
-        _ => {
-            (vec![], format!("File: {}", file_name))
-        }
+        _ => (vec![], format!("File: {}", file_name)),
     };
 
     // Determine file type label
@@ -104,12 +104,22 @@ pub fn interpret_file(path: &Path, content: &str) -> InterpretedFile {
     let description = if sub_entities.is_empty() {
         format!("{} file: {}", file_type, file_name)
     } else {
-        format!("{} file: {} — {} items", file_type, file_name, sub_entities.len())
+        format!(
+            "{} file: {} — {} items",
+            file_type,
+            file_name,
+            sub_entities.len()
+        )
     };
 
     let mut file_entity = Entity::new(EntityType::Document, file_name.clone(), description);
-    file_entity.metadata.insert("source_path".into(), serde_json::json!(path.to_string_lossy().to_string()));
-    file_entity.metadata.insert("file_type".into(), serde_json::json!(file_type));
+    file_entity.metadata.insert(
+        "source_path".into(),
+        serde_json::json!(path.to_string_lossy().to_string()),
+    );
+    file_entity
+        .metadata
+        .insert("file_type".into(), serde_json::json!(file_type));
 
     InterpretedFile {
         file_entity,
@@ -121,24 +131,40 @@ pub fn interpret_file(path: &Path, content: &str) -> InterpretedFile {
 
 /// Check if a file extension is supported for interpretation
 pub fn is_interpretable(ext: &str) -> bool {
-    matches!(ext.to_lowercase().as_str(),
-        "py" | "js" | "jsx" | "mjs" | "ts" | "tsx" |
-        "rs" | "go" | "java" | "c" | "cpp" | "h" | "hpp" |
-        "md" | "markdown" |
-        "json" | "yaml" | "yml" | "toml" |
-        "html" | "htm" | "css" | "sql" |
-        "sh" | "bat" | "ps1"
+    matches!(
+        ext.to_lowercase().as_str(),
+        "py" | "js"
+            | "jsx"
+            | "mjs"
+            | "ts"
+            | "tsx"
+            | "rs"
+            | "go"
+            | "java"
+            | "c"
+            | "cpp"
+            | "h"
+            | "hpp"
+            | "md"
+            | "markdown"
+            | "json"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "html"
+            | "htm"
+            | "css"
+            | "sql"
+            | "sh"
+            | "bat"
+            | "ps1"
     )
 }
 
 /// Get supported extensions list
 pub fn supported_extensions() -> Vec<&'static str> {
     vec![
-        "py", "js", "jsx", "mjs", "ts", "tsx",
-        "rs", "go", "java", "c", "cpp", "h", "hpp",
-        "md", "markdown",
-        "json", "yaml", "yml", "toml",
-        "html", "htm", "css", "sql",
-        "sh", "bat", "ps1",
+        "py", "js", "jsx", "mjs", "ts", "tsx", "rs", "go", "java", "c", "cpp", "h", "hpp", "md",
+        "markdown", "json", "yaml", "yml", "toml", "html", "htm", "css", "sql", "sh", "bat", "ps1",
     ]
 }

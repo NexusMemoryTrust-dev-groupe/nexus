@@ -15,12 +15,7 @@ pub trait VersionGraph: Send + Sync {
     async fn get_dependents(&self, version_id: &str) -> Result<Vec<AutomaticCommit>>;
 
     /// Add a directed edge between two versions in the graph.
-    async fn add_edge(
-        &self,
-        from: &str,
-        to: &str,
-        edge_type: VersionEdgeType,
-    ) -> Result<()>;
+    async fn add_edge(&self, from: &str, to: &str, edge_type: VersionEdgeType) -> Result<()>;
 }
 
 #[cfg(test)]

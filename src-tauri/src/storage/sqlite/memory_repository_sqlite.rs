@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::Mutex;
 
 use crate::core::entity_id::EntityId;
@@ -57,8 +57,12 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
     let latest_version_id: Option<String> = row.get(14)?;
     let status_str: String = row.get(15)?;
     let layer_str: String = row.get(16)?;
-    let attached_files_json: String = row.get::<_, Option<String>>(17)?.unwrap_or_else(|| "[]".to_string());
-    let derived_from_json: String = row.get::<_, Option<String>>(18)?.unwrap_or_else(|| "[]".to_string());
+    let attached_files_json: String = row
+        .get::<_, Option<String>>(17)?
+        .unwrap_or_else(|| "[]".to_string());
+    let derived_from_json: String = row
+        .get::<_, Option<String>>(18)?
+        .unwrap_or_else(|| "[]".to_string());
     let reason: Option<String> = row.get(19)?;
     let version: u32 = row.get::<_, i32>(20)? as u32;
     let updated_by: Option<String> = row.get(21)?;
@@ -69,7 +73,8 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
     let derived_from: Vec<String> = serde_json::from_str(&derived_from_json).unwrap_or_default();
 
     Ok(MemoryRecord {
-        id: EntityId::parse(&id_str).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        id: EntityId::parse(&id_str)
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
         title,
         summary,
         content,
@@ -109,8 +114,8 @@ fn source_to_string(s: &MemorySource) -> String {
         MemorySource::Email => "Email",
         MemorySource::Meeting => "Meeting",
         MemorySource::Document => "Document",
-                MemorySource::AiGenerated => "AiGenerated",
-                MemorySource::Compressed => "Compressed",
+        MemorySource::AiGenerated => "AiGenerated",
+        MemorySource::Compressed => "Compressed",
     }
     .to_string()
 }
@@ -331,7 +336,7 @@ impl MemoryRepository for SqliteMemoryRepository {
                 .collect::<Vec<_>>()
                 .join(" OR ")
         };
-        
+
         let mut stmt = conn
             .prepare(
                 "SELECT mr.id, mr.title, mr.summary, mr.content, mr.created_at, mr.updated_at,
@@ -423,7 +428,10 @@ impl MemoryRepository for SqliteMemoryRepository {
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let rows = conn
-            .execute("DELETE FROM memory_records WHERE id = ?1", params![id.as_str()])
+            .execute(
+                "DELETE FROM memory_records WHERE id = ?1",
+                params![id.as_str()],
+            )
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         if rows == 0 {

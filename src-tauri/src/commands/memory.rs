@@ -63,16 +63,24 @@ impl From<MemoryRecord> for MemoryDto {
             visibility: format!("{:?}", r.visibility),
             capture_mode: format!("{:?}", r.capture_mode),
             project_space_id: r.project_space_id.map(|id| id.as_str().to_string()),
-            linked_entity_ids: r.linked_entity_ids.iter().map(|id| id.as_str().to_string()).collect(),
+            linked_entity_ids: r
+                .linked_entity_ids
+                .iter()
+                .map(|id| id.as_str().to_string())
+                .collect(),
             latest_version_id: r.latest_version_id,
             status: format!("{:?}", r.status),
             layer: format!("{:?}", r.layer),
-            attached_files: r.attached_files.into_iter().map(|f| AttachedFileDto {
-                name: f.name,
-                path: f.path,
-                size_bytes: f.size_bytes,
-                mime_type: f.mime_type,
-            }).collect(),
+            attached_files: r
+                .attached_files
+                .into_iter()
+                .map(|f| AttachedFileDto {
+                    name: f.name,
+                    path: f.path,
+                    size_bytes: f.size_bytes,
+                    mime_type: f.mime_type,
+                })
+                .collect(),
         }
     }
 }
@@ -95,7 +103,10 @@ pub async fn get_memories() -> Result<Vec<MemoryDto>, String> {
 pub async fn get_memory(id: String) -> Result<Option<MemoryDto>, String> {
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let repo = open_repo()?;
-    let record = repo.get_by_id(&entity_id).await.map_err(|e| e.to_string())?;
+    let record = repo
+        .get_by_id(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(record.map(MemoryDto::from))
 }
 
@@ -230,7 +241,10 @@ pub async fn delete_memory(id: String) -> Result<(), String> {
     let links_repo = crate::storage::sqlite::SqliteMemoryEntityLinkRepository::new(links_conn)
         .map_err(|e| e.to_string())?;
     use crate::storage::sqlite::memory_entity_links_repository::MemoryEntityLinkRepository;
-    links_repo.delete_links_for_memory(&entity_id).await.map_err(|e| e.to_string())?;
+    links_repo
+        .delete_links_for_memory(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let repo = open_repo()?;
     repo.delete(&entity_id).await.map_err(|e| e.to_string())?;

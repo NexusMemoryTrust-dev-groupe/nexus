@@ -24,19 +24,11 @@ pub struct SubGraph {
 #[async_trait]
 pub trait GraphTraversal: Send + Sync {
     /// Get the neighborhood of an entity up to a given depth (BFS).
-    async fn get_neighbors(
-        &self,
-        entity_id: &EntityId,
-        depth: u32,
-    ) -> Result<GraphNeighborhood>;
+    async fn get_neighbors(&self, entity_id: &EntityId, depth: u32) -> Result<GraphNeighborhood>;
 
     /// Get the shortest path distance between two entities.
     /// Returns None if no path exists.
-    async fn get_distance(
-        &self,
-        from: &EntityId,
-        to: &EntityId,
-    ) -> Result<Option<u32>>;
+    async fn get_distance(&self, from: &EntityId, to: &EntityId) -> Result<Option<u32>>;
 
     /// Find a path between two entities, limited by max_depth.
     /// Returns None if no path exists within the depth limit.
@@ -48,11 +40,7 @@ pub trait GraphTraversal: Send + Sync {
     ) -> Result<Option<Vec<EntityId>>>;
 
     /// Get a subgraph centered on an entity within a given radius.
-    async fn get_subgraph(
-        &self,
-        entity_id: &EntityId,
-        radius: u32,
-    ) -> Result<SubGraph>;
+    async fn get_subgraph(&self, entity_id: &EntityId, radius: u32) -> Result<SubGraph>;
 }
 
 #[cfg(test)]

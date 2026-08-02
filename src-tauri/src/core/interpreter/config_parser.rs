@@ -41,8 +41,10 @@ pub fn parse_yaml(content: &str, file_name: &str) -> ParsedConfig {
                 let indent = line.len() - line.trim_start().len();
                 let desc = format!("YAML key (indent: {})", indent);
                 let mut e = Entity::new(EntityType::Document, key, desc);
-                e.metadata.insert("kind".into(), serde_json::json!("yaml_key"));
-                e.metadata.insert("file".into(), serde_json::json!(file_name));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("yaml_key"));
+                e.metadata
+                    .insert("file".into(), serde_json::json!(file_name));
                 entities.push(e);
                 key_count += 1;
             }
@@ -67,11 +69,13 @@ pub fn parse_toml(content: &str, file_name: &str) -> ParsedConfig {
 
         // TOML sections: [section] or [section.subsection]
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            let section = trimmed[1..trimmed.len()-1].trim().to_string();
+            let section = trimmed[1..trimmed.len() - 1].trim().to_string();
             if !section.is_empty() {
                 let mut e = Entity::new(EntityType::Document, section, "TOML section".into());
-                e.metadata.insert("kind".into(), serde_json::json!("toml_section"));
-                e.metadata.insert("file".into(), serde_json::json!(file_name));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("toml_section"));
+                e.metadata
+                    .insert("file".into(), serde_json::json!(file_name));
                 entities.push(e);
                 section_count += 1;
             }
@@ -86,12 +90,20 @@ pub fn parse_toml(content: &str, file_name: &str) -> ParsedConfig {
         }
     }
 
-    let summary = format!("TOML config ({}): {} sections, {} keys", file_name, section_count, key_count);
+    let summary = format!(
+        "TOML config ({}): {} sections, {} keys",
+        file_name, section_count, key_count
+    );
     ParsedConfig { entities, summary }
 }
 
 /// Recursively extract keys from JSON value
-fn extract_json_keys(value: &serde_json::Value, prefix: &str, entities: &mut Vec<Entity>, count: &mut usize) {
+fn extract_json_keys(
+    value: &serde_json::Value,
+    prefix: &str,
+    entities: &mut Vec<Entity>,
+    count: &mut usize,
+) {
     match value {
         serde_json::Value::Object(map) => {
             for (key, val) in map {
@@ -108,13 +120,14 @@ fn extract_json_keys(value: &serde_json::Value, prefix: &str, entities: &mut Vec
                     ),
                     serde_json::Value::Number(n) => format!("JSON number: {}", n),
                     serde_json::Value::Bool(b) => format!("JSON bool: {}", b),
-                    serde_json::Value::Array(_) => format!("JSON array"),
-                    serde_json::Value::Object(_) => format!("JSON object"),
-                    serde_json::Value::Null => format!("JSON null"),
+                    serde_json::Value::Array(_) => "JSON array".to_string(),
+                    serde_json::Value::Object(_) => "JSON object".to_string(),
+                    serde_json::Value::Null => "JSON null".to_string(),
                 };
 
                 let mut e = Entity::new(EntityType::Document, full_key.clone(), desc);
-                e.metadata.insert("kind".into(), serde_json::json!("json_key"));
+                e.metadata
+                    .insert("kind".into(), serde_json::json!("json_key"));
                 entities.push(e);
                 *count += 1;
 

@@ -105,10 +105,7 @@ mod tests {
 
     #[test]
     fn domain_event_clone() {
-        let event = DomainEvent::new(
-            DomainEventType::EntityCreated,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::EntityCreated, serde_json::json!({}));
         let cloned = event.clone();
         assert_eq!(event.id, cloned.id);
         assert_eq!(event.event_type, cloned.event_type);
@@ -116,10 +113,7 @@ mod tests {
 
     #[test]
     fn domain_event_timestamp_is_recent() {
-        let event = DomainEvent::new(
-            DomainEventType::EntityCreated,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::EntityCreated, serde_json::json!({}));
         let now = Utc::now();
         let diff = (now - event.timestamp).num_milliseconds();
         assert!(diff < 1000, "Timestamp should be recent");

@@ -10,7 +10,10 @@ pub fn normalize_path(p: &str) -> String {
     if let Some(inner) = s.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
         return normalize_path(inner);
     }
-    if let Some(inner) = s.strip_prefix("Path(\"").and_then(|r| r.strip_suffix("\")")) {
+    if let Some(inner) = s
+        .strip_prefix("Path(\"")
+        .and_then(|r| r.strip_suffix("\")"))
+    {
         return inner.replace("\\\\", "\\").replace("\\\"", "\"");
     }
     // Handle: "C:\..." (quoted)
@@ -135,10 +138,40 @@ pub fn is_editable(path: &Path) -> bool {
             .unwrap_or("")
             .to_lowercase()
             .as_str(),
-        "md" | "markdown" | "txt" | "json" | "yaml" | "yml" | "toml" | "rs" | "py" | "js"
-            | "ts" | "tsx" | "jsx" | "go" | "java" | "c" | "cpp" | "h" | "html" | "htm"
-            | "css" | "svg" | "sql" | "sh" | "bat" | "ps1" | "xml" | "csv" | "log"
-            | "gitignore" | "dockerignore" | "env" | "cfg" | "conf" | "ini"
+        "md" | "markdown"
+            | "txt"
+            | "json"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "rs"
+            | "py"
+            | "js"
+            | "ts"
+            | "tsx"
+            | "jsx"
+            | "go"
+            | "java"
+            | "c"
+            | "cpp"
+            | "h"
+            | "html"
+            | "htm"
+            | "css"
+            | "svg"
+            | "sql"
+            | "sh"
+            | "bat"
+            | "ps1"
+            | "xml"
+            | "csv"
+            | "log"
+            | "gitignore"
+            | "dockerignore"
+            | "env"
+            | "cfg"
+            | "conf"
+            | "ini"
     )
 }
 
@@ -291,16 +324,19 @@ pub async fn pick_files(
         for filter_str in f {
             let parts: Vec<&str> = filter_str.split('|').collect();
             let name = *parts.first().unwrap_or(&"Files");
-            let exts: Vec<&str> = parts.get(1..).unwrap_or(&[]).iter().flat_map(|s| s.split(',')).map(|s| s.trim()).collect();
+            let exts: Vec<&str> = parts
+                .get(1..)
+                .unwrap_or(&[])
+                .iter()
+                .flat_map(|s| s.split(','))
+                .map(|s| s.trim())
+                .collect();
             builder = builder.add_filter(name, &exts);
         }
     }
 
     let file_paths = builder.blocking_pick_files().unwrap_or_default();
-    let paths: Vec<String> = file_paths
-        .into_iter()
-        .map(|fp| fp.to_string())
-        .collect();
+    let paths: Vec<String> = file_paths.into_iter().map(|fp| fp.to_string()).collect();
 
     Ok(paths)
 }
@@ -332,14 +368,20 @@ pub async fn move_entry(source_path: String, dest_dir: String) -> Result<String,
         return Err(format!("Source does not exist: {}", src.display()));
     }
     if !dst_dir.is_dir() {
-        return Err(format!("Destination is not a directory: {}", dst_dir.display()));
+        return Err(format!(
+            "Destination is not a directory: {}",
+            dst_dir.display()
+        ));
     }
 
     let file_name = src.file_name().ok_or("Cannot get file name from source")?;
     let dest = dst_dir.join(file_name);
 
     if dest.exists() {
-        return Err(format!("A file or folder already exists at: {}", dest.display()));
+        return Err(format!(
+            "A file or folder already exists at: {}",
+            dest.display()
+        ));
     }
 
     fs::rename(&src, &dest).map_err(|e| format!("Move failed: {}", e))?;

@@ -16,8 +16,7 @@ impl EntityId {
 
     /// Parse and validate an EntityId from a string.
     pub fn parse(s: &str) -> Result<Self> {
-        uuid::Uuid::parse_str(s)
-            .map_err(|e| AppError::Validation(e.to_string()))?;
+        uuid::Uuid::parse_str(s).map_err(|e| AppError::Validation(e.to_string()))?;
         Ok(Self(s.to_string()))
     }
 

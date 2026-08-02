@@ -37,8 +37,12 @@ impl RelationshipType {
             Self::Custom(s) => s,
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+// Infallible conversion — unknown names become `Custom`, so this is `From`
+// rather than `FromStr` (see the note on `EntityType`).
+impl From<&str> for RelationshipType {
+    fn from(s: &str) -> Self {
         match s {
             "Created" => Self::Created,
             "Modified" => Self::Modified,
@@ -80,7 +84,7 @@ mod tests {
         for t in &types {
             let s = t.as_str();
             assert!(!s.is_empty());
-            assert_eq!(&RelationshipType::from_str(s), t);
+            assert_eq!(&RelationshipType::from(s), t);
         }
     }
 
@@ -88,16 +92,13 @@ mod tests {
     fn custom_type_roundtrip() {
         let ct = RelationshipType::Custom("MyRel".to_string());
         assert_eq!(ct.as_str(), "MyRel");
-        assert_eq!(RelationshipType::from_str("MyRel"), ct);
+        assert_eq!(RelationshipType::from("MyRel"), ct);
     }
 
     #[test]
     fn unknown_string_becomes_custom() {
-        let result = RelationshipType::from_str("UnknownRel");
-        assert_eq!(
-            result,
-            RelationshipType::Custom("UnknownRel".to_string())
-        );
+        let result = RelationshipType::from("UnknownRel");
+        assert_eq!(result, RelationshipType::Custom("UnknownRel".to_string()));
     }
 
     #[test]

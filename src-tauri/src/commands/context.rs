@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::context::context_package::ContextPackage;
 use crate::core::context::context_builder::{ContextBuilder, ContextBuilderImpl};
 use crate::core::context::context_cache::global_cache;
+use crate::core::context::context_package::ContextPackage;
 use crate::core::context::context_request::ContextRequest;
 use crate::core::context::context_service::ContextService;
 use crate::core::graph::entity::Entity;
@@ -75,8 +75,16 @@ impl From<ContextPackage> for ContextDto {
         Self {
             id: pkg.id,
             entities: pkg.entities.into_iter().map(EntityDto::from).collect(),
-            relationships: pkg.relationships.into_iter().map(RelationshipDto::from).collect(),
-            memory_records: pkg.memory_records.into_iter().map(MemoryRecordDto::from).collect(),
+            relationships: pkg
+                .relationships
+                .into_iter()
+                .map(RelationshipDto::from)
+                .collect(),
+            memory_records: pkg
+                .memory_records
+                .into_iter()
+                .map(MemoryRecordDto::from)
+                .collect(),
             user_intent: IntentDto {
                 query: pkg.user_intent.query,
                 intent_type: format!("{:?}", pkg.user_intent.intent_type),
@@ -135,12 +143,13 @@ pub async fn build_context(query: String) -> Result<ContextDto, String> {
     let graph_conn = crate::db::open_connection()?;
     let snapshot_conn = crate::db::open_connection()?;
 
-    let memory_repo = crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn)
-        .map_err(|e| e.to_string())?;
+    let memory_repo =
+        crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn).map_err(|e| e.to_string())?;
     let graph_repo = crate::storage::sqlite::SqliteGraphRepository::new(graph_conn)
         .map_err(|e| e.to_string())?;
-    let snapshot_repo = crate::storage::sqlite::context_repository::SqliteContextRepository::new(snapshot_conn)
-        .map_err(|e| e.to_string())?;
+    let snapshot_repo =
+        crate::storage::sqlite::context_repository::SqliteContextRepository::new(snapshot_conn)
+            .map_err(|e| e.to_string())?;
 
     let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
     let cache = global_cache();
@@ -151,7 +160,10 @@ pub async fn build_context(query: String) -> Result<ContextDto, String> {
         ..Default::default()
     };
 
-    let pkg = service.build_context(&request).await.map_err(|e| e.to_string())?;
+    let pkg = service
+        .build_context(&request)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Record savings for this interaction
     crate::commands::savings::record_savings(
@@ -194,8 +206,8 @@ pub async fn export_context(query: String, format: Option<String>) -> Result<Exp
     let mem_conn = crate::db::open_connection()?;
     let graph_conn = crate::db::open_connection()?;
 
-    let memory_repo = crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn)
-        .map_err(|e| e.to_string())?;
+    let memory_repo =
+        crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn).map_err(|e| e.to_string())?;
     let graph_repo = crate::storage::sqlite::SqliteGraphRepository::new(graph_conn)
         .map_err(|e| e.to_string())?;
 
@@ -219,20 +231,26 @@ pub async fn export_context(query: String, format: Option<String>) -> Result<Exp
 
 /// Build a context package centered on a specific entity with configurable depth.
 #[tauri::command]
-pub async fn build_context_for_entity(entity_id: String, depth: Option<u32>) -> Result<ContextDto, String> {
+pub async fn build_context_for_entity(
+    entity_id: String,
+    depth: Option<u32>,
+) -> Result<ContextDto, String> {
     let eid = crate::core::entity_id::EntityId::parse(&entity_id).map_err(|e| e.to_string())?;
     let depth = depth.unwrap_or(2);
 
     let mem_conn = crate::db::open_connection()?;
     let graph_conn = crate::db::open_connection()?;
 
-    let memory_repo = crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn)
-        .map_err(|e| e.to_string())?;
+    let memory_repo =
+        crate::storage::sqlite::SqliteMemoryRepository::new(mem_conn).map_err(|e| e.to_string())?;
     let graph_repo = crate::storage::sqlite::SqliteGraphRepository::new(graph_conn)
         .map_err(|e| e.to_string())?;
 
     let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
-    let pkg = builder.build_for_entity(&eid, depth).await.map_err(|e| e.to_string())?;
+    let pkg = builder
+        .build_for_entity(&eid, depth)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Record savings for this entity context build
     crate::commands::savings::record_savings(

@@ -104,7 +104,11 @@ fn safe_filename(query: &str, extension: &str) -> String {
         .collect();
 
     let trimmed = crate::core::text::truncate_chars(cleaned.trim_matches(['_', '-', '.']), 60);
-    let stem = if trimmed.is_empty() { "context" } else { trimmed };
+    let stem = if trimmed.is_empty() {
+        "context"
+    } else {
+        trimmed
+    };
     format!("nexus-context-{}.{}", stem, extension)
 }
 
@@ -166,11 +170,7 @@ fn render_markdown(pkg: &ContextPackage) -> String {
     if !pkg.entities.is_empty() {
         out.push_str("## Related things\n\n");
         for e in &pkg.entities {
-            out.push_str(&format!(
-                "- **{}** ({})",
-                e.title,
-                e.entity_type.as_str()
-            ));
+            out.push_str(&format!("- **{}** ({})", e.title, e.entity_type.as_str()));
             if !e.description.trim().is_empty() {
                 out.push_str(&format!(" — {}", e.description.trim()));
             }
@@ -209,11 +209,19 @@ fn render_markdown(pkg: &ContextPackage) -> String {
     out.push_str(&format!(
         "_Assembled by Nexus: {} memor{}, {} entit{}, {} relationship{}._\n",
         pkg.memory_records.len(),
-        if pkg.memory_records.len() == 1 { "y" } else { "ies" },
+        if pkg.memory_records.len() == 1 {
+            "y"
+        } else {
+            "ies"
+        },
         pkg.entities.len(),
         if pkg.entities.len() == 1 { "y" } else { "ies" },
         pkg.relationships.len(),
-        if pkg.relationships.len() == 1 { "" } else { "s" },
+        if pkg.relationships.len() == 1 {
+            ""
+        } else {
+            "s"
+        },
     ));
 
     out
@@ -247,8 +255,9 @@ pub fn export(pkg: &ContextPackage, format: ExportFormat) -> Result<Export> {
     let content = match format {
         ExportFormat::Markdown => render_markdown(pkg),
         ExportFormat::Plain => render_plain(pkg),
-        ExportFormat::Json => serde_json::to_string_pretty(pkg)
-            .map_err(|e| AppError::Serialization(e.to_string()))?,
+        ExportFormat::Json => {
+            serde_json::to_string_pretty(pkg).map_err(|e| AppError::Serialization(e.to_string()))?
+        }
     };
 
     let tokens = crate::core::tokenizer::count(&content);
@@ -298,13 +307,17 @@ mod tests {
             e.id.as_str(),
             ItemKind::Entity,
             &e.title,
-            Reason::QueryMatch { query: "release plan".into() },
+            Reason::QueryMatch {
+                query: "release plan".into(),
+            },
         );
         pkg.provenance.record(
             m.id.as_str(),
             ItemKind::Memory,
             &m.title,
-            Reason::MemorySearch { query: "release plan".into() },
+            Reason::MemorySearch {
+                query: "release plan".into(),
+            },
         );
 
         pkg.entities = vec![e];
@@ -316,7 +329,10 @@ mod tests {
 
     #[test]
     fn parses_every_supported_format_name() {
-        assert_eq!(ExportFormat::parse("markdown").unwrap(), ExportFormat::Markdown);
+        assert_eq!(
+            ExportFormat::parse("markdown").unwrap(),
+            ExportFormat::Markdown
+        );
         assert_eq!(ExportFormat::parse("md").unwrap(), ExportFormat::Markdown);
         assert_eq!(ExportFormat::parse("json").unwrap(), ExportFormat::Json);
         assert_eq!(ExportFormat::parse("plain").unwrap(), ExportFormat::Plain);
@@ -325,13 +341,19 @@ mod tests {
 
     #[test]
     fn format_parsing_is_case_and_space_insensitive() {
-        assert_eq!(ExportFormat::parse("  MarkDown ").unwrap(), ExportFormat::Markdown);
+        assert_eq!(
+            ExportFormat::parse("  MarkDown ").unwrap(),
+            ExportFormat::Markdown
+        );
     }
 
     #[test]
     fn unknown_format_is_rejected_with_guidance() {
         let err = ExportFormat::parse("pdf").unwrap_err().to_string();
-        assert!(err.contains("markdown"), "error should list valid options: {err}");
+        assert!(
+            err.contains("markdown"),
+            "error should list valid options: {err}"
+        );
     }
 
     // ── markdown ──
@@ -350,7 +372,11 @@ mod tests {
         // The reasoning trail is the whole point of the feature: an export that
         // dropped it would be indistinguishable from a plain dump.
         let out = export(&pkg_with_content(), ExportFormat::Markdown).unwrap();
-        assert!(out.content.contains("Included because"), "got: {}", out.content);
+        assert!(
+            out.content.contains("Included because"),
+            "got: {}",
+            out.content
+        );
         assert!(out.content.contains("why:"), "got: {}", out.content);
     }
 
@@ -370,7 +396,11 @@ mod tests {
         pkg.relationships = vec![rel];
 
         let out = export(&pkg, ExportFormat::Markdown).unwrap();
-        assert!(out.content.contains("Nexus → Alice"), "got: {}", out.content);
+        assert!(
+            out.content.contains("Nexus → Alice"),
+            "got: {}",
+            out.content
+        );
         // The raw id must not leak into the prompt.
         assert!(!out.content.contains(a.id.as_str()));
     }
@@ -459,9 +489,24 @@ mod tests {
 
     #[test]
     fn filename_uses_the_right_extension() {
-        assert!(export(&pkg_with_content(), ExportFormat::Markdown).unwrap().filename.ends_with(".md"));
-        assert!(export(&pkg_with_content(), ExportFormat::Json).unwrap().filename.ends_with(".json"));
-        assert!(export(&pkg_with_content(), ExportFormat::Plain).unwrap().filename.ends_with(".txt"));
+        assert!(
+            export(&pkg_with_content(), ExportFormat::Markdown)
+                .unwrap()
+                .filename
+                .ends_with(".md")
+        );
+        assert!(
+            export(&pkg_with_content(), ExportFormat::Json)
+                .unwrap()
+                .filename
+                .ends_with(".json")
+        );
+        assert!(
+            export(&pkg_with_content(), ExportFormat::Plain)
+                .unwrap()
+                .filename
+                .ends_with(".txt")
+        );
     }
 
     #[test]

@@ -15,10 +15,7 @@ pub trait ContextStore: Send + Sync {
     async fn get_snapshot(&self, snapshot_id: &str) -> Result<Option<ContextSnapshot>>;
 
     /// List all snapshots for an entity.
-    async fn list_snapshots(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<Vec<ContextSnapshot>>;
+    async fn list_snapshots(&self, entity_id: &EntityId) -> Result<Vec<ContextSnapshot>>;
 
     /// Restore a context package from a snapshot.
     async fn restore_snapshot(&self, snapshot_id: &str) -> Result<ContextPackage>;

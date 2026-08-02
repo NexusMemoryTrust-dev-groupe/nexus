@@ -36,9 +36,10 @@ impl InMemoryStateTracker {
 
 impl ExecutionStateTracker for InMemoryStateTracker {
     fn update_state(&self, state: &ExecutionState) -> Result<()> {
-        let mut current = self.state.lock().map_err(|e| {
-            crate::core::AppError::Internal(format!("Lock poisoned: {}", e))
-        })?;
+        let mut current = self
+            .state
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(format!("Lock poisoned: {}", e)))?;
         *current = state.clone();
         Ok(())
     }
@@ -52,9 +53,10 @@ impl ExecutionStateTracker for InMemoryStateTracker {
     }
 
     fn log_event(&self, event: &str, details: &str) -> Result<()> {
-        let mut log = self.log.lock().map_err(|e| {
-            crate::core::AppError::Internal(format!("Lock poisoned: {}", e))
-        })?;
+        let mut log = self
+            .log
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(format!("Lock poisoned: {}", e)))?;
         log.push(ExecutionLog {
             timestamp: chrono::Utc::now(),
             event: event.to_string(),

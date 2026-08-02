@@ -17,6 +17,12 @@ pub trait Planner: Send + Sync {
 /// Splits intent on "; " or ". " to produce one step per sentence.
 pub struct SimplePlanner;
 
+impl Default for SimplePlanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimplePlanner {
     pub fn new() -> Self {
         Self

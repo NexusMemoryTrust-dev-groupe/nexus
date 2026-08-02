@@ -49,10 +49,7 @@ impl MemoryCompressionService for SimpleCompressionService {
             .map(|r| format!("{}: {}", r.title, r.summary))
             .collect();
 
-        let summary = format!(
-            "Compressed summary of {} memory records",
-            records.len()
-        );
+        let summary = format!("Compressed summary of {} memory records", records.len());
 
         Ok(CompressedMemory {
             summary,
@@ -122,10 +119,7 @@ mod tests {
     #[tokio::test]
     async fn decompress_roundtrip() {
         let svc = SimpleCompressionService;
-        let records = vec![
-            sample_record("Alpha"),
-            sample_record("Beta"),
-        ];
+        let records = vec![sample_record("Alpha"), sample_record("Beta")];
         let compressed = svc.compress(&records).await.unwrap();
         let decompressed = svc.decompress(&compressed).await.unwrap();
         assert_eq!(decompressed.len(), 2);

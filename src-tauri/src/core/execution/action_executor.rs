@@ -2,16 +2,19 @@ use std::sync::Arc;
 
 use crate::core::execution::sandbox::Sandbox;
 use crate::core::execution::tool_router::ToolRouter;
-use crate::core::execution::types::{
-    ExecutionStatus, ExecutionState, Plan, StepResult,
-};
+use crate::core::execution::types::{ExecutionState, ExecutionStatus, Plan, StepResult};
 use crate::core::result::Result;
 
 /// Executes steps by routing them to the appropriate tool.
 #[async_trait::async_trait]
 pub trait ActionExecutor: Send + Sync {
     /// Execute a single step and return its result.
-    async fn execute_step(&self, step_id: &str, state: &mut ExecutionState, sandbox: &Sandbox) -> Result<StepResult>;
+    async fn execute_step(
+        &self,
+        step_id: &str,
+        state: &mut ExecutionState,
+        sandbox: &Sandbox,
+    ) -> Result<StepResult>;
 
     /// Execute every step in a plan, returning the final ExecutionState.
     async fn execute_plan(&self, plan: &Plan, sandbox: &Sandbox) -> Result<ExecutionState>;
@@ -41,7 +44,9 @@ impl ActionExecutor for DefaultActionExecutor {
             .steps
             .iter()
             .find(|s| s.id == step_id)
-            .ok_or_else(|| crate::core::AppError::NotFound(format!("Step not found: {}", step_id)))?;
+            .ok_or_else(|| {
+                crate::core::AppError::NotFound(format!("Step not found: {}", step_id))
+            })?;
 
         let tool = self.router.route(&step.action)?;
 
@@ -111,7 +116,11 @@ mod tests {
         fn description(&self) -> &str {
             "stub"
         }
-        async fn execute(&self, _params: &serde_json::Value, _sandbox: &Sandbox) -> Result<serde_json::Value> {
+        async fn execute(
+            &self,
+            _params: &serde_json::Value,
+            _sandbox: &Sandbox,
+        ) -> Result<serde_json::Value> {
             Ok(serde_json::json!({ "ok": true }))
         }
         fn validate_params(&self, _params: &serde_json::Value) -> Result<()> {
@@ -129,7 +138,11 @@ mod tests {
         fn description(&self) -> &str {
             "always fails"
         }
-        async fn execute(&self, _params: &serde_json::Value, _sandbox: &Sandbox) -> Result<serde_json::Value> {
+        async fn execute(
+            &self,
+            _params: &serde_json::Value,
+            _sandbox: &Sandbox,
+        ) -> Result<serde_json::Value> {
             Err(crate::core::AppError::Internal("boom".to_string()))
         }
         fn validate_params(&self, _params: &serde_json::Value) -> Result<()> {
@@ -205,7 +218,10 @@ mod tests {
             status: ExecutionStatus::Running,
             results: vec![],
         };
-        let result = executor.execute_step("s1", &mut state, &Sandbox::new()).await.unwrap();
+        let result = executor
+            .execute_step("s1", &mut state, &Sandbox::new())
+            .await
+            .unwrap();
         assert!(result.success);
     }
 }

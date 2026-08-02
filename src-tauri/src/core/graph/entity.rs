@@ -48,9 +48,7 @@ impl Entity {
     /// Validate entity invariants.
     pub fn validate(&self) -> Result<()> {
         if self.title.trim().is_empty() {
-            return Err(AppError::Validation(
-                "Entity title cannot be empty".into(),
-            ));
+            return Err(AppError::Validation("Entity title cannot be empty".into()));
         }
         Ok(())
     }
@@ -90,7 +88,7 @@ mod tests {
     fn new_entity_timestamps_are_close() {
         let e = sample_entity();
         let diff = (e.updated_at - e.created_at).num_milliseconds();
-        assert!(diff >= 0 && diff < 1000);
+        assert!((0..1000).contains(&diff));
     }
 
     #[test]

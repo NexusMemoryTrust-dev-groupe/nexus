@@ -4,4 +4,7 @@
 
 pub mod sqlite;
 
-pub use sqlite::{SqliteMemoryRepository, InMemoryRecallService, SqliteVersioningRepository, SqliteGraphRepository, SqliteContextRepository};
+pub use sqlite::{
+    InMemoryRecallService, SqliteContextRepository, SqliteGraphRepository, SqliteMemoryRepository,
+    SqliteVersioningRepository,
+};

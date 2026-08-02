@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_compression::MemoryCompressionService;
-use crate::core::memory::memory_recall::{RecallContext, RecallResult, MemoryRecallService};
+use crate::core::memory::memory_recall::{MemoryRecallService, RecallContext, RecallResult};
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::memory::types::{MemoryLayer, MemoryStatus, MemoryVisibility};
@@ -60,11 +60,7 @@ impl MemoryService {
     }
 
     /// Archive (soft-delete) a memory record.
-    pub async fn archive_memory(
-        &self,
-        id: &EntityId,
-        _ctx: &RequestContext,
-    ) -> Result<()> {
+    pub async fn archive_memory(&self, id: &EntityId, _ctx: &RequestContext) -> Result<()> {
         let mut record = self.get_memory(id).await?;
         record.status = MemoryStatus::Archived;
         record.touch();
@@ -72,11 +68,7 @@ impl MemoryService {
     }
 
     /// List memory records with pagination.
-    pub async fn list_memories(
-        &self,
-        limit: u32,
-        offset: u32,
-    ) -> Result<Vec<MemoryRecord>> {
+    pub async fn list_memories(&self, limit: u32, offset: u32) -> Result<Vec<MemoryRecord>> {
         self.repository.list(limit, offset).await
     }
 
@@ -91,11 +83,7 @@ impl MemoryService {
     }
 
     /// Recall memories with context (delegates to recall service).
-    pub async fn recall(
-        &self,
-        query: &str,
-        context: &RecallContext,
-    ) -> Result<RecallResult> {
+    pub async fn recall(&self, query: &str, context: &RecallContext) -> Result<RecallResult> {
         self.recall_service.recall(query, context).await
     }
 
@@ -134,10 +122,7 @@ impl MemoryService {
     }
 
     /// Get memories for a specific project.
-    pub async fn get_by_project(
-        &self,
-        project_id: &EntityId,
-    ) -> Result<Vec<MemoryRecord>> {
+    pub async fn get_by_project(&self, project_id: &EntityId) -> Result<Vec<MemoryRecord>> {
         self.repository.get_by_project(project_id).await
     }
 }
@@ -195,8 +180,7 @@ mod tests {
             Ok(records
                 .iter()
                 .filter(|r| {
-                    r.title.to_lowercase().contains(&q)
-                        || r.content.to_lowercase().contains(&q)
+                    r.title.to_lowercase().contains(&q) || r.content.to_lowercase().contains(&q)
                 })
                 .cloned()
                 .collect())

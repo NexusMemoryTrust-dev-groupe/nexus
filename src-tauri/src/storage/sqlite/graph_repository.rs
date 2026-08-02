@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Mutex;
 
@@ -7,17 +7,17 @@ use crate::core::entity_id::EntityId;
 use crate::core::graph::entity::{Entity, EntityStatus};
 use crate::core::graph::entity_identity::EntityIdentityService;
 use crate::core::graph::entity_types::EntityType;
-use crate::core::graph::graph_query::{GraphQuery, GraphQueryRequest, GraphQueryResult, TimelineEvent};
+use crate::core::graph::graph_query::{
+    GraphQuery, GraphQueryRequest, GraphQueryResult, TimelineEvent,
+};
 use crate::core::graph::graph_store::GraphStore;
 use crate::core::graph::graph_traversal::{GraphNeighborhood, GraphTraversal, SubGraph};
 use crate::core::graph::relationship::Relationship;
 use crate::core::graph::relationship_types::RelationshipType;
 use crate::core::result::{AppError, Result};
 
-const ENTITY_COLS: &str =
-    "id, entity_type, title, description, created_at, updated_at, status, metadata_json, canonical_id";
-const REL_COLS: &str =
-    "id, source_entity_id, target_entity_id, relationship_type, weight, created_at, created_by, metadata_json";
+const ENTITY_COLS: &str = "id, entity_type, title, description, created_at, updated_at, status, metadata_json, canonical_id";
+const REL_COLS: &str = "id, source_entity_id, target_entity_id, relationship_type, weight, created_at, created_by, metadata_json";
 
 /// SQLite-backed graph store implementing GraphStore, GraphTraversal, GraphQuery.
 pub struct SqliteGraphRepository {
@@ -25,7 +25,7 @@ pub struct SqliteGraphRepository {
 }
 
 impl SqliteGraphRepository {
-        pub fn new(conn: Connection) -> Result<Self> {
+    pub fn new(conn: Connection) -> Result<Self> {
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -53,7 +53,7 @@ fn row_to_entity(row: &rusqlite::Row) -> rusqlite::Result<Entity> {
     Ok(Entity {
         id: EntityId::parse(&id)
             .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
-        entity_type: EntityType::from_str(&entity_type_str),
+        entity_type: EntityType::from(entity_type_str.as_str()),
         title,
         description,
         created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
@@ -93,7 +93,7 @@ fn row_to_relationship(row: &rusqlite::Row) -> rusqlite::Result<Relationship> {
             .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
         target_entity_id: EntityId::parse(&target_id)
             .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
-        relationship_type: RelationshipType::from_str(&rel_type_str),
+        relationship_type: RelationshipType::from(rel_type_str.as_str()),
         weight,
         created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
             .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -132,7 +132,10 @@ impl GraphStore for SqliteGraphRepository {
     async fn get_entity(&self, id: &EntityId) -> Result<Option<Entity>> {
         let conn = lock(&self.conn)?;
         let mut stmt = conn
-            .prepare(&format!("SELECT {} FROM graph_entities WHERE id = ?1", ENTITY_COLS))
+            .prepare(&format!(
+                "SELECT {} FROM graph_entities WHERE id = ?1",
+                ENTITY_COLS
+            ))
             .map_err(|e| AppError::Internal(e.to_string()))?;
         stmt.query_row(params![id.as_str()], row_to_entity)
             .optional()
@@ -143,22 +146,27 @@ impl GraphStore for SqliteGraphRepository {
         let conn = lock(&self.conn)?;
         let meta_json = serde_json::to_string(&entity.metadata)
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let rows = conn.execute(
-            "UPDATE graph_entities SET entity_type = ?2, title = ?3, description = ?4,
+        let rows = conn
+            .execute(
+                "UPDATE graph_entities SET entity_type = ?2, title = ?3, description = ?4,
              updated_at = ?5, status = ?6, metadata_json = ?7, canonical_id = ?8 WHERE id = ?1",
-            params![
-                entity.id.as_str(),
-                entity.entity_type.as_str(),
-                entity.title,
-                entity.description,
-                entity.updated_at.to_rfc3339(),
-                format!("{:?}", entity.status),
-                meta_json,
-                entity.canonical_id,
-            ],
-        ).map_err(|e| AppError::Internal(e.to_string()))?;
+                params![
+                    entity.id.as_str(),
+                    entity.entity_type.as_str(),
+                    entity.title,
+                    entity.description,
+                    entity.updated_at.to_rfc3339(),
+                    format!("{:?}", entity.status),
+                    meta_json,
+                    entity.canonical_id,
+                ],
+            )
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         if rows == 0 {
-            return Err(AppError::NotFound(format!("Entity {} not found", entity.id.as_str())));
+            return Err(AppError::NotFound(format!(
+                "Entity {} not found",
+                entity.id.as_str()
+            )));
         }
         Ok(())
     }
@@ -166,10 +174,16 @@ impl GraphStore for SqliteGraphRepository {
     async fn delete_entity(&self, id: &EntityId) -> Result<()> {
         let conn = lock(&self.conn)?;
         let rows = conn
-            .execute("DELETE FROM graph_entities WHERE id = ?1", params![id.as_str()])
+            .execute(
+                "DELETE FROM graph_entities WHERE id = ?1",
+                params![id.as_str()],
+            )
             .map_err(|e| AppError::Internal(e.to_string()))?;
         if rows == 0 {
-            return Err(AppError::NotFound(format!("Entity {} not found", id.as_str())));
+            return Err(AppError::NotFound(format!(
+                "Entity {} not found",
+                id.as_str()
+            )));
         }
         Ok(())
     }
@@ -198,7 +212,10 @@ impl GraphStore for SqliteGraphRepository {
     async fn get_relationship(&self, id: &EntityId) -> Result<Option<Relationship>> {
         let conn = lock(&self.conn)?;
         let mut stmt = conn
-            .prepare(&format!("SELECT {} FROM graph_relationships WHERE id = ?1", REL_COLS))
+            .prepare(&format!(
+                "SELECT {} FROM graph_relationships WHERE id = ?1",
+                REL_COLS
+            ))
             .map_err(|e| AppError::Internal(e.to_string()))?;
         stmt.query_row(params![id.as_str()], row_to_relationship)
             .optional()
@@ -208,10 +225,16 @@ impl GraphStore for SqliteGraphRepository {
     async fn delete_relationship(&self, id: &EntityId) -> Result<()> {
         let conn = lock(&self.conn)?;
         let rows = conn
-            .execute("DELETE FROM graph_relationships WHERE id = ?1", params![id.as_str()])
+            .execute(
+                "DELETE FROM graph_relationships WHERE id = ?1",
+                params![id.as_str()],
+            )
             .map_err(|e| AppError::Internal(e.to_string()))?;
         if rows == 0 {
-            return Err(AppError::NotFound(format!("Relationship {} not found", id.as_str())));
+            return Err(AppError::NotFound(format!(
+                "Relationship {} not found",
+                id.as_str()
+            )));
         }
         Ok(())
     }
@@ -234,7 +257,10 @@ impl GraphStore for SqliteGraphRepository {
     async fn get_entities_by_type(&self, entity_type: &EntityType) -> Result<Vec<Entity>> {
         let conn = lock(&self.conn)?;
         let mut stmt = conn
-            .prepare(&format!("SELECT {} FROM graph_entities WHERE entity_type = ?1", ENTITY_COLS))
+            .prepare(&format!(
+                "SELECT {} FROM graph_entities WHERE entity_type = ?1",
+                ENTITY_COLS
+            ))
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let rows = stmt
             .query_map(params![entity_type.as_str()], row_to_entity)
@@ -254,7 +280,11 @@ impl GraphStore for SqliteGraphRepository {
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
         for (i, word) in words.iter().enumerate() {
             let pattern = format!("%{}%", word);
-            conditions.push(format!("(title LIKE ?{} OR description LIKE ?{})", i + 1, i + 1));
+            conditions.push(format!(
+                "(title LIKE ?{} OR description LIKE ?{})",
+                i + 1,
+                i + 1
+            ));
             params.push(Box::new(pattern));
         }
         let where_clause = conditions.join(" AND ");
@@ -265,7 +295,8 @@ impl GraphStore for SqliteGraphRepository {
         let mut stmt = conn
             .prepare(&sql)
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+            params.iter().map(|p| p.as_ref()).collect();
         let rows = stmt
             .query_map(param_refs.as_slice(), row_to_entity)
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -284,7 +315,9 @@ impl GraphStore for SqliteGraphRepository {
     async fn count_relationships(&self) -> Result<u64> {
         let conn = lock(&self.conn)?;
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM graph_relationships", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM graph_relationships", [], |row| {
+                row.get(0)
+            })
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(count as u64)
     }
@@ -295,10 +328,9 @@ impl GraphStore for SqliteGraphRepository {
 #[async_trait]
 impl GraphTraversal for SqliteGraphRepository {
     async fn get_neighbors(&self, entity_id: &EntityId, depth: u32) -> Result<GraphNeighborhood> {
-        let center = self
-            .get_entity(entity_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Entity {} not found", entity_id.as_str())))?;
+        let center = self.get_entity(entity_id).await?.ok_or_else(|| {
+            AppError::NotFound(format!("Entity {} not found", entity_id.as_str()))
+        })?;
 
         let mut visited: HashSet<String> = HashSet::new();
         let mut visited_rels: HashSet<String> = HashSet::new();
@@ -377,7 +409,12 @@ impl GraphTraversal for SqliteGraphRepository {
         Ok(None)
     }
 
-    async fn find_path(&self, from: &EntityId, to: &EntityId, max_depth: u32) -> Result<Option<Vec<EntityId>>> {
+    async fn find_path(
+        &self,
+        from: &EntityId,
+        to: &EntityId,
+        max_depth: u32,
+    ) -> Result<Option<Vec<EntityId>>> {
         if from == to {
             return Ok(Some(vec![from.clone()]));
         }
@@ -523,10 +560,9 @@ impl GraphQuery for SqliteGraphRepository {
     }
 
     async fn get_timeline(&self, entity_id: &EntityId) -> Result<Vec<TimelineEvent>> {
-        let entity = self
-            .get_entity(entity_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Entity {} not found", entity_id.as_str())))?;
+        let entity = self.get_entity(entity_id).await?.ok_or_else(|| {
+            AppError::NotFound(format!("Entity {} not found", entity_id.as_str()))
+        })?;
 
         let rels = self.get_entity_relationships(entity_id).await?;
         let mut events: Vec<TimelineEvent> = rels
@@ -555,10 +591,9 @@ impl EntityIdentityService for SqliteGraphRepository {
     }
 
     async fn merge_entities(&self, primary: &EntityId, duplicates: &[EntityId]) -> Result<Entity> {
-        let mut primary_entity = self
-            .get_entity(primary)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Primary entity {} not found", primary.as_str())))?;
+        let mut primary_entity = self.get_entity(primary).await?.ok_or_else(|| {
+            AppError::NotFound(format!("Primary entity {} not found", primary.as_str()))
+        })?;
 
         for dup_id in duplicates {
             if let Ok(Some(mut dup_entity)) = self.get_entity(dup_id).await {
@@ -597,10 +632,9 @@ impl EntityIdentityService for SqliteGraphRepository {
     }
 
     async fn get_canonical(&self, entity_id: &EntityId) -> Result<Entity> {
-        let entity = self
-            .get_entity(entity_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Entity {} not found", entity_id.as_str())))?;
+        let entity = self.get_entity(entity_id).await?.ok_or_else(|| {
+            AppError::NotFound(format!("Entity {} not found", entity_id.as_str()))
+        })?;
 
         if let Some(ref canonical_id) = entity.canonical_id
             && let Ok(canonical) = EntityId::parse(canonical_id)
@@ -719,8 +753,10 @@ mod tests {
         let id2 = r.add_entity(&e2).await.unwrap();
         let id3 = r.add_entity(&e3).await.unwrap();
 
-        let rel1 = Relationship::new(id1.clone(), id2.clone(), RelationshipType::Owns, 1.0).unwrap();
-        let rel2 = Relationship::new(id2.clone(), id3.clone(), RelationshipType::Uses, 0.5).unwrap();
+        let rel1 =
+            Relationship::new(id1.clone(), id2.clone(), RelationshipType::Owns, 1.0).unwrap();
+        let rel2 =
+            Relationship::new(id2.clone(), id3.clone(), RelationshipType::Uses, 0.5).unwrap();
         r.add_relationship(&rel1).await.unwrap();
         r.add_relationship(&rel2).await.unwrap();
 
@@ -763,11 +799,14 @@ mod tests {
         let e2 = sample_entity("B");
         let id2 = r.add_entity(&e2).await.unwrap();
         let rel = Relationship::new(
-            r.get_entities_by_type(&EntityType::Person).await.unwrap()[0].id.clone(),
+            r.get_entities_by_type(&EntityType::Person).await.unwrap()[0]
+                .id
+                .clone(),
             id2,
             RelationshipType::RelatedTo,
             0.3,
-        ).unwrap();
+        )
+        .unwrap();
         r.add_relationship(&rel).await.unwrap();
         assert_eq!(r.count_relationships().await.unwrap(), 1);
     }
@@ -787,7 +826,8 @@ mod tests {
         let e2 = sample_entity("B");
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
-        let rel = Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
+        let rel =
+            Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
         r.add_relationship(&rel).await.unwrap();
         assert_eq!(r.get_distance(&id1, &id2).await.unwrap(), Some(1));
         assert_eq!(r.get_distance(&id2, &id1).await.unwrap(), Some(1));
@@ -810,7 +850,8 @@ mod tests {
         let e2 = sample_entity("B");
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
-        let rel = Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
+        let rel =
+            Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
         r.add_relationship(&rel).await.unwrap();
         let path = r.find_path(&id1, &id2, 5).await.unwrap().unwrap();
         assert_eq!(path.len(), 2);
@@ -844,9 +885,21 @@ mod tests {
         let id2 = r.add_entity(&e2).await.unwrap();
         let id3 = r.add_entity(&e3).await.unwrap();
 
-        r.add_relationship(&Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap()).await.unwrap();
-        r.add_relationship(&Relationship::new(id1.clone(), id3.clone(), RelationshipType::RelatedTo, 1.0).unwrap()).await.unwrap();
-        r.add_relationship(&Relationship::new(id2.clone(), id3.clone(), RelationshipType::RelatedTo, 1.0).unwrap()).await.unwrap();
+        r.add_relationship(
+            &Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap(),
+        )
+        .await
+        .unwrap();
+        r.add_relationship(
+            &Relationship::new(id1.clone(), id3.clone(), RelationshipType::RelatedTo, 1.0).unwrap(),
+        )
+        .await
+        .unwrap();
+        r.add_relationship(
+            &Relationship::new(id2.clone(), id3.clone(), RelationshipType::RelatedTo, 1.0).unwrap(),
+        )
+        .await
+        .unwrap();
 
         let density = r.get_knowledge_density(&id1).await.unwrap();
         assert!(density > 0.0);
@@ -875,7 +928,9 @@ mod tests {
         let e2 = sample_entity("B");
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
-        r.add_relationship(&Relationship::new(id1, id2, RelationshipType::Owns, 1.0).unwrap()).await.unwrap();
+        r.add_relationship(&Relationship::new(id1, id2, RelationshipType::Owns, 1.0).unwrap())
+            .await
+            .unwrap();
 
         let req = GraphQueryRequest {
             relationship_type: Some(RelationshipType::Owns),
@@ -892,7 +947,9 @@ mod tests {
         let e2 = sample_entity("B");
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
-        r.add_relationship(&Relationship::new(id1, id2, RelationshipType::RelatedTo, 0.3).unwrap()).await.unwrap();
+        r.add_relationship(&Relationship::new(id1, id2, RelationshipType::RelatedTo, 0.3).unwrap())
+            .await
+            .unwrap();
 
         let req = GraphQueryRequest {
             min_weight: Some(0.5),
@@ -909,7 +966,11 @@ mod tests {
         let e2 = sample_entity("B");
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
-        r.add_relationship(&Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap()).await.unwrap();
+        r.add_relationship(
+            &Relationship::new(id1.clone(), id2.clone(), RelationshipType::RelatedTo, 1.0).unwrap(),
+        )
+        .await
+        .unwrap();
 
         let timeline = r.get_timeline(&id1).await.unwrap();
         assert_eq!(timeline.len(), 1);
@@ -923,7 +984,10 @@ mod tests {
         let id1 = r.add_entity(&e1).await.unwrap();
         let id2 = r.add_entity(&e2).await.unwrap();
 
-        let merged = r.merge_entities(&id1, &[id2.clone()]).await.unwrap();
+        let merged = r
+            .merge_entities(&id1, std::slice::from_ref(&id2))
+            .await
+            .unwrap();
         assert_eq!(merged.id, id1);
         let dup = r.get_entity(&id2).await.unwrap().unwrap();
         assert_eq!(dup.status, EntityStatus::Merged);

@@ -5,14 +5,29 @@ const MIGRATIONS: &[(i32, &str)] = &[
     (1, include_str!("migrations/V1_create_memory_records.sql")),
     (2, include_str!("migrations/V2_add_attached_files.sql")),
     (3, include_str!("migrations/V3_add_versioning_columns.sql")),
-    (4, include_str!("migrations/V4_create_versioning_tables.sql")),
+    (
+        4,
+        include_str!("migrations/V4_create_versioning_tables.sql"),
+    ),
     (5, include_str!("migrations/V5_create_entity_snapshots.sql")),
     (6, include_str!("migrations/V6_create_graph_tables.sql")),
     (7, include_str!("migrations/V7_create_context_tables.sql")),
-    (8, include_str!("migrations/V8_create_workspace_and_links.sql")),
-    (9, include_str!("migrations/V9_create_semantic_fingerprints.sql")),
-    (10, include_str!("migrations/V10_create_savings_tracking.sql")),
-    (11, include_str!("migrations/V11_savings_measured_baseline.sql")),
+    (
+        8,
+        include_str!("migrations/V8_create_workspace_and_links.sql"),
+    ),
+    (
+        9,
+        include_str!("migrations/V9_create_semantic_fingerprints.sql"),
+    ),
+    (
+        10,
+        include_str!("migrations/V10_create_savings_tracking.sql"),
+    ),
+    (
+        11,
+        include_str!("migrations/V11_savings_measured_baseline.sql"),
+    ),
 ];
 
 /// Table that tracks which migrations have been applied.
@@ -35,10 +50,10 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
         Err(_) => return false,
     };
     while let Ok(Some(row)) = rows.next() {
-        if let Ok(name) = row.get::<_, String>(1) {
-            if name == column {
-                return true;
-            }
+        if let Ok(name) = row.get::<_, String>(1)
+            && name == column
+        {
+            return true;
         }
     }
     false
@@ -74,13 +89,12 @@ fn execute_migration_idempotent(conn: &Connection, sql: &str) -> Result<()> {
                     {
                         // Check if it's specifically a duplicate column error
                         // by checking if the column already exists
-                        if let Some(table) = extract_table_name(trimmed) {
-                            if let Some(column) = extract_column_name(trimmed) {
-                                if column_exists(conn, &table, &column) {
-                                    // Column already exists, skip silently
-                                    continue;
-                                }
-                            }
+                        if let Some(table) = extract_table_name(trimmed)
+                            && let Some(column) = extract_column_name(trimmed)
+                            && column_exists(conn, &table, &column)
+                        {
+                            // Column already exists, skip silently
+                            continue;
                         }
                         // Some other SQLite error, propagate it
                         return Err(rusqlite::Error::SqliteFailure(err, None));

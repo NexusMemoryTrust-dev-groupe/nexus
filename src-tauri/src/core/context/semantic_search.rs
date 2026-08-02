@@ -1,11 +1,11 @@
+use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
+use rusqlite::{Connection, params};
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use rusqlite::{params, Connection};
-use serde::{Deserialize, Serialize};
-use fastembed::{TextEmbedding, EmbeddingModel, TextInitOptions};
 
 use crate::core::entity_id::EntityId;
 use crate::core::result::{AppError, Result};
@@ -75,10 +75,10 @@ impl EmbeddingCache {
             self.map.insert(key, value);
         } else {
             // Evict LRU if at capacity
-            if self.map.len() >= self.capacity {
-                if let Some(oldest) = self.order.pop_front() {
-                    self.map.remove(&oldest);
-                }
+            if self.map.len() >= self.capacity
+                && let Some(oldest) = self.order.pop_front()
+            {
+                self.map.remove(&oldest);
             }
             self.order.push_back(key.clone());
             self.map.insert(key, value);
@@ -96,8 +96,11 @@ impl EmbeddingCache {
 }
 
 /// Embedding backend — real ONNX model or deterministic fallback.
+///
+/// `TextEmbedding` is over a kilobyte on the stack, so it is boxed: otherwise
+/// every `Fallback` value would carry that dead weight too.
 enum EmbeddingBackend {
-    Real(TextEmbedding),
+    Real(Box<TextEmbedding>),
     /// Fallback when ONNX model fails to load (no AVX2, network error, etc.).
     /// Uses deterministic hash-based vectors — not semantically meaningful,
     /// but allows the system to function without crashing.
@@ -108,9 +111,12 @@ impl EmbeddingBackend {
     fn embed(&mut self, text: &str) -> Result<Vec<f32>> {
         match self {
             EmbeddingBackend::Real(model) => {
-                let embeddings = model.embed(vec![text], None)
+                let embeddings = model
+                    .embed(vec![text], None)
                     .map_err(|e| AppError::Internal(format!("Embedding failed: {}", e)))?;
-                embeddings.into_iter().next()
+                embeddings
+                    .into_iter()
+                    .next()
                     .ok_or_else(|| AppError::Internal("No embedding returned".to_string()))
             }
             EmbeddingBackend::Fallback => Ok(Self::fallback_embed(text)),
@@ -165,10 +171,10 @@ impl EmbeddingBackend {
 /// directory keeps using it instead of re-downloading. `FASTEMBED_CACHE_DIR`
 /// overrides everything, for CI.
 fn model_cache_dir() -> std::path::PathBuf {
-    if let Ok(dir) = std::env::var("FASTEMBED_CACHE_DIR") {
-        if !dir.trim().is_empty() {
-            return std::path::PathBuf::from(dir);
-        }
+    if let Ok(dir) = std::env::var("FASTEMBED_CACHE_DIR")
+        && !dir.trim().is_empty()
+    {
+        return std::path::PathBuf::from(dir);
     }
 
     let per_user = crate::db::db_path()
@@ -182,10 +188,10 @@ fn model_cache_dir() -> std::path::PathBuf {
         candidates.push(dir);
     }
     candidates.push(std::path::PathBuf::from(".fastembed_cache"));
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join(".fastembed_cache"));
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        candidates.push(dir.join(".fastembed_cache"));
     }
 
     if let Some(populated) = candidates.iter().find(|dir| has_downloaded_model(dir)) {
@@ -202,8 +208,7 @@ fn has_downloaded_model(root: &std::path::Path) -> bool {
         return false;
     };
     entries.flatten().any(|entry| {
-        entry.file_name().to_string_lossy().starts_with("models--")
-            && entry.path().is_dir()
+        entry.file_name().to_string_lossy().starts_with("models--") && entry.path().is_dir()
     })
 }
 
@@ -237,11 +242,11 @@ impl SemanticSearch {
         let backend = match TextEmbedding::try_new(
             TextInitOptions::new(EmbeddingModel::AllMiniLML6V2)
                 .with_cache_dir(cache_dir)
-                .with_show_download_progress(false)
+                .with_show_download_progress(false),
         ) {
             Ok(model) => {
                 tracing::info!("ONNX embedding model loaded successfully");
-                EmbeddingBackend::Real(model)
+                EmbeddingBackend::Real(Box::new(model))
             }
             Err(e) => {
                 tracing::warn!(
@@ -277,9 +282,7 @@ impl SemanticSearch {
 
     /// Returns true if the real ONNX model is loaded (not fallback).
     pub fn is_model_loaded(&self) -> bool {
-        self.backend.lock()
-            .map(|b| b.is_real())
-            .unwrap_or(false)
+        self.backend.lock().map(|b| b.is_real()).unwrap_or(false)
     }
 
     /// Validate and truncate input text.
@@ -301,7 +304,9 @@ impl SemanticSearch {
     fn get_embedding(&self, text: &str) -> Result<Vec<f32>> {
         // Check cache first
         {
-            let mut cache = self.cache.lock()
+            let mut cache = self
+                .cache
+                .lock()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             if let Some(cached) = cache.get(text) {
                 return Ok(cached.clone());
@@ -310,14 +315,18 @@ impl SemanticSearch {
 
         // Compute embedding
         let embedding = {
-            let mut backend = self.backend.lock()
+            let mut backend = self
+                .backend
+                .lock()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             backend.embed(text)?
         };
 
         // Store in cache
         {
-            let mut cache = self.cache.lock()
+            let mut cache = self
+                .cache
+                .lock()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             cache.put(text.to_string(), embedding.clone());
         }
@@ -361,11 +370,13 @@ impl SemanticSearch {
         let (text, _truncated) = Self::validate_text(text);
         let embedding = self.get_embedding(text)?;
 
-        let embedding_json = serde_json::to_string(&embedding)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let embedding_json =
+            serde_json::to_string(&embedding).map_err(|e| AppError::Internal(e.to_string()))?;
         let now = chrono::Utc::now().to_rfc3339();
 
-        let conn = self.conn.lock()
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
@@ -380,7 +391,9 @@ impl SemanticSearch {
 
     /// Delete a semantic fingerprint.
     pub fn delete_fingerprint(&self, memory_id: &EntityId) -> Result<()> {
-        let conn = self.conn.lock()
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
@@ -399,7 +412,9 @@ impl SemanticSearch {
     pub fn search(&self, query: &str, limit: u32) -> Result<Vec<(EntityId, f64)>> {
         // Rate limiting
         {
-            let mut last = self.last_search.lock()
+            let mut last = self
+                .last_search
+                .lock()
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             let elapsed = last.elapsed();
             if elapsed < SEARCH_RATE_LIMIT {
@@ -414,31 +429,35 @@ impl SemanticSearch {
 
         let query_embedding = self.get_embedding(query)?;
 
-        let conn = self.conn.lock()
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let mut stmt = conn.prepare(
-            "SELECT memory_id, keywords_json FROM memory_semantic_fingerprints",
-        ).map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare("SELECT memory_id, keywords_json FROM memory_semantic_fingerprints")
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let rows = stmt.query_map([], |row| {
-            let memory_id_str: String = row.get(0)?;
-            let keywords_json: String = row.get(1)?;
-            Ok((memory_id_str, keywords_json))
-        }).map_err(|e| AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let memory_id_str: String = row.get(0)?;
+                let keywords_json: String = row.get(1)?;
+                Ok((memory_id_str, keywords_json))
+            })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut results: Vec<(EntityId, f64)> = Vec::new();
 
         for row in rows {
-            let (memory_id_str, embedding_json) = row
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let (memory_id_str, embedding_json) =
+                row.map_err(|e| AppError::Internal(e.to_string()))?;
 
-            if let Ok(memory_id) = EntityId::parse(&memory_id_str) {
-                if let Ok(embedding) = serde_json::from_str::<Vec<f32>>(&embedding_json) {
-                    let similarity = Self::cosine_similarity(&query_embedding, &embedding);
-                    if similarity > 0.0 {
-                        results.push((memory_id, similarity));
-                    }
+            if let Ok(memory_id) = EntityId::parse(&memory_id_str)
+                && let Ok(embedding) = serde_json::from_str::<Vec<f32>>(&embedding_json)
+            {
+                let similarity = Self::cosine_similarity(&query_embedding, &embedding);
+                if similarity > 0.0 {
+                    results.push((memory_id, similarity));
                 }
             }
         }
@@ -451,34 +470,40 @@ impl SemanticSearch {
 
     /// Get all fingerprints (for rebuilding).
     pub fn list_fingerprints(&self) -> Result<Vec<SemanticFingerprint>> {
-        let conn = self.conn.lock()
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let mut stmt = conn.prepare(
-            "SELECT memory_id, keywords_json, created_at FROM memory_semantic_fingerprints",
-        ).map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT memory_id, keywords_json, created_at FROM memory_semantic_fingerprints",
+            )
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let rows = stmt.query_map([], |row| {
-            let memory_id_str: String = row.get(0)?;
-            let keywords_json: String = row.get(1)?;
-            let created_at: String = row.get(2)?;
-            Ok((memory_id_str, keywords_json, created_at))
-        }).map_err(|e| AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let memory_id_str: String = row.get(0)?;
+                let keywords_json: String = row.get(1)?;
+                let created_at: String = row.get(2)?;
+                Ok((memory_id_str, keywords_json, created_at))
+            })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut fingerprints = Vec::new();
 
         for row in rows {
-            let (memory_id_str, embedding_json, created_at) = row
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let (memory_id_str, embedding_json, created_at) =
+                row.map_err(|e| AppError::Internal(e.to_string()))?;
 
-            if let Ok(memory_id) = EntityId::parse(&memory_id_str) {
-                if let Ok(embedding) = serde_json::from_str::<Vec<f32>>(&embedding_json) {
-                    fingerprints.push(SemanticFingerprint {
-                        memory_id,
-                        embedding,
-                        created_at,
-                    });
-                }
+            if let Ok(memory_id) = EntityId::parse(&memory_id_str)
+                && let Ok(embedding) = serde_json::from_str::<Vec<f32>>(&embedding_json)
+            {
+                fingerprints.push(SemanticFingerprint {
+                    memory_id,
+                    embedding,
+                    created_at,
+                });
             }
         }
 
@@ -487,21 +512,27 @@ impl SemanticSearch {
 
     /// Count total fingerprints.
     pub fn count(&self) -> Result<u64> {
-        let conn = self.conn.lock()
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM memory_semantic_fingerprints",
-            [],
-            |row| row.get(0),
-        ).map_err(|e| AppError::Internal(e.to_string()))?;
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM memory_semantic_fingerprints",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         Ok(count as u64)
     }
 
     /// Clear the embedding cache.
     pub fn clear_cache(&self) -> Result<()> {
-        let mut cache = self.cache.lock()
+        let mut cache = self
+            .cache
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         cache.clear();
         Ok(())
@@ -509,7 +540,9 @@ impl SemanticSearch {
 
     /// Get cache statistics.
     pub fn cache_stats(&self) -> Result<(usize, usize)> {
-        let cache = self.cache.lock()
+        let cache = self
+            .cache
+            .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok((cache.len(), cache.capacity))
     }
@@ -579,7 +612,11 @@ mod tests {
     fn fallback_embedding_unit_norm() {
         let emb = EmbeddingBackend::fallback_embed("test text");
         let norm: f32 = emb.iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!((norm - 1.0).abs() < 1e-5, "Embedding should be unit-normalized, got norm={}", norm);
+        assert!(
+            (norm - 1.0).abs() < 1e-5,
+            "Embedding should be unit-normalized, got norm={}",
+            norm
+        );
     }
 
     // ── LRU Cache ──
@@ -687,8 +724,12 @@ mod tests {
         let id1 = EntityId::new();
         let id2 = EntityId::new();
 
-        search.store_fingerprint(&id1, "rust programming language").unwrap();
-        search.store_fingerprint(&id2, "python web development").unwrap();
+        search
+            .store_fingerprint(&id1, "rust programming language")
+            .unwrap();
+        search
+            .store_fingerprint(&id2, "python web development")
+            .unwrap();
 
         let results = search.search("rust programming", 10).unwrap();
         assert!(!results.is_empty());
@@ -700,7 +741,9 @@ mod tests {
         let search = SemanticSearch::new_in_memory().unwrap();
         for i in 0..10 {
             let id = EntityId::new();
-            search.store_fingerprint(&id, &format!("document about topic number {}", i)).unwrap();
+            search
+                .store_fingerprint(&id, &format!("document about topic number {}", i))
+                .unwrap();
         }
 
         let results = search.search("document topic", 5).unwrap();
@@ -767,7 +810,11 @@ mod tests {
         search.store_fingerprint(&id2, "cached text").unwrap();
 
         let (stats_after, _) = search.cache_stats().unwrap();
-        assert_eq!(stats_after, stats_before + 1, "Cache should have exactly 1 entry (same text reused)");
+        assert_eq!(
+            stats_after,
+            stats_before + 1,
+            "Cache should have exactly 1 entry (same text reused)"
+        );
     }
 
     #[test]
@@ -787,7 +834,10 @@ mod tests {
     #[test]
     fn in_memory_is_not_real_model() {
         let search = SemanticSearch::new_in_memory().unwrap();
-        assert!(!search.is_model_loaded(), "In-memory instance should use fallback");
+        assert!(
+            !search.is_model_loaded(),
+            "In-memory instance should use fallback"
+        );
     }
 
     // ── Rate Limiting (basic check — can't test timing precisely) ──

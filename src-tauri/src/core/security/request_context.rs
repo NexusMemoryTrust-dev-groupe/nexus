@@ -47,11 +47,7 @@ mod tests {
 
     #[test]
     fn request_context_timestamp_is_recent() {
-        let ctx = RequestContext::new(
-            "u".to_string(),
-            "s".to_string(),
-            "d".to_string(),
-        );
+        let ctx = RequestContext::new("u".to_string(), "s".to_string(), "d".to_string());
         let now = Utc::now();
         let diff = (now - ctx.timestamp).num_milliseconds();
         assert!(diff < 1000);
@@ -59,11 +55,7 @@ mod tests {
 
     #[test]
     fn request_context_serialization() {
-        let ctx = RequestContext::new(
-            "u1".to_string(),
-            "s1".to_string(),
-            "d1".to_string(),
-        );
+        let ctx = RequestContext::new("u1".to_string(), "s1".to_string(), "d1".to_string());
         let json = serde_json::to_string(&ctx).unwrap();
         let decoded: RequestContext = serde_json::from_str(&json).unwrap();
         assert_eq!(ctx.user_id, decoded.user_id);
@@ -79,11 +71,7 @@ mod tests {
 
     #[test]
     fn request_context_clone() {
-        let ctx = RequestContext::new(
-            "u".to_string(),
-            "s".to_string(),
-            "d".to_string(),
-        );
+        let ctx = RequestContext::new("u".to_string(), "s".to_string(), "d".to_string());
         let cloned = ctx.clone();
         assert_eq!(ctx.user_id, cloned.user_id);
         assert_eq!(ctx.correlation_id, cloned.correlation_id);

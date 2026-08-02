@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::core::domain_event::{DomainEvent, DomainEventType};
 use crate::core::entity_id::EntityId;
-use crate::core::versioning::commit_service::{CommitService, CreateCommitParams};
 use crate::core::versioning::automatic_commit::ChangeType;
+use crate::core::versioning::commit_service::{CommitService, CreateCommitParams};
 
 /// Creates a boxed event handler that listens for MemoryRecordCreated events
 /// and creates automatic commits via M28 CommitService.
@@ -19,7 +19,9 @@ pub fn create_versioning_handler(
             let event_id = event.id.clone();
 
             // Extract entity_id from payload
-            let entity_id_str = event.payload.get("record_id")
+            let entity_id_str = event
+                .payload
+                .get("record_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
@@ -71,8 +73,8 @@ pub fn create_versioning_handler(
 mod tests {
     use super::*;
     use crate::core::domain_event::DomainEvent;
-    use crate::core::versioning::commit_service::{CommitService, CreateCommitParams};
     use crate::core::versioning::automatic_commit::{AutomaticCommit, ChangeType};
+    use crate::core::versioning::commit_service::{CommitService, CreateCommitParams};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct MockCommitService {
@@ -117,7 +119,10 @@ mod tests {
             })
         }
 
-        async fn get_commit(&self, _commit_id: &str) -> crate::core::Result<Option<AutomaticCommit>> {
+        async fn get_commit(
+            &self,
+            _commit_id: &str,
+        ) -> crate::core::Result<Option<AutomaticCommit>> {
             Ok(None)
         }
 

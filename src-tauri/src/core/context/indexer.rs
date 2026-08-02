@@ -25,8 +25,8 @@
 //! * **Bounded batches.** A large vault is processed in chunks with the
 //!   connection released between them, so the UI keeps its own DB access.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rusqlite::Connection;
 
@@ -434,13 +434,23 @@ mod tests {
 
     #[test]
     fn report_completes_when_all_rows_accounted_for() {
-        let r = BackfillReport { pending: 3, indexed: 2, skipped: 1, failed: 0 };
+        let r = BackfillReport {
+            pending: 3,
+            indexed: 2,
+            skipped: 1,
+            failed: 0,
+        };
         assert!(r.is_complete());
     }
 
     #[test]
     fn report_incomplete_while_rows_remain() {
-        let r = BackfillReport { pending: 3, indexed: 1, skipped: 0, failed: 0 };
+        let r = BackfillReport {
+            pending: 3,
+            indexed: 1,
+            skipped: 0,
+            failed: 0,
+        };
         assert!(!r.is_complete());
     }
 

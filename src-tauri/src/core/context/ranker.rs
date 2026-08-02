@@ -7,6 +7,12 @@ use crate::core::context::provenance::ScorePart;
 /// Now with enhanced recency scoring and importance weighting.
 pub struct ContextRanker;
 
+impl Default for ContextRanker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ContextRanker {
     pub fn new() -> Self {
         Self
@@ -37,9 +43,17 @@ impl ContextRanker {
 
         // Sort entities by score (descending)
         ranked.entities.sort_by(|a, b| {
-            let score_a = ranked.relevance_scores.get(&a.id.to_string()).unwrap_or(&0.0);
-            let score_b = ranked.relevance_scores.get(&b.id.to_string()).unwrap_or(&0.0);
-            score_b.partial_cmp(score_a).unwrap_or(std::cmp::Ordering::Equal)
+            let score_a = ranked
+                .relevance_scores
+                .get(&a.id.to_string())
+                .unwrap_or(&0.0);
+            let score_b = ranked
+                .relevance_scores
+                .get(&b.id.to_string())
+                .unwrap_or(&0.0);
+            score_b
+                .partial_cmp(score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         // Score and rank memory records — store scores in relevance_scores
@@ -60,16 +74,28 @@ impl ContextRanker {
 
         // Sort memory records by score (descending)
         ranked.memory_records.sort_by(|a, b| {
-            let score_a = ranked.relevance_scores.get(&a.id.to_string()).unwrap_or(&0.0);
-            let score_b = ranked.relevance_scores.get(&b.id.to_string()).unwrap_or(&0.0);
-            score_b.partial_cmp(score_a).unwrap_or(std::cmp::Ordering::Equal)
+            let score_a = ranked
+                .relevance_scores
+                .get(&a.id.to_string())
+                .unwrap_or(&0.0);
+            let score_b = ranked
+                .relevance_scores
+                .get(&b.id.to_string())
+                .unwrap_or(&0.0);
+            score_b
+                .partial_cmp(score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         ranked
     }
 
     /// Calculate relevance score for a single entity.
-    pub fn calculate_score(&self, entity: &crate::core::graph::entity::Entity, intent: &UserIntent) -> f64 {
+    pub fn calculate_score(
+        &self,
+        entity: &crate::core::graph::entity::Entity,
+        intent: &UserIntent,
+    ) -> f64 {
         self.score_entity_parts(entity, intent).0
     }
 
@@ -176,7 +202,11 @@ impl ContextRanker {
     }
 
     /// Calculate relevance score for a memory record.
-    pub fn calculate_memory_score(&self, memory: &crate::core::memory::memory_record::MemoryRecord, intent: &UserIntent) -> f64 {
+    pub fn calculate_memory_score(
+        &self,
+        memory: &crate::core::memory::memory_record::MemoryRecord,
+        intent: &UserIntent,
+    ) -> f64 {
         self.score_memory_parts(memory, intent).0
     }
 }
@@ -195,7 +225,11 @@ mod tests {
             keywords: vec!["alice".to_string()],
             temporal: None,
         });
-        let e1 = Entity::new(EntityType::Person, "Alice".to_string(), "Engineer".to_string());
+        let e1 = Entity::new(
+            EntityType::Person,
+            "Alice".to_string(),
+            "Engineer".to_string(),
+        );
         let e2 = Entity::new(EntityType::Person, "Bob".to_string(), "Manager".to_string());
         pkg.entities = vec![e1, e2];
         pkg
@@ -208,8 +242,14 @@ mod tests {
         let ranked = r.rank(&pkg);
         assert_eq!(ranked.entities.len(), 2);
         // Alice should score higher (title contains query)
-        let alice_score = ranked.relevance_scores.get(&ranked.entities[0].id.to_string()).unwrap();
-        let bob_score = ranked.relevance_scores.get(&ranked.entities[1].id.to_string()).unwrap();
+        let alice_score = ranked
+            .relevance_scores
+            .get(&ranked.entities[0].id.to_string())
+            .unwrap();
+        let bob_score = ranked
+            .relevance_scores
+            .get(&ranked.entities[1].id.to_string())
+            .unwrap();
         assert!(alice_score >= bob_score);
     }
 
@@ -265,14 +305,15 @@ mod tests {
     fn calculate_memory_score_basic() {
         use crate::core::memory::memory_record::MemoryRecord;
         use crate::core::memory::types::MemorySource;
-        
+
         let r = ContextRanker::new();
         let memory = MemoryRecord::new(
             "Alice Project".to_string(),
             "Alice is working on the project".to_string(),
             "author".to_string(),
             MemorySource::Manual,
-        ).unwrap();
+        )
+        .unwrap();
         let intent = UserIntent {
             query: "Alice".to_string(),
             intent_type: crate::core::context::context_package::IntentType::Search,

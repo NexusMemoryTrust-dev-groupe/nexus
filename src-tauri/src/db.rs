@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use rusqlite::Connection;
+use std::path::PathBuf;
 
 /// Get the canonical database path shared by all modules.
 /// Uses %LOCALAPPDATA%/Nexus/nexus.db on Windows, ~/.nexus/nexus.db otherwise.

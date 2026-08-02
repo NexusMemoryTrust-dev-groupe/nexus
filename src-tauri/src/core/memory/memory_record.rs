@@ -2,7 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::core::entity_id::EntityId;
-use crate::core::memory::types::{MemoryCaptureMode, MemoryLayer, MemorySource, MemoryStatus, MemoryVisibility};
+use crate::core::memory::types::{
+    MemoryCaptureMode, MemoryLayer, MemorySource, MemoryStatus, MemoryVisibility,
+};
 use crate::core::result::{AppError, Result};
 
 /// A single memory record — the atomic unit of the Nexus memory system.
@@ -17,8 +19,8 @@ pub struct MemoryRecord {
     pub updated_at: DateTime<Utc>,
     pub author: String,
     pub source: MemorySource,
-    pub confidence_score: f64,   // 0.0 (rumor) — 1.0 (official decision)
-    pub importance_score: f64,   // 0.0 (meeting note) — 1.0 (architecture decision)
+    pub confidence_score: f64, // 0.0 (rumor) — 1.0 (official decision)
+    pub importance_score: f64, // 0.0 (meeting note) — 1.0 (architecture decision)
     pub visibility: MemoryVisibility,
     pub capture_mode: MemoryCaptureMode,
     pub project_space_id: Option<EntityId>,
@@ -28,9 +30,9 @@ pub struct MemoryRecord {
     pub layer: MemoryLayer,
     pub attached_files: Vec<AttachedFile>,
     // Memory Trust fields
-    pub derived_from: Vec<String>,  // Sources this memory was derived from
-    pub reason: Option<String>,     // Why this memory exists
-    pub version: u32,               // Version number (starts at 1)
+    pub derived_from: Vec<String>, // Sources this memory was derived from
+    pub reason: Option<String>,    // Why this memory exists
+    pub version: u32,              // Version number (starts at 1)
     pub updated_by: Option<String>, // Who last updated this memory
 }
 
@@ -53,14 +55,10 @@ impl MemoryRecord {
         source: MemorySource,
     ) -> Result<Self> {
         if title.trim().is_empty() {
-            return Err(AppError::Validation(
-                "Title cannot be empty".to_string(),
-            ));
+            return Err(AppError::Validation("Title cannot be empty".to_string()));
         }
         if content.trim().is_empty() {
-            return Err(AppError::Validation(
-                "Content cannot be empty".to_string(),
-            ));
+            return Err(AppError::Validation("Content cannot be empty".to_string()));
         }
 
         let now = Utc::now();
@@ -94,14 +92,10 @@ impl MemoryRecord {
     /// Validate all invariants: scores in range, title/content non-empty.
     pub fn validate(&self) -> Result<()> {
         if self.title.trim().is_empty() {
-            return Err(AppError::Validation(
-                "Title cannot be empty".to_string(),
-            ));
+            return Err(AppError::Validation("Title cannot be empty".to_string()));
         }
         if self.content.trim().is_empty() {
-            return Err(AppError::Validation(
-                "Content cannot be empty".to_string(),
-            ));
+            return Err(AppError::Validation("Content cannot be empty".to_string()));
         }
         if !(0.0..=1.0).contains(&self.confidence_score) {
             return Err(AppError::Validation(format!(

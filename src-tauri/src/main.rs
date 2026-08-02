@@ -1,12 +1,12 @@
 mod ai;
-mod core;
 mod commands;
+mod core;
 mod db;
 mod infra;
 mod storage;
 
-use std::sync::Arc;
 use rusqlite::Connection;
+use std::sync::Arc;
 use tauri::Manager;
 
 use crate::core::event_bus::EventBus;
@@ -20,7 +20,8 @@ fn main() {
         // Initialize DB
         let db_path = crate::db::db_path();
         {
-            let conn = Connection::open(&db_path).expect("Failed to open DB connection for migrations");
+            let conn =
+                Connection::open(&db_path).expect("Failed to open DB connection for migrations");
             storage::sqlite::schema::apply_migrations(&conn).expect("Failed to apply migrations");
         }
         // Run MCP server on stdio (blocking)
@@ -45,8 +46,10 @@ fn main() {
     }
 
     // M28: Versioning repository — only one used directly in main (for event listener)
-    let versioning_conn = Connection::open(&db_path).expect("Failed to open versioning DB connection");
-    let versioning_repo = SqliteVersioningRepository::new(versioning_conn).expect("Failed to create versioning repository");
+    let versioning_conn =
+        Connection::open(&db_path).expect("Failed to open versioning DB connection");
+    let versioning_repo = SqliteVersioningRepository::new(versioning_conn)
+        .expect("Failed to create versioning repository");
 
     // Event bus — shared across all modules
     let event_bus = Arc::new(InMemoryEventBus::default());

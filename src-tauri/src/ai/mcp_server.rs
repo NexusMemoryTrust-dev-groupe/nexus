@@ -610,122 +610,169 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                 None => CopilotResponse::err("Invalid command format. Must start with '/'"),
             }
         }
-        "nexus_list_memories" => {
-            match copilot::parse_command("/memories") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
+        "nexus_list_memories" => match copilot::parse_command("/memories") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
         "nexus_get_memory" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "memory".into(), args: vec![id.into()] };
+            let cmd = ParsedCommand {
+                name: "memory".into(),
+                args: vec![id.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_create_memory" => {
             let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let content = args.get("content").and_then(|v| v.as_str()).unwrap_or(title);
+            let content = args
+                .get("content")
+                .and_then(|v| v.as_str())
+                .unwrap_or(title);
             let cmd_args = vec![title.to_string(), content.to_string()];
-            let cmd = ParsedCommand { name: "create-memory".into(), args: cmd_args };
+            let cmd = ParsedCommand {
+                name: "create-memory".into(),
+                args: cmd_args,
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_update_memory" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "update-memory".into(), args: vec![id.into(), content.into()] };
+            let cmd = ParsedCommand {
+                name: "update-memory".into(),
+                args: vec![id.into(), content.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_delete_memory" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "delete-memory".into(), args: vec![id.into()] };
+            let cmd = ParsedCommand {
+                name: "delete-memory".into(),
+                args: vec![id.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_search_memories" => {
             let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "search".into(), args: vec![query.to_string()] };
+            let cmd = ParsedCommand {
+                name: "search".into(),
+                args: vec![query.to_string()],
+            };
             copilot::execute_command(&cmd).await
         }
-        "nexus_graph_stats" => {
-            match copilot::parse_command("/graph") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
+        "nexus_graph_stats" => match copilot::parse_command("/graph") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
         "nexus_get_entity" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "entity".into(), args: vec![id.into()] };
+            let cmd = ParsedCommand {
+                name: "entity".into(),
+                args: vec![id.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_create_entity" => {
-            let et = args.get("entity_type").and_then(|v| v.as_str()).unwrap_or("");
+            let et = args
+                .get("entity_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "create-entity".into(), args: vec![et.into(), title.into()] };
+            let cmd = ParsedCommand {
+                name: "create-entity".into(),
+                args: vec![et.into(), title.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_update_entity" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
             let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "update-entity".into(), args: vec![id.into(), title.into()] };
+            let cmd = ParsedCommand {
+                name: "update-entity".into(),
+                args: vec![id.into(), title.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_delete_entity" => {
             let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "delete-entity".into(), args: vec![id.into()] };
+            let cmd = ParsedCommand {
+                name: "delete-entity".into(),
+                args: vec![id.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_link_entities" => {
             let source = args.get("source_id").and_then(|v| v.as_str()).unwrap_or("");
             let target = args.get("target_id").and_then(|v| v.as_str()).unwrap_or("");
-            let rel_type = args.get("relationship_type").and_then(|v| v.as_str()).unwrap_or("RelatedTo");
-            let weight = args.get("weight").and_then(|v| v.as_f64()).unwrap_or(0.8).to_string();
-            let cmd = ParsedCommand { name: "link".into(), args: vec![source.into(), target.into(), rel_type.into(), weight] };
+            let rel_type = args
+                .get("relationship_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("RelatedTo");
+            let weight = args
+                .get("weight")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.8)
+                .to_string();
+            let cmd = ParsedCommand {
+                name: "link".into(),
+                args: vec![source.into(), target.into(), rel_type.into(), weight],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_unlink_entities" => {
-            let id = args.get("relationship_id").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "unlink".into(), args: vec![id.into()] };
+            let id = args
+                .get("relationship_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let cmd = ParsedCommand {
+                name: "unlink".into(),
+                args: vec![id.into()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_build_context" => {
             let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-            let cmd = ParsedCommand { name: "context".into(), args: vec![query.to_string()] };
+            let cmd = ParsedCommand {
+                name: "context".into(),
+                args: vec![query.to_string()],
+            };
             copilot::execute_command(&cmd).await
         }
         "nexus_build_context_for_entity" => {
             let entity_id = args.get("entity_id").and_then(|v| v.as_str()).unwrap_or("");
             let depth = args.get("depth").and_then(|v| v.as_u64()).unwrap_or(2) as u32;
-            let cmd = ParsedCommand { name: "entity_context".into(), args: vec![entity_id.to_string(), depth.to_string()] };
+            let cmd = ParsedCommand {
+                name: "entity_context".into(),
+                args: vec![entity_id.to_string(), depth.to_string()],
+            };
             copilot::execute_command(&cmd).await
         }
-        "nexus_stats" => {
-            match copilot::parse_command("/stats") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
-        "nexus_health" => {
-            match copilot::parse_command("/health") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
-        "nexus_settings" => {
-            match copilot::parse_command("/settings") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
-        "nexus_timeline" => {
-            match copilot::parse_command("/timeline") {
-                Some(cmd) => copilot::execute_command(&cmd).await,
-                None => unreachable!(),
-            }
-        }
+        "nexus_stats" => match copilot::parse_command("/stats") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
+        "nexus_health" => match copilot::parse_command("/health") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
+        "nexus_settings" => match copilot::parse_command("/settings") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
+        "nexus_timeline" => match copilot::parse_command("/timeline") {
+            Some(cmd) => copilot::execute_command(&cmd).await,
+            None => unreachable!(),
+        },
         // ── Enhanced Intelligence Tools ──
         "nexus_parse_markdown" => {
             let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
             match copilot::parse_and_build_graph(text).await {
                 Ok(result) => CopilotResponse::ok(
-                    format!("Parsed markdown: {} entities, {} relationships created", result.0.len(), result.1.len()),
+                    format!(
+                        "Parsed markdown: {} entities, {} relationships created",
+                        result.0.len(),
+                        result.1.len()
+                    ),
                     Some(serde_json::json!({
                         "entities": result.0.len(),
                         "relationships": result.1.len(),
@@ -738,9 +785,15 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
             match copilot::enhanced_context_search(query).await {
                 Ok(result) => CopilotResponse::ok(
-                    format!("Context built for '{}': {} entities, {} relationships, {} memories, {} keywords, temporal: {:?}",
-                        query, result.entities.len(), result.relationships.len(), result.memory_records.len(),
-                        result.user_intent.keywords.len(), result.user_intent.temporal),
+                    format!(
+                        "Context built for '{}': {} entities, {} relationships, {} memories, {} keywords, temporal: {:?}",
+                        query,
+                        result.entities.len(),
+                        result.relationships.len(),
+                        result.memory_records.len(),
+                        result.user_intent.keywords.len(),
+                        result.user_intent.temporal
+                    ),
                     Some(serde_json::json!({
                         "entities": result.entities.len(),
                         "relationships": result.relationships.len(),
@@ -759,7 +812,11 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(7) as u32;
             match copilot::get_recent_memories(days).await {
                 Ok(memories) => CopilotResponse::ok(
-                    format!("Found {} recent memories (last {} days)", memories.len(), days),
+                    format!(
+                        "Found {} recent memories (last {} days)",
+                        memories.len(),
+                        days
+                    ),
                     Some(serde_json::json!({
                         "count": memories.len(),
                         "days": days,
@@ -775,10 +832,17 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             }
         }
         "nexus_get_important_memories" => {
-            let threshold = args.get("threshold").and_then(|v| v.as_f64()).unwrap_or(0.7);
+            let threshold = args
+                .get("threshold")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.7);
             match copilot::get_important_memories(threshold).await {
                 Ok(memories) => CopilotResponse::ok(
-                    format!("Found {} important memories (threshold: {})", memories.len(), threshold),
+                    format!(
+                        "Found {} important memories (threshold: {})",
+                        memories.len(),
+                        threshold
+                    ),
                     Some(serde_json::json!({
                         "count": memories.len(),
                         "threshold": threshold,
@@ -799,9 +863,14 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let keywords = detector.extract_keywords(text);
             let temporal = detector.detect_temporal(text);
             let intent = detector.detect(text);
-            
+
             CopilotResponse::ok(
-                format!("Analyzed text: {} keywords, temporal: {:?}, intent: {:?}", keywords.len(), temporal, intent.intent_type),
+                format!(
+                    "Analyzed text: {} keywords, temporal: {:?}, intent: {:?}",
+                    keywords.len(),
+                    temporal,
+                    intent.intent_type
+                ),
                 Some(serde_json::json!({
                     "keywords": keywords,
                     "temporal": temporal,
@@ -814,33 +883,36 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
         "nexus_list_graph_entities" => {
             let entity_type_filter = args.get("entity_type").and_then(|v| v.as_str());
             let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(100) as usize;
-            
+
             let graph_repo = match crate::ai::copilot::open_graph_repo() {
                 Ok(r) => r,
                 Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
             };
 
             let mut all_entities: Vec<serde_json::Value> = Vec::new();
-            let types_to_scan: Vec<crate::core::graph::entity_types::EntityType> = if let Some(et_str) = entity_type_filter {
-                vec![crate::core::graph::entity_types::EntityType::from_str(et_str)]
-            } else {
-                vec![
-                    crate::core::graph::entity_types::EntityType::Person,
-                    crate::core::graph::entity_types::EntityType::Organization,
-                    crate::core::graph::entity_types::EntityType::Project,
-                    crate::core::graph::entity_types::EntityType::Document,
-                    crate::core::graph::entity_types::EntityType::Meeting,
-                    crate::core::graph::entity_types::EntityType::Decision,
-                    crate::core::graph::entity_types::EntityType::Task,
-                    crate::core::graph::entity_types::EntityType::Technology,
-                    crate::core::graph::entity_types::EntityType::Memory,
-                ]
-            };
+            let types_to_scan: Vec<crate::core::graph::entity_types::EntityType> =
+                if let Some(et_str) = entity_type_filter {
+                    vec![crate::core::graph::entity_types::EntityType::from(et_str)]
+                } else {
+                    vec![
+                        crate::core::graph::entity_types::EntityType::Person,
+                        crate::core::graph::entity_types::EntityType::Organization,
+                        crate::core::graph::entity_types::EntityType::Project,
+                        crate::core::graph::entity_types::EntityType::Document,
+                        crate::core::graph::entity_types::EntityType::Meeting,
+                        crate::core::graph::entity_types::EntityType::Decision,
+                        crate::core::graph::entity_types::EntityType::Task,
+                        crate::core::graph::entity_types::EntityType::Technology,
+                        crate::core::graph::entity_types::EntityType::Memory,
+                    ]
+                };
 
             for et in &types_to_scan {
                 if let Ok(entities) = graph_repo.get_entities_by_type(et).await {
                     for e in entities {
-                        if all_entities.len() >= limit { break; }
+                        if all_entities.len() >= limit {
+                            break;
+                        }
                         all_entities.push(serde_json::json!({
                             "id": e.id.as_str(),
                             "type": e.entity_type.as_str(),
@@ -850,7 +922,9 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                         }));
                     }
                 }
-                if all_entities.len() >= limit { break; }
+                if all_entities.len() >= limit {
+                    break;
+                }
             }
 
             let count = all_entities.len();
@@ -892,11 +966,17 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
         "nexus_link_memory_entity" => {
             let memory_id = args.get("memory_id").and_then(|v| v.as_str()).unwrap_or("");
             let entity_id = args.get("entity_id").and_then(|v| v.as_str()).unwrap_or("");
-            let relationship = args.get("relationship").and_then(|v| v.as_str()).unwrap_or("Related");
+            let relationship = args
+                .get("relationship")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Related");
             let weight = args.get("weight").and_then(|v| v.as_f64()).unwrap_or(1.0);
             match copilot::link_memory_entity(memory_id, entity_id, relationship, weight).await {
                 Ok(_) => CopilotResponse::ok(
-                    format!("Linked memory {} to entity {} ({})", memory_id, entity_id, relationship),
+                    format!(
+                        "Linked memory {} to entity {} ({})",
+                        memory_id, entity_id, relationship
+                    ),
                     None,
                 ),
                 Err(e) => CopilotResponse::err(format!("Error: {}", e)),
@@ -905,10 +985,16 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
         "nexus_unlink_memory_entity" => {
             let memory_id = args.get("memory_id").and_then(|v| v.as_str()).unwrap_or("");
             let entity_id = args.get("entity_id").and_then(|v| v.as_str()).unwrap_or("");
-            let relationship = args.get("relationship").and_then(|v| v.as_str()).unwrap_or("Related");
+            let relationship = args
+                .get("relationship")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Related");
             match copilot::unlink_memory_entity(memory_id, entity_id, relationship).await {
                 Ok(_) => CopilotResponse::ok(
-                    format!("Unlinked memory {} from entity {} ({})", memory_id, entity_id, relationship),
+                    format!(
+                        "Unlinked memory {} from entity {} ({})",
+                        memory_id, entity_id, relationship
+                    ),
                     None,
                 ),
                 Err(e) => CopilotResponse::err(format!("Error: {}", e)),
@@ -950,14 +1036,27 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
         }
         // ── Workspace Tools ──
         "nexus_add_to_workspace" => {
-            let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
-            let paths: Vec<String> = args.get("paths")
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let paths: Vec<String> = args
+                .get("paths")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
-            match crate::commands::workspace::add_to_workspace(project_id.to_string(), paths).await {
+            match crate::commands::workspace::add_to_workspace(project_id.to_string(), paths).await
+            {
                 Ok(tree) => {
-                    let count = tree.as_ref().and_then(|t| t.children.as_ref()).map(|c| c.len()).unwrap_or(0);
+                    let count = tree
+                        .as_ref()
+                        .and_then(|t| t.children.as_ref())
+                        .map(|c| c.len())
+                        .unwrap_or(0);
                     CopilotResponse::ok(
                         format!("Added files to workspace: {} entries in tree", count),
                         Some(serde_json::json!({ "tree": tree })),
@@ -967,10 +1066,17 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             }
         }
         "nexus_get_workspace" => {
-            let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             match crate::commands::workspace::get_workspace_tree(project_id.to_string()).await {
                 Ok(tree) => {
-                    let count = tree.as_ref().and_then(|t| t.children.as_ref()).map(|c| c.len()).unwrap_or(0);
+                    let count = tree
+                        .as_ref()
+                        .and_then(|t| t.children.as_ref())
+                        .map(|c| c.len())
+                        .unwrap_or(0);
                     CopilotResponse::ok(
                         format!("Workspace has {} top-level entries", count),
                         Some(serde_json::json!({ "tree": tree })),
@@ -980,13 +1086,26 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             }
         }
         "nexus_sync_workspace" => {
-            let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             match crate::commands::workspace::sync_workspace(project_id.to_string()).await {
                 Ok(result) => {
-                    let count = result.tree.as_ref().and_then(|t| t.children.as_ref()).map(|c| c.len()).unwrap_or(0);
+                    let count = result
+                        .tree
+                        .as_ref()
+                        .and_then(|t| t.children.as_ref())
+                        .map(|c| c.len())
+                        .unwrap_or(0);
                     CopilotResponse::ok(
-                        format!("Workspace synced: {} top-level entries, stale: {}", count, result.stale_found),
-                        Some(serde_json::json!({ "tree": result.tree, "stale_found": result.stale_found })),
+                        format!(
+                            "Workspace synced: {} top-level entries, stale: {}",
+                            count, result.stale_found
+                        ),
+                        Some(
+                            serde_json::json!({ "tree": result.tree, "stale_found": result.stale_found }),
+                        ),
                     )
                 }
                 Err(e) => CopilotResponse::err(format!("Workspace sync error: {}", e)),
@@ -998,8 +1117,13 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let project_id = args.get("project_id").and_then(|v| v.as_str());
             match copilot::index_file(path, project_id).await {
                 Ok(result) => CopilotResponse::ok(
-                    format!("Indexed '{}': {} entities, {} sub-entities — {}",
-                        result.file_name, result.entities_created, result.sub_entities_created, result.summary),
+                    format!(
+                        "Indexed '{}': {} entities, {} sub-entities — {}",
+                        result.file_name,
+                        result.entities_created,
+                        result.sub_entities_created,
+                        result.summary
+                    ),
                     Some(serde_json::json!({
                         "file_name": result.file_name,
                         "entities_created": result.entities_created,
@@ -1015,8 +1139,13 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let project_id = args.get("project_id").and_then(|v| v.as_str());
             match copilot::index_folder(path, project_id).await {
                 Ok(result) => CopilotResponse::ok(
-                    format!("Indexed folder '{}': {} files, {} entities, {} sub-entities",
-                        result.folder_name, result.total_files, result.total_entities, result.total_sub_entities),
+                    format!(
+                        "Indexed folder '{}': {} files, {} entities, {} sub-entities",
+                        result.folder_name,
+                        result.total_files,
+                        result.total_entities,
+                        result.total_sub_entities
+                    ),
                     Some(serde_json::json!({
                         "folder_name": result.folder_name,
                         "total_files": result.total_files,
@@ -1033,8 +1162,12 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
             match copilot::read_file_content(path) {
                 Ok(result) => CopilotResponse::ok(
-                    format!("Read '{}': {} — {} sub-entities",
-                        result.file_name, result.summary, result.sub_entities.len()),
+                    format!(
+                        "Read '{}': {} — {} sub-entities",
+                        result.file_name,
+                        result.summary,
+                        result.sub_entities.len()
+                    ),
                     Some(serde_json::json!({
                         "file_name": result.file_name,
                         "file_type": result.file_type,
@@ -1096,7 +1229,10 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             }
         }
         "nexus_move_file" => {
-            let source = args.get("source_path").and_then(|v| v.as_str()).unwrap_or("");
+            let source = args
+                .get("source_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let new_path = args.get("new_path").and_then(|v| v.as_str());
             let dest_dir = args.get("dest_dir").and_then(|v| v.as_str());
             let new_name = args.get("new_name").and_then(|v| v.as_str());
@@ -1137,48 +1273,67 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
             }
         }
         "nexus_create_workspace_file" => {
-            let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
-            let parent_path = args.get("parent_path").and_then(|v| v.as_str()).unwrap_or("");
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let parent_path = args
+                .get("parent_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
             match copilot::create_workspace_file(project_id, parent_path, name, content).await {
                 Ok(path) => CopilotResponse::ok(
                     format!("Created workspace file: {}", path),
-                    Some(serde_json::json!({ "project_id": project_id, "path": path, "name": name })),
+                    Some(
+                        serde_json::json!({ "project_id": project_id, "path": path, "name": name }),
+                    ),
                 ),
                 Err(e) => CopilotResponse::err(format!("Workspace file error: {}", e)),
             }
         }
         // ── Savings / Token Tracking Tools ──
-        "nexus_savings_stats" => {
-            match crate::commands::savings::get_savings_stats() {
-                Ok(stats) => {
-                    let msg = format!(
-                        "Savings: {} tokens saved (${:.2}) across {} interactions. Today: {} tokens (${:.2}). Week: {} tokens (${:.2}). Month: {} tokens (${:.2}).",
-                        stats.total_tokens_saved, stats.total_cost_saved_usd, stats.total_interactions,
-                        stats.tokens_saved_today, stats.cost_saved_today,
-                        stats.tokens_saved_week, stats.cost_saved_week,
-                        stats.tokens_saved_month, stats.cost_saved_month,
-                    );
-                    CopilotResponse::ok(msg, Some(serde_json::to_value(&stats).unwrap_or_default()))
-                }
-                Err(e) => CopilotResponse::err(format!("Savings error: {}", e)),
+        "nexus_savings_stats" => match crate::commands::savings::get_savings_stats() {
+            Ok(stats) => {
+                let msg = format!(
+                    "Savings: {} tokens saved (${:.2}) across {} interactions. Today: {} tokens (${:.2}). Week: {} tokens (${:.2}). Month: {} tokens (${:.2}).",
+                    stats.total_tokens_saved,
+                    stats.total_cost_saved_usd,
+                    stats.total_interactions,
+                    stats.tokens_saved_today,
+                    stats.cost_saved_today,
+                    stats.tokens_saved_week,
+                    stats.cost_saved_week,
+                    stats.tokens_saved_month,
+                    stats.cost_saved_month,
+                );
+                CopilotResponse::ok(msg, Some(serde_json::to_value(&stats).unwrap_or_default()))
             }
-        }
-        "nexus_savings_report" => {
-            match crate::commands::savings::get_savings_report() {
-                Ok(report) => {
-                    let msg = format!(
-                        "Savings report: {} tokens saved (${:.2}) across {} interactions. Across 21 models the same tokens would cost from ${:.2} (DeepSeek V4 Flash) to ${:.2} (Claude Fable 5).",
-                        report.stats.total_tokens_saved, report.stats.total_cost_saved_usd, report.stats.total_interactions,
-                        report.models.iter().map(|m| m.cost_saved_usd).fold(f64::INFINITY, f64::min),
-                        report.models.iter().map(|m| m.cost_saved_usd).fold(0.0, f64::max),
-                    );
-                    CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
-                }
-                Err(e) => CopilotResponse::err(format!("Savings report error: {}", e)),
+            Err(e) => CopilotResponse::err(format!("Savings error: {}", e)),
+        },
+        "nexus_savings_report" => match crate::commands::savings::get_savings_report() {
+            Ok(report) => {
+                let msg = format!(
+                    "Savings report: {} tokens saved (${:.2}) across {} interactions. Across 21 models the same tokens would cost from ${:.2} (DeepSeek V4 Flash) to ${:.2} (Claude Fable 5).",
+                    report.stats.total_tokens_saved,
+                    report.stats.total_cost_saved_usd,
+                    report.stats.total_interactions,
+                    report
+                        .models
+                        .iter()
+                        .map(|m| m.cost_saved_usd)
+                        .fold(f64::INFINITY, f64::min),
+                    report
+                        .models
+                        .iter()
+                        .map(|m| m.cost_saved_usd)
+                        .fold(0.0, f64::max),
+                );
+                CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
             }
-        }
+            Err(e) => CopilotResponse::err(format!("Savings report error: {}", e)),
+        },
         "nexus_savings_per_model" => {
             let model = args.get("model").and_then(|v| v.as_str()).unwrap_or("");
             if model.is_empty() {
@@ -1192,7 +1347,8 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                         "Model '{}' ({}): ${:.2} saved on {} input tokens at ${:.2}/1M input.",
                         json["model"]["name"].as_str().unwrap_or(model),
                         json["model"]["company"].as_str().unwrap_or(""),
-                        cost, tokens,
+                        cost,
+                        tokens,
                         json["model"]["input_per_m"].as_f64().unwrap_or(0.0),
                     );
                     CopilotResponse::ok(msg, Some(json))
@@ -1209,11 +1365,21 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
 // ═══════════════════════════════════════════════════════════════
 
 fn ok_response(id: Option<serde_json::Value>, result: serde_json::Value) -> JsonRpcResponse {
-    JsonRpcResponse { jsonrpc: "2.0".into(), id, result: Some(result), error: None }
+    JsonRpcResponse {
+        jsonrpc: "2.0".into(),
+        id,
+        result: Some(result),
+        error: None,
+    }
 }
 
 fn err_response(id: Option<serde_json::Value>, code: i64, msg: String) -> JsonRpcResponse {
-    JsonRpcResponse { jsonrpc: "2.0".into(), id, result: None, error: Some(JsonRpcError { code, message: msg }) }
+    JsonRpcResponse {
+        jsonrpc: "2.0".into(),
+        id,
+        result: None,
+        error: Some(JsonRpcError { code, message: msg }),
+    }
 }
 
 async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
@@ -1227,29 +1393,43 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 "name": "nexus-mcp-server",
                 "version": "1.0.0"
             });
-            ok_response(req.id, serde_json::json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": capabilities,
-                "serverInfo": info,
-            }))
+            ok_response(
+                req.id,
+                serde_json::json!({
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": capabilities,
+                    "serverInfo": info,
+                }),
+            )
         }
         "notifications/initialized" => {
             // Per JSON-RPC 2.0 spec: notifications must NOT receive a response.
             return None;
         }
         "tools/list" => {
-            let tools: Vec<serde_json::Value> = tool_definitions().into_iter().map(|t| {
-                serde_json::json!({
-                    "name": t.name,
-                    "description": t.description,
-                    "inputSchema": t.input_schema,
+            let tools: Vec<serde_json::Value> = tool_definitions()
+                .into_iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "name": t.name,
+                        "description": t.description,
+                        "inputSchema": t.input_schema,
+                    })
                 })
-            }).collect();
+                .collect();
             ok_response(req.id, serde_json::json!({ "tools": tools }))
         }
         "tools/call" => {
-            let tool_name = req.params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let arguments = req.params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+            let tool_name = req
+                .params
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let arguments = req
+                .params
+                .get("arguments")
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
             let resp = dispatch_tool(tool_name, &arguments).await;
 
             let content = if resp.success {
@@ -1260,13 +1440,18 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 }
                 vec![serde_json::json!({ "type": "text", "text": text })]
             } else {
-                vec![serde_json::json!({ "type": "text", "text": format!("Error: {}", resp.message) })]
+                vec![
+                    serde_json::json!({ "type": "text", "text": format!("Error: {}", resp.message) }),
+                ]
             };
 
-            ok_response(req.id, serde_json::json!({
-                "content": content,
-                "isError": !resp.success,
-            }))
+            ok_response(
+                req.id,
+                serde_json::json!({
+                    "content": content,
+                    "isError": !resp.success,
+                }),
+            )
         }
         // ── MCP Resources ──
         "resources/list" => {
@@ -1317,14 +1502,22 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                         }
                         vec![serde_json::json!({ "type": "text", "text": text })]
                     } else {
-                        vec![serde_json::json!({ "type": "text", "text": format!("Error: {}", resp.message) })]
+                        vec![
+                            serde_json::json!({ "type": "text", "text": format!("Error: {}", resp.message) }),
+                        ]
                     };
-                    ok_response(req.id, serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": content[0]["text"] }] }))
+                    ok_response(
+                        req.id,
+                        serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": content[0]["text"] }] }),
+                    )
                 }
                 "nexus://health" => {
                     let resp = dispatch_tool("nexus_health", &serde_json::json!({})).await;
                     let text = resp.message.clone();
-                    ok_response(req.id, serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }))
+                    ok_response(
+                        req.id,
+                        serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }),
+                    )
                 }
                 "nexus://settings" => {
                     let resp = dispatch_tool("nexus_settings", &serde_json::json!({})).await;
@@ -1333,7 +1526,10 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                         text.push_str("\n\n");
                         text.push_str(&serde_json::to_string_pretty(data).unwrap_or_default());
                     }
-                    ok_response(req.id, serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }))
+                    ok_response(
+                        req.id,
+                        serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }),
+                    )
                 }
                 "nexus://savings" => {
                     let resp = dispatch_tool("nexus_savings_stats", &serde_json::json!({})).await;
@@ -1342,7 +1538,10 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                         text.push_str("\n\n");
                         text.push_str(&serde_json::to_string_pretty(data).unwrap_or_default());
                     }
-                    ok_response(req.id, serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }))
+                    ok_response(
+                        req.id,
+                        serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }),
+                    )
                 }
                 "nexus://savings-report" => {
                     let resp = dispatch_tool("nexus_savings_report", &serde_json::json!({})).await;
@@ -1351,17 +1550,16 @@ async fn handle_request(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                         text.push_str("\n\n");
                         text.push_str(&serde_json::to_string_pretty(data).unwrap_or_default());
                     }
-                    ok_response(req.id, serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }))
+                    ok_response(
+                        req.id,
+                        serde_json::json!({ "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }] }),
+                    )
                 }
                 _ => err_response(req.id, -32602, format!("Resource not found: {}", uri)),
             }
         }
-        "ping" => {
-            ok_response(req.id, serde_json::json!({}))
-        }
-        _ => {
-            err_response(req.id, -32601, format!("Method not found: {}", req.method))
-        }
+        "ping" => ok_response(req.id, serde_json::json!({})),
+        _ => err_response(req.id, -32601, format!("Method not found: {}", req.method)),
     };
     Some(response)
 }
@@ -1371,11 +1569,11 @@ pub async fn run_stdio() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     let reader = stdin.lock();
-    let mut line_iter = reader.lines();
+    let line_iter = reader.lines();
 
     eprintln!("[nexus-mcp] Server started on stdio");
 
-    while let Some(line_result) = line_iter.next() {
+    for line_result in line_iter {
         let line = match line_result {
             Ok(l) => l,
             Err(e) => {
@@ -1455,56 +1653,90 @@ mod tests {
     async fn dispatch_savings_stats_tool() {
         let resp = dispatch_tool("nexus_savings_stats", &serde_json::json!({})).await;
         // DB may be empty or unavailable, but must not be an unknown-tool error
-        assert!(resp.success || resp.message.contains("DB") || resp.message.contains("error"),
-            "Expected success or DB error, got: {}", resp.message);
+        assert!(
+            resp.success || resp.message.contains("DB") || resp.message.contains("error"),
+            "Expected success or DB error, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_savings_report_tool() {
         let resp = dispatch_tool("nexus_savings_report", &serde_json::json!({})).await;
-        assert!(resp.success || resp.message.contains("DB") || resp.message.contains("error"),
-            "Expected success or DB error, got: {}", resp.message);
+        assert!(
+            resp.success || resp.message.contains("DB") || resp.message.contains("error"),
+            "Expected success or DB error, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_savings_per_model_missing_model() {
         let resp = dispatch_tool("nexus_savings_per_model", &serde_json::json!({})).await;
         assert!(!resp.success);
-        assert!(resp.message.contains("model"), "Expected model-required error, got: {}", resp.message);
+        assert!(
+            resp.message.contains("model"),
+            "Expected model-required error, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_savings_per_model_unknown_model() {
-        let resp = dispatch_tool("nexus_savings_per_model", &serde_json::json!({
-            "model": "not-a-real-model"
-        })).await;
+        let resp = dispatch_tool(
+            "nexus_savings_per_model",
+            &serde_json::json!({
+                "model": "not-a-real-model"
+            }),
+        )
+        .await;
         assert!(!resp.success);
-        assert!(resp.message.contains("Unknown model"), "Expected unknown-model error, got: {}", resp.message);
+        assert!(
+            resp.message.contains("Unknown model"),
+            "Expected unknown-model error, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_list_memories_tool() {
         let resp = dispatch_tool("nexus_list_memories", &serde_json::json!({})).await;
         // DB may or may not have memories, but command should succeed or report error
-        assert!(resp.success || resp.message.contains("error") || resp.message.contains("DB") || resp.message.contains("not found"),
-            "Expected success or DB-related error, got: {}", resp.message);
+        assert!(
+            resp.success
+                || resp.message.contains("error")
+                || resp.message.contains("DB")
+                || resp.message.contains("not found"),
+            "Expected success or DB-related error, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_stats_tool() {
         let resp = dispatch_tool("nexus_stats", &serde_json::json!({})).await;
         // DB may not be available in test environment
-        assert!(resp.success || resp.message.contains("error") || resp.message.contains("DB"),
-            "Expected success or DB-related error, got: {}", resp.message);
-        assert!(resp.message.contains("memories") || resp.message.contains("DB"),
-            "Expected 'memories' or 'DB' in message, got: {}", resp.message);
+        assert!(
+            resp.success || resp.message.contains("error") || resp.message.contains("DB"),
+            "Expected success or DB-related error, got: {}",
+            resp.message
+        );
+        assert!(
+            resp.message.contains("memories") || resp.message.contains("DB"),
+            "Expected 'memories' or 'DB' in message, got: {}",
+            resp.message
+        );
     }
 
     #[tokio::test]
     async fn dispatch_copilot_command_tool() {
-        let resp = dispatch_tool("nexus_copilot_command", &serde_json::json!({
-            "command": "/health"
-        })).await;
+        let resp = dispatch_tool(
+            "nexus_copilot_command",
+            &serde_json::json!({
+                "command": "/health"
+            }),
+        )
+        .await;
         assert!(resp.success);
     }
 
@@ -1531,7 +1763,10 @@ mod tests {
             params: serde_json::json!({}),
         };
         let resp = handle_request(req).await;
-        assert!(resp.is_none(), "Notifications must not receive responses per JSON-RPC 2.0");
+        assert!(
+            resp.is_none(),
+            "Notifications must not receive responses per JSON-RPC 2.0"
+        );
     }
 
     #[tokio::test]

@@ -18,6 +18,12 @@ pub struct DefaultToolRouter {
     tools: HashMap<String, Arc<dyn Tool>>,
 }
 
+impl Default for DefaultToolRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DefaultToolRouter {
     pub fn new() -> Self {
         Self {
@@ -63,7 +69,11 @@ mod tests {
         fn description(&self) -> &str {
             "stub"
         }
-        async fn execute(&self, _params: &serde_json::Value, _sandbox: &crate::core::execution::sandbox::Sandbox) -> Result<serde_json::Value> {
+        async fn execute(
+            &self,
+            _params: &serde_json::Value,
+            _sandbox: &crate::core::execution::sandbox::Sandbox,
+        ) -> Result<serde_json::Value> {
             Ok(serde_json::json!({ "tool": self.tool_name }))
         }
         fn validate_params(&self, _params: &serde_json::Value) -> Result<()> {

@@ -163,7 +163,7 @@ fn resolve(path: &Path) -> std::result::Result<PathBuf, SandboxError> {
                 return Err(SandboxError::Unresolvable {
                     attempted,
                     reason: "no existing parent directory".to_string(),
-                })
+                });
             }
         };
 
@@ -173,7 +173,7 @@ fn resolve(path: &Path) -> std::result::Result<PathBuf, SandboxError> {
                 return Err(SandboxError::Unresolvable {
                     attempted,
                     reason: "path has no file name component".to_string(),
-                })
+                });
             }
         }
 
@@ -246,11 +246,11 @@ impl Sandbox {
             if raw.is_empty() {
                 continue;
             }
-            if let Ok(p) = resolve(Path::new(raw)) {
-                if !resolved.iter().any(|existing| is_within(&p, existing)) {
-                    resolved.retain(|existing| !is_within(existing, &p));
-                    resolved.push(p);
-                }
+            if let Ok(p) = resolve(Path::new(raw))
+                && !resolved.iter().any(|existing| is_within(&p, existing))
+            {
+                resolved.retain(|existing| !is_within(existing, &p));
+                resolved.push(p);
             }
         }
         Self { roots: resolved }
@@ -266,11 +266,7 @@ impl Sandbox {
     }
 
     /// Validate `path` for `access`, returning the resolved absolute path.
-    pub fn check(
-        &self,
-        path: &str,
-        access: Access,
-    ) -> std::result::Result<PathBuf, SandboxError> {
+    pub fn check(&self, path: &str, access: Access) -> std::result::Result<PathBuf, SandboxError> {
         let raw = Path::new(path);
 
         if !raw.is_absolute() {
@@ -332,13 +328,12 @@ fn collect_roots() -> Vec<String> {
 
     if let Ok(conn) = crate::db::open_connection() {
         // Top-level workspace entries are the folders the user explicitly added.
-        if let Ok(mut stmt) = conn.prepare(
-            "SELECT DISTINCT native_path FROM workspace_entries WHERE parent_id IS NULL",
-        ) {
-            if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
-                for row in rows.flatten() {
-                    roots.push(row);
-                }
+        if let Ok(mut stmt) = conn
+            .prepare("SELECT DISTINCT native_path FROM workspace_entries WHERE parent_id IS NULL")
+            && let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0))
+        {
+            for row in rows.flatten() {
+                roots.push(row);
             }
         }
 
@@ -375,9 +370,12 @@ mod tests {
     use super::*;
 
     fn tmp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nexus-sandbox-{}-{}", name, std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("nexus-sandbox-{}-{}", name, std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::canonicalize(&dir).map(|p| strip_verbatim(&p)).unwrap_or(dir)
+        std::fs::canonicalize(&dir)
+            .map(|p| strip_verbatim(&p))
+            .unwrap_or(dir)
     }
 
     #[test]
@@ -385,7 +383,10 @@ mod tests {
         let root = tmp("inside");
         let sb = Sandbox::from_roots([root.display().to_string()]);
         let target = root.join("notes.md");
-        assert!(sb.check(&target.display().to_string(), Access::Write).is_ok());
+        assert!(
+            sb.check(&target.display().to_string(), Access::Write)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -447,7 +448,9 @@ mod tests {
     fn empty_policy_denies_everything() {
         let sb = Sandbox::from_roots(Vec::<String>::new());
         assert!(sb.is_empty());
-        let err = sb.check(r"C:\anything\at\all.txt", Access::Write).unwrap_err();
+        let err = sb
+            .check(r"C:\anything\at\all.txt", Access::Write)
+            .unwrap_err();
         assert!(matches!(err, SandboxError::NoRoots { .. }), "got {:?}", err);
     }
 
@@ -456,7 +459,11 @@ mod tests {
         let root = tmp("relative");
         let sb = Sandbox::from_roots([root.display().to_string()]);
         let err = sb.check("notes.md", Access::Write).unwrap_err();
-        assert!(matches!(err, SandboxError::NotAbsolute { .. }), "got {:?}", err);
+        assert!(
+            matches!(err, SandboxError::NotAbsolute { .. }),
+            "got {:?}",
+            err
+        );
     }
 
     #[test]
@@ -467,7 +474,11 @@ mod tests {
         let err = sb
             .check(&target.display().to_string(), Access::Write)
             .unwrap_err();
-        assert!(matches!(err, SandboxError::ReservedName { .. }), "got {:?}", err);
+        assert!(
+            matches!(err, SandboxError::ReservedName { .. }),
+            "got {:?}",
+            err
+        );
     }
 
     #[test]
@@ -476,7 +487,10 @@ mod tests {
         let sb = Sandbox::from_roots([root.display().to_string()]);
         let shouty = root.display().to_string().to_uppercase();
         let target = format!(r"{}\file.txt", shouty.trim_end_matches('\\'));
-        assert!(sb.check(&target, Access::Write).is_ok(), "case-insensitive match failed");
+        assert!(
+            sb.check(&target, Access::Write).is_ok(),
+            "case-insensitive match failed"
+        );
     }
 
     #[test]
@@ -484,10 +498,7 @@ mod tests {
         let root = tmp("collapse");
         let child = root.join("child");
         std::fs::create_dir_all(&child).unwrap();
-        let sb = Sandbox::from_roots([
-            child.display().to_string(),
-            root.display().to_string(),
-        ]);
+        let sb = Sandbox::from_roots([child.display().to_string(), root.display().to_string()]);
         // The parent subsumes the child, so only one root should remain.
         assert_eq!(sb.roots().len(), 1, "roots: {:?}", sb.roots());
     }
@@ -500,7 +511,10 @@ mod tests {
             root.display().to_string(),
         ]);
         assert_eq!(sb.roots().len(), 1);
-        assert!(sb.check(&root.join("ok.txt").display().to_string(), Access::Write).is_ok());
+        assert!(
+            sb.check(&root.join("ok.txt").display().to_string(), Access::Write)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -512,8 +526,16 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(msg.contains("delete"), "missing verb: {}", msg);
-        assert!(msg.contains("outside your Nexus workspace"), "missing reason: {}", msg);
-        assert!(msg.contains(&root.display().to_string()), "missing roots: {}", msg);
+        assert!(
+            msg.contains("outside your Nexus workspace"),
+            "missing reason: {}",
+            msg
+        );
+        assert!(
+            msg.contains(&root.display().to_string()),
+            "missing roots: {}",
+            msg
+        );
     }
 
     #[test]
@@ -526,7 +548,10 @@ mod tests {
             .unwrap_err();
         // Either unresolvable or outside — both are refusals, never Ok.
         assert!(
-            matches!(err, SandboxError::Unresolvable { .. } | SandboxError::Outside { .. }),
+            matches!(
+                err,
+                SandboxError::Unresolvable { .. } | SandboxError::Outside { .. }
+            ),
             "got {:?}",
             err
         );

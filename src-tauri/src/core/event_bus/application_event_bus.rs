@@ -53,8 +53,8 @@ impl EventBus for InMemoryApplicationEventBus {
 mod tests {
     use super::*;
     use crate::core::domain_event::DomainEventType;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test]
     async fn application_event_bus_publish() {
@@ -80,10 +80,7 @@ mod tests {
     #[tokio::test]
     async fn application_event_bus_default() {
         let bus = InMemoryApplicationEventBus::default();
-        let event = DomainEvent::new(
-            DomainEventType::DecisionMade,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::DecisionMade, serde_json::json!({}));
         assert!(bus.publish(event).await.is_ok());
     }
 }

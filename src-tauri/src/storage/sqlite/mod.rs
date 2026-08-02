@@ -2,8 +2,8 @@ pub mod context_repository;
 pub mod graph_repository;
 pub mod memory_entity_links_repository;
 pub mod memory_repository_sqlite;
-pub mod schema;
 pub mod recall;
+pub mod schema;
 pub mod versioning_repository;
 
 pub use context_repository::SqliteContextRepository;

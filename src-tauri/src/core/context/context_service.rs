@@ -65,11 +65,7 @@ impl<B: ContextBuilder, C: ContextCache, S: ContextStore> ContextService<B, C, S
     }
 
     /// Save the current context for an entity as a snapshot.
-    pub async fn save_snapshot(
-        &self,
-        entity_id: &EntityId,
-        label: Option<&str>,
-    ) -> Result<String> {
+    pub async fn save_snapshot(&self, entity_id: &EntityId, label: Option<&str>) -> Result<String> {
         let request = ContextRequest {
             query: String::new(),
             project_id: Some(entity_id.clone()),
@@ -78,11 +74,8 @@ impl<B: ContextBuilder, C: ContextCache, S: ContextStore> ContextService<B, C, S
 
         let package = self.builder.build(&request).await?;
 
-        let snapshot = ContextSnapshot::new(
-            entity_id.clone(),
-            package,
-            label.map(|s| s.to_string()),
-        );
+        let snapshot =
+            ContextSnapshot::new(entity_id.clone(), package, label.map(|s| s.to_string()));
 
         self.store.save_snapshot(&snapshot).await
     }

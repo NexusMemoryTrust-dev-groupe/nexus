@@ -99,7 +99,7 @@ mod tests {
     fn new_relationship_timestamp_is_recent() {
         let r = sample_relationship();
         let diff = (Utc::now() - r.created_at).num_milliseconds();
-        assert!(diff >= 0 && diff < 1000);
+        assert!((0..1000).contains(&diff));
     }
 
     #[test]
@@ -149,12 +149,7 @@ mod tests {
     #[test]
     fn same_source_target_fails() {
         let id = EntityId::new();
-        let r = Relationship::new(
-            id.clone(),
-            id,
-            RelationshipType::RelatedTo,
-            0.5,
-        );
+        let r = Relationship::new(id.clone(), id, RelationshipType::RelatedTo, 0.5);
         assert!(r.is_err());
     }
 

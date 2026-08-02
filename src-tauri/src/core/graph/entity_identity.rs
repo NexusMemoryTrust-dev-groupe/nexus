@@ -12,11 +12,7 @@ pub trait EntityIdentityService: Send + Sync {
 
     /// Merge duplicate entities into a primary one.
     /// The primary entity retains its ID; duplicates are marked as Merged.
-    async fn merge_entities(
-        &self,
-        primary: &EntityId,
-        duplicates: &[EntityId],
-    ) -> Result<Entity>;
+    async fn merge_entities(&self, primary: &EntityId, duplicates: &[EntityId]) -> Result<Entity>;
 
     /// Get the canonical entity for a given entity.
     /// If the entity has been merged, returns the primary entity.

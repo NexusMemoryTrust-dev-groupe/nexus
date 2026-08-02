@@ -2,7 +2,9 @@ use crate::core::entity_id::EntityId;
 use crate::core::graph::entity::{Entity, EntityStatus};
 use crate::core::graph::entity_identity::EntityIdentityService;
 use crate::core::graph::entity_types::EntityType;
-use crate::core::graph::graph_query::{GraphQuery, GraphQueryRequest, GraphQueryResult, TimelineEvent};
+use crate::core::graph::graph_query::{
+    GraphQuery, GraphQueryRequest, GraphQueryResult, TimelineEvent,
+};
 use crate::core::graph::graph_store::GraphStore;
 use crate::core::graph::graph_traversal::{GraphNeighborhood, GraphTraversal, SubGraph};
 use crate::core::graph::relationship::Relationship;
@@ -11,12 +13,7 @@ use crate::core::result::Result;
 
 /// Orchestrator for graph operations.
 /// Delegates to GraphStore, GraphTraversal, GraphQuery, EntityIdentityService.
-pub struct GraphService<
-    S: GraphStore,
-    T: GraphTraversal,
-    Q: GraphQuery,
-    I: EntityIdentityService,
-> {
+pub struct GraphService<S: GraphStore, T: GraphTraversal, Q: GraphQuery, I: EntityIdentityService> {
     store: S,
     traversal: T,
     query: Q,
@@ -76,10 +73,7 @@ impl<S: GraphStore, T: GraphTraversal, Q: GraphQuery, I: EntityIdentityService>
     }
 
     /// Get the context neighborhood of an entity (depth 2).
-    pub async fn get_context(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<GraphNeighborhood> {
+    pub async fn get_context(&self, entity_id: &EntityId) -> Result<GraphNeighborhood> {
         self.traversal.get_neighbors(entity_id, 2).await
     }
 
@@ -104,18 +98,12 @@ impl<S: GraphStore, T: GraphTraversal, Q: GraphQuery, I: EntityIdentityService>
     }
 
     /// Get knowledge density for an entity.
-    pub async fn get_knowledge_density(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<f64> {
+    pub async fn get_knowledge_density(&self, entity_id: &EntityId) -> Result<f64> {
         self.query.get_knowledge_density(entity_id).await
     }
 
     /// Get the timeline of changes for an entity.
-    pub async fn get_timeline(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<Vec<TimelineEvent>> {
+    pub async fn get_timeline(&self, entity_id: &EntityId) -> Result<Vec<TimelineEvent>> {
         self.query.get_timeline(entity_id).await
     }
 

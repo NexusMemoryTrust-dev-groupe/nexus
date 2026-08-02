@@ -96,10 +96,10 @@ pub async fn get_graph() -> Result<GraphData, String> {
     // Get all relationships
     let mut edges = Vec::new();
     for node in &nodes {
-        if let Ok(entity_id) = EntityId::parse(&node.id) {
-            if let Ok(rels) = repo.get_entity_relationships(&entity_id).await {
-                edges.extend(rels.into_iter().map(GraphEdge::from));
-            }
+        if let Ok(entity_id) = EntityId::parse(&node.id)
+            && let Ok(rels) = repo.get_entity_relationships(&entity_id).await
+        {
+            edges.extend(rels.into_iter().map(GraphEdge::from));
         }
     }
 
@@ -111,7 +111,10 @@ pub async fn get_graph() -> Result<GraphData, String> {
 pub async fn get_entity(id: String) -> Result<Option<GraphNode>, String> {
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let repo = open_repo()?;
-    let entity = repo.get_entity(&entity_id).await.map_err(|e| e.to_string())?;
+    let entity = repo
+        .get_entity(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(entity.map(GraphNode::from))
 }
 
@@ -123,7 +126,7 @@ pub async fn create_entity(
     description: String,
 ) -> Result<GraphNode, String> {
     let repo = open_repo()?;
-    let et = EntityType::from_str(&entity_type);
+    let et = EntityType::from(entity_type.as_str());
     let entity = Entity::new(et, title, description);
     entity.validate().map_err(|e| e.to_string())?;
     let _id = repo.add_entity(&entity).await.map_err(|e| e.to_string())?;
@@ -174,10 +177,10 @@ pub async fn get_project_entities(project_id: String) -> Result<GraphData, Strin
     // Fetch all linked entities
     let mut nodes: Vec<GraphNode> = Vec::new();
     for eid_str in &entity_ids {
-        if let Ok(eid) = EntityId::parse(eid_str) {
-            if let Ok(Some(entity)) = repo.get_entity(&eid).await {
-                nodes.push(GraphNode::from(entity));
-            }
+        if let Ok(eid) = EntityId::parse(eid_str)
+            && let Ok(Some(entity)) = repo.get_entity(&eid).await
+        {
+            nodes.push(GraphNode::from(entity));
         }
     }
 
@@ -213,12 +216,15 @@ pub async fn link_entity_to_project(
         .ok_or_else(|| format!("Entity {} not found", entity_id))?;
 
     let rel_type = relationship_type
-        .map(|s| RelationshipType::from_str(&s))
+        .map(|s| RelationshipType::from(s.as_str()))
         .unwrap_or(RelationshipType::Uses);
     let w = weight.unwrap_or(0.8);
 
     let rel = Relationship::new(project_eid, entity_eid, rel_type, w).map_err(|e| e.to_string())?;
-    let _rel_id = repo.add_relationship(&rel).await.map_err(|e| e.to_string())?;
+    let _rel_id = repo
+        .add_relationship(&rel)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(GraphEdge::from(rel))
 }
 
@@ -227,7 +233,9 @@ pub async fn link_entity_to_project(
 pub async fn delete_relationship(relationship_id: String) -> Result<(), String> {
     let repo = open_repo()?;
     let rid = EntityId::parse(&relationship_id).map_err(|e| e.to_string())?;
-    repo.delete_relationship(&rid).await.map_err(|e| e.to_string())
+    repo.delete_relationship(&rid)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Update an entity (project or any other type).
@@ -258,13 +266,17 @@ pub async fn update_entity(
         }
     }
     entity.updated_at = chrono::Utc::now();
-    repo.update_entity(&entity).await.map_err(|e| e.to_string())?;
+    repo.update_entity(&entity)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(GraphNode::from(entity))
 }
 
 /// Get entity metadata (or empty map if entity has none).
 #[tauri::command]
-pub async fn get_entity_metadata(id: String) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
+pub async fn get_entity_metadata(
+    id: String,
+) -> Result<std::collections::HashMap<String, serde_json::Value>, String> {
     let repo = open_repo()?;
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let entity = repo
@@ -286,14 +298,22 @@ pub async fn delete_entity(id: String) -> Result<(), String> {
     let links_repo = crate::storage::sqlite::SqliteMemoryEntityLinkRepository::new(links_conn)
         .map_err(|e| e.to_string())?;
     use crate::storage::sqlite::memory_entity_links_repository::MemoryEntityLinkRepository;
-    links_repo.delete_links_for_entity(&entity_id).await.map_err(|e| e.to_string())?;
+    links_repo
+        .delete_links_for_entity(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Clean up relationships involving this entity
     let repo = open_repo()?;
-    let rels = repo.get_entity_relationships(&entity_id).await.map_err(|e| e.to_string())?;
+    let rels = repo
+        .get_entity_relationships(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?;
     for rel in rels {
         let _ = repo.delete_relationship(&rel.id).await;
     }
 
-    repo.delete_entity(&entity_id).await.map_err(|e| e.to_string())
+    repo.delete_entity(&entity_id)
+        .await
+        .map_err(|e| e.to_string())
 }

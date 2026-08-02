@@ -22,11 +22,8 @@ pub trait SnapshotService: Send + Sync {
     async fn get(&self, snapshot_id: &str) -> Result<Option<Vec<u8>>>;
 
     /// Get the latest baseline snapshot ID for an entity.
-    async fn get_baseline(
-        &self,
-        entity_type: &str,
-        entity_id: &EntityId,
-    ) -> Result<Option<String>>;
+    async fn get_baseline(&self, entity_type: &str, entity_id: &EntityId)
+    -> Result<Option<String>>;
 }
 
 #[cfg(test)]

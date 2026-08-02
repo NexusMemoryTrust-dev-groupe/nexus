@@ -75,29 +75,37 @@ mod tests {
 
     #[test]
     fn validate_zero_tokens() {
-        let mut req = ContextRequest::default();
-        req.max_tokens = 0;
+        let req = ContextRequest {
+            max_tokens: 0,
+            ..Default::default()
+        };
         assert!(req.validate().is_err());
     }
 
     #[test]
     fn validate_zero_entities() {
-        let mut req = ContextRequest::default();
-        req.max_entities = 0;
+        let req = ContextRequest {
+            max_entities: 0,
+            ..Default::default()
+        };
         assert!(req.validate().is_err());
     }
 
     #[test]
     fn validate_zero_depth() {
-        let mut req = ContextRequest::default();
-        req.max_depth = 0;
+        let req = ContextRequest {
+            max_depth: 0,
+            ..Default::default()
+        };
         assert!(req.validate().is_err());
     }
 
     #[test]
     fn validate_min_relevance_out_of_range() {
-        let mut req = ContextRequest::default();
-        req.min_relevance = 1.5;
+        let req = ContextRequest {
+            min_relevance: 1.5,
+            ..Default::default()
+        };
         assert!(req.validate().is_err());
     }
 

@@ -58,8 +58,8 @@ impl EventBus for InMemoryEventBus {
 mod tests {
     use super::*;
     use crate::core::domain_event::DomainEventType;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test]
     async fn event_bus_publish_and_subscribe() {
@@ -72,10 +72,7 @@ mod tests {
         }))
         .await;
 
-        let event = DomainEvent::new(
-            DomainEventType::EntityCreated,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::EntityCreated, serde_json::json!({}));
         bus.publish(event).await.unwrap();
 
         // Give spawned task time to process
@@ -101,10 +98,7 @@ mod tests {
         }))
         .await;
 
-        let event = DomainEvent::new(
-            DomainEventType::EntityCreated,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::EntityCreated, serde_json::json!({}));
         bus.publish(event).await.unwrap();
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -115,19 +109,14 @@ mod tests {
     #[tokio::test]
     async fn event_bus_default_capacity() {
         let bus = InMemoryEventBus::default();
-        let event = DomainEvent::new(
-            DomainEventType::EntityCreated,
-            serde_json::json!({}),
-        );
+        let event = DomainEvent::new(DomainEventType::EntityCreated, serde_json::json!({}));
         assert!(bus.publish(event).await.is_ok());
     }
 
     #[tokio::test]
     async fn event_bus_unsubscribe() {
         let bus = InMemoryEventBus::new(10);
-        let id = bus
-            .subscribe(Box::new(|_| {}))
-            .await;
+        let id = bus.subscribe(Box::new(|_| {})).await;
         assert!(bus.unsubscribe(id).await.is_ok());
     }
 }

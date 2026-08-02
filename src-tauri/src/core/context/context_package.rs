@@ -87,10 +87,7 @@ impl ContextPackage {
             entities: Vec::new(),
             relationships: Vec::new(),
             memory_records: Vec::new(),
-            temporal_slice: TemporalSlice {
-                from: now,
-                to: now,
-            },
+            temporal_slice: TemporalSlice { from: now, to: now },
             relevance_scores: HashMap::new(),
             user_intent,
             created_at: now,
@@ -128,7 +125,11 @@ mod tests {
             query: "find project status".to_string(),
             intent_type: IntentType::Search,
             confidence: 0.8,
-            keywords: vec!["find".to_string(), "project".to_string(), "status".to_string()],
+            keywords: vec![
+                "find".to_string(),
+                "project".to_string(),
+                "status".to_string(),
+            ],
             temporal: None,
         }
     }

@@ -30,35 +30,182 @@ pub struct ModelPricing {
 /// Full model catalog used for per-model savings calculations.
 pub const ALL_MODELS: &[ModelPricing] = &[
     // OpenAI
-    ModelPricing { company: "OpenAI",     name: "GPT-5.6 Sol",       input_per_m: 5.00,  output_per_m: 30.00, context: "1M",    purpose: "Flagship" },
-    ModelPricing { company: "OpenAI",     name: "GPT-5.6 Terra",     input_per_m: 2.00,  output_per_m: 12.00, context: "1M",    purpose: "Main" },
-    ModelPricing { company: "OpenAI",     name: "GPT-5.6 Luna",      input_per_m: 0.20,  output_per_m: 1.20,  context: "1M",    purpose: "Budget" },
+    ModelPricing {
+        company: "OpenAI",
+        name: "GPT-5.6 Sol",
+        input_per_m: 5.00,
+        output_per_m: 30.00,
+        context: "1M",
+        purpose: "Flagship",
+    },
+    ModelPricing {
+        company: "OpenAI",
+        name: "GPT-5.6 Terra",
+        input_per_m: 2.00,
+        output_per_m: 12.00,
+        context: "1M",
+        purpose: "Main",
+    },
+    ModelPricing {
+        company: "OpenAI",
+        name: "GPT-5.6 Luna",
+        input_per_m: 0.20,
+        output_per_m: 1.20,
+        context: "1M",
+        purpose: "Budget",
+    },
     // Anthropic
-    ModelPricing { company: "Anthropic",  name: "Claude Fable 5",    input_per_m: 10.00, output_per_m: 50.00, context: "500k+", purpose: "Max quality" },
-    ModelPricing { company: "Anthropic",  name: "Claude Opus 5",     input_per_m: 5.00,  output_per_m: 25.00, context: "500k+", purpose: "Top reasoning" },
-    ModelPricing { company: "Anthropic",  name: "Claude Sonnet 5",   input_per_m: 2.00,  output_per_m: 10.00, context: "500k+", purpose: "Best value" },
-    ModelPricing { company: "Anthropic",  name: "Claude Sonnet 4.6", input_per_m: 3.00,  output_per_m: 15.00, context: "500k",  purpose: "Prev gen" },
-    ModelPricing { company: "Anthropic",  name: "Claude Haiku 4.5",  input_per_m: 1.00,  output_per_m: 5.00,  context: "500k",  purpose: "Fast" },
+    ModelPricing {
+        company: "Anthropic",
+        name: "Claude Fable 5",
+        input_per_m: 10.00,
+        output_per_m: 50.00,
+        context: "500k+",
+        purpose: "Max quality",
+    },
+    ModelPricing {
+        company: "Anthropic",
+        name: "Claude Opus 5",
+        input_per_m: 5.00,
+        output_per_m: 25.00,
+        context: "500k+",
+        purpose: "Top reasoning",
+    },
+    ModelPricing {
+        company: "Anthropic",
+        name: "Claude Sonnet 5",
+        input_per_m: 2.00,
+        output_per_m: 10.00,
+        context: "500k+",
+        purpose: "Best value",
+    },
+    ModelPricing {
+        company: "Anthropic",
+        name: "Claude Sonnet 4.6",
+        input_per_m: 3.00,
+        output_per_m: 15.00,
+        context: "500k",
+        purpose: "Prev gen",
+    },
+    ModelPricing {
+        company: "Anthropic",
+        name: "Claude Haiku 4.5",
+        input_per_m: 1.00,
+        output_per_m: 5.00,
+        context: "500k",
+        purpose: "Fast",
+    },
     // Google
-    ModelPricing { company: "Google",     name: "Gemini 3.1 Pro",    input_per_m: 2.00,  output_per_m: 12.00, context: "1M",    purpose: "Main Gemini" },
-    ModelPricing { company: "Google",     name: "Gemini 2.5 Pro",    input_per_m: 1.25,  output_per_m: 10.00, context: "1M",    purpose: "Prev gen" },
-    ModelPricing { company: "Google",     name: "Gemini Flash",      input_per_m: 0.35,  output_per_m: 1.50,  context: "1M",    purpose: "Budget" },
+    ModelPricing {
+        company: "Google",
+        name: "Gemini 3.1 Pro",
+        input_per_m: 2.00,
+        output_per_m: 12.00,
+        context: "1M",
+        purpose: "Main Gemini",
+    },
+    ModelPricing {
+        company: "Google",
+        name: "Gemini 2.5 Pro",
+        input_per_m: 1.25,
+        output_per_m: 10.00,
+        context: "1M",
+        purpose: "Prev gen",
+    },
+    ModelPricing {
+        company: "Google",
+        name: "Gemini Flash",
+        input_per_m: 0.35,
+        output_per_m: 1.50,
+        context: "1M",
+        purpose: "Budget",
+    },
     // xAI
-    ModelPricing { company: "xAI",        name: "Grok 4.x",          input_per_m: 2.50,  output_per_m: 12.50, context: "2M",    purpose: "Reasoning" },
-    ModelPricing { company: "xAI",        name: "Grok Fast",         input_per_m: 0.80,  output_per_m: 5.00,  context: "2M",    purpose: "Fast" },
+    ModelPricing {
+        company: "xAI",
+        name: "Grok 4.x",
+        input_per_m: 2.50,
+        output_per_m: 12.50,
+        context: "2M",
+        purpose: "Reasoning",
+    },
+    ModelPricing {
+        company: "xAI",
+        name: "Grok Fast",
+        input_per_m: 0.80,
+        output_per_m: 5.00,
+        context: "2M",
+        purpose: "Fast",
+    },
     // DeepSeek
-    ModelPricing { company: "DeepSeek",   name: "DeepSeek V4",       input_per_m: 0.30,  output_per_m: 1.20,  context: "256k", purpose: "Universal" },
-    ModelPricing { company: "DeepSeek",   name: "DeepSeek V4 Flash", input_per_m: 0.14,  output_per_m: 0.90,  context: "256k", purpose: "Cheapest" },
+    ModelPricing {
+        company: "DeepSeek",
+        name: "DeepSeek V4",
+        input_per_m: 0.30,
+        output_per_m: 1.20,
+        context: "256k",
+        purpose: "Universal",
+    },
+    ModelPricing {
+        company: "DeepSeek",
+        name: "DeepSeek V4 Flash",
+        input_per_m: 0.14,
+        output_per_m: 0.90,
+        context: "256k",
+        purpose: "Cheapest",
+    },
     // Moonshot
-    ModelPricing { company: "Moonshot",   name: "Kimi K3",           input_per_m: 0.50,  output_per_m: 2.00,  context: "1M",    purpose: "Code" },
+    ModelPricing {
+        company: "Moonshot",
+        name: "Kimi K3",
+        input_per_m: 0.50,
+        output_per_m: 2.00,
+        context: "1M",
+        purpose: "Code",
+    },
     // Alibaba
-    ModelPricing { company: "Alibaba",    name: "Qwen 3",            input_per_m: 0.40,  output_per_m: 2.00,  context: "1M",    purpose: "Universal" },
+    ModelPricing {
+        company: "Alibaba",
+        name: "Qwen 3",
+        input_per_m: 0.40,
+        output_per_m: 2.00,
+        context: "1M",
+        purpose: "Universal",
+    },
     // Mistral
-    ModelPricing { company: "Mistral",    name: "Magistral Medium",  input_per_m: 2.00,  output_per_m: 8.00,  context: "256k", purpose: "Reasoning" },
-    ModelPricing { company: "Mistral",    name: "Mistral Small",     input_per_m: 0.80,  output_per_m: 2.50,  context: "128k", purpose: "Fast" },
+    ModelPricing {
+        company: "Mistral",
+        name: "Magistral Medium",
+        input_per_m: 2.00,
+        output_per_m: 8.00,
+        context: "256k",
+        purpose: "Reasoning",
+    },
+    ModelPricing {
+        company: "Mistral",
+        name: "Mistral Small",
+        input_per_m: 0.80,
+        output_per_m: 2.50,
+        context: "128k",
+        purpose: "Fast",
+    },
     // Cohere
-    ModelPricing { company: "Cohere",     name: "Command R+",        input_per_m: 3.00,  output_per_m: 15.00, context: "128k", purpose: "RAG" },
-    ModelPricing { company: "Cohere",     name: "Command R",         input_per_m: 1.00,  output_per_m: 5.00,  context: "128k", purpose: "Enterprise" },
+    ModelPricing {
+        company: "Cohere",
+        name: "Command R+",
+        input_per_m: 3.00,
+        output_per_m: 15.00,
+        context: "128k",
+        purpose: "RAG",
+    },
+    ModelPricing {
+        company: "Cohere",
+        name: "Command R",
+        input_per_m: 1.00,
+        output_per_m: 5.00,
+        context: "128k",
+        purpose: "Enterprise",
+    },
 ];
 
 /// Look up a model by display name (case-insensitive, trims whitespace).
@@ -185,9 +332,11 @@ impl SavingsMeasurement {
 /// the "saving" — so the headline number was both an estimate and the wrong
 /// quantity. Nothing here is assumed: every value written was measured by the
 /// caller.
-fn record_savings_inner(m: &SavingsMeasurement, query: &str, intent_type: &str)
-    -> std::result::Result<(), String>
-{
+fn record_savings_inner(
+    m: &SavingsMeasurement,
+    query: &str,
+    intent_type: &str,
+) -> std::result::Result<(), String> {
     let conn = db::open_connection().map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
 
@@ -215,7 +364,8 @@ fn record_savings_inner(m: &SavingsMeasurement, query: &str, intent_type: &str)
             m.candidate_entities,
             m.candidate_memories,
         ],
-    ).map_err(|e| e.to_string())?;
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -264,11 +414,9 @@ pub fn get_savings_stats() -> std::result::Result<SavingsStats, String> {
     let total_interactions = total_interactions as u64;
     let total_tokens_saved = total_tokens_saved as u64;
 
-    let avg_tokens = if total_interactions > 0 {
-        total_tokens_saved / total_interactions
-    } else {
-        0
-    };
+    let avg_tokens = total_tokens_saved
+        .checked_div(total_interactions)
+        .unwrap_or(0);
 
     // Period stats
     let tokens_today = query_period_tokens(&conn, "datetime('now', 'start of day')").unwrap_or(0);
@@ -405,12 +553,19 @@ pub fn get_model_savings(model: &str) -> std::result::Result<serde_json::Value, 
         None => Err(format!(
             "Unknown model '{}'. Known models: {}",
             model,
-            ALL_MODELS.iter().map(|m| m.name).collect::<Vec<_>>().join(", ")
+            ALL_MODELS
+                .iter()
+                .map(|m| m.name)
+                .collect::<Vec<_>>()
+                .join(", ")
         )),
     }
 }
 
-fn query_period_tokens(conn: &rusqlite::Connection, date_expr: &str) -> std::result::Result<u64, String> {
+fn query_period_tokens(
+    conn: &rusqlite::Connection,
+    date_expr: &str,
+) -> std::result::Result<u64, String> {
     let sql = format!(
         "SELECT COALESCE(SUM(tokens_saved), 0) FROM savings_log WHERE created_at >= {}",
         date_expr
@@ -420,7 +575,10 @@ fn query_period_tokens(conn: &rusqlite::Connection, date_expr: &str) -> std::res
         .map_err(|e| e.to_string())
 }
 
-fn query_period_cost(conn: &rusqlite::Connection, date_expr: &str) -> std::result::Result<f64, String> {
+fn query_period_cost(
+    conn: &rusqlite::Connection,
+    date_expr: &str,
+) -> std::result::Result<f64, String> {
     let sql = format!(
         "SELECT COALESCE(SUM(cost_saved_usd), 0.0) FROM savings_log WHERE created_at >= {}",
         date_expr
@@ -429,7 +587,9 @@ fn query_period_cost(conn: &rusqlite::Connection, date_expr: &str) -> std::resul
         .map_err(|e| e.to_string())
 }
 
-fn get_recent_interactions(conn: &rusqlite::Connection) -> std::result::Result<Vec<InteractionRecord>, String> {
+fn get_recent_interactions(
+    conn: &rusqlite::Connection,
+) -> std::result::Result<Vec<InteractionRecord>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT tokens_saved, cost_saved_usd, entities_count, memories_count, query_text, created_at
@@ -444,17 +604,19 @@ fn get_recent_interactions(conn: &rusqlite::Connection) -> std::result::Result<V
                 cost_saved_usd: row.get(1).unwrap_or(0.0),
                 entities_count: row.get::<_, i64>(2).unwrap_or(0) as u64,
                 memories_count: row.get::<_, i64>(3).unwrap_or(0) as u64,
-                query_preview: row.get::<_, Option<String>>(4).ok().flatten().unwrap_or_default(),
+                query_preview: row
+                    .get::<_, Option<String>>(4)
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default(),
                 created_at: row.get(5).unwrap_or_default(),
             })
         })
         .map_err(|e| e.to_string())?;
 
     let mut result = Vec::new();
-    for row in rows {
-        if let Ok(r) = row {
-            result.push(r);
-        }
+    for r in rows.flatten() {
+        result.push(r);
     }
     Ok(result)
 }
@@ -468,12 +630,9 @@ pub fn record_savings(m: &SavingsMeasurement, query: &str, intent_type: &str) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn pricing_constants_are_positive() {
-        assert!(pricing::AVG_INPUT_PER_M > 0.0);
-        assert!(pricing::COST_PER_INPUT_TOKEN > 0.0);
-        assert!(pricing::COST_PER_INPUT_TOKEN < 0.001);
-    }
+    // The pricing constants are checked at compile time — see the `const _`
+    // assertions next to the `pricing` module. A runtime test could not fail
+    // without the build already having failed.
 
     #[test]
     fn cost_calculation_is_correct() {

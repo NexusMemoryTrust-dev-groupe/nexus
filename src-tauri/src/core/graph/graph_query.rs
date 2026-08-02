@@ -52,16 +52,10 @@ pub trait GraphQuery: Send + Sync {
 
     /// Calculate knowledge density for an entity — ratio of actual connections
     /// to possible connections within its neighborhood.
-    async fn get_knowledge_density(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<f64>;
+    async fn get_knowledge_density(&self, entity_id: &EntityId) -> Result<f64>;
 
     /// Get the timeline of changes for an entity.
-    async fn get_timeline(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<Vec<TimelineEvent>>;
+    async fn get_timeline(&self, entity_id: &EntityId) -> Result<Vec<TimelineEvent>>;
 }
 
 #[cfg(test)]

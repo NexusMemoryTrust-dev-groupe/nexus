@@ -48,17 +48,25 @@ impl InMemoryContextCache {
     }
 
     /// Update the reverse index when adding a cache entry.
-    fn index_entry(cache_key: &str, package: &ContextPackage, entity_index: &mut HashMap<String, HashSet<String>>) {
+    fn index_entry(
+        cache_key: &str,
+        package: &ContextPackage,
+        entity_index: &mut HashMap<String, HashSet<String>>,
+    ) {
         for entity_id in Self::extract_entity_ids(package) {
             entity_index
                 .entry(entity_id)
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(cache_key.to_string());
         }
     }
 
     /// Remove a cache entry and clean up the reverse index.
-    fn remove_entry(cache_key: &str, cache: &mut HashMap<String, (ContextPackage, Instant)>, entity_index: &mut HashMap<String, HashSet<String>>) {
+    fn remove_entry(
+        cache_key: &str,
+        cache: &mut HashMap<String, (ContextPackage, Instant)>,
+        entity_index: &mut HashMap<String, HashSet<String>>,
+    ) {
         if let Some((package, _)) = cache.remove(cache_key) {
             // Clean up reverse index
             for entity_id in Self::extract_entity_ids(&package) {
@@ -182,7 +190,11 @@ mod tests {
 
     fn package_with_entity(entity_id: &EntityId) -> ContextPackage {
         let mut pkg = sample_package();
-        let entity = Entity::new(EntityType::Person, "Alice".to_string(), "Engineer".to_string());
+        let entity = Entity::new(
+            EntityType::Person,
+            "Alice".to_string(),
+            "Engineer".to_string(),
+        );
         // Override the entity ID to match what we want
         let mut entity = entity;
         entity.id = entity_id.clone();
@@ -251,11 +263,19 @@ mod tests {
 
         // Create entries with different entities
         let mut pkg1 = sample_package();
-        pkg1.entities = vec![Entity::new(EntityType::Person, "Alice".to_string(), "".to_string())];
+        pkg1.entities = vec![Entity::new(
+            EntityType::Person,
+            "Alice".to_string(),
+            "".to_string(),
+        )];
         pkg1.entities[0].id = eid1.clone();
 
         let mut pkg2 = sample_package();
-        pkg2.entities = vec![Entity::new(EntityType::Person, "Bob".to_string(), "".to_string())];
+        pkg2.entities = vec![Entity::new(
+            EntityType::Person,
+            "Bob".to_string(),
+            "".to_string(),
+        )];
         pkg2.entities[0].id = eid2.clone();
 
         cache.set("key1", &pkg1).await.unwrap();

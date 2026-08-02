@@ -109,8 +109,7 @@ mod tests {
     #[test]
     fn result_ok_type() {
         let r: Result<i32> = Ok(42);
-        assert!(r.is_ok());
-        assert_eq!(r.unwrap(), 42);
+        assert!(matches!(r, Ok(42)));
     }
 
     #[test]

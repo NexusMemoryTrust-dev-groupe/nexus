@@ -63,10 +63,10 @@ pub struct Count {
 fn cache_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
-    if let Ok(dir) = std::env::var("FASTEMBED_CACHE_DIR") {
-        if !dir.trim().is_empty() {
-            roots.push(PathBuf::from(dir));
-        }
+    if let Ok(dir) = std::env::var("FASTEMBED_CACHE_DIR")
+        && !dir.trim().is_empty()
+    {
+        roots.push(PathBuf::from(dir));
     }
 
     // fastembed's own default, relative to the process working directory.
@@ -79,10 +79,10 @@ fn cache_roots() -> Vec<PathBuf> {
     }
 
     // Next to the executable, for a portable install.
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.join(".fastembed_cache"));
-        }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        roots.push(dir.join(".fastembed_cache"));
     }
 
     roots
@@ -105,10 +105,10 @@ fn find_tokenizer_json(root: &Path, depth: usize) -> Option<PathBuf> {
     let entries = std::fs::read_dir(root).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
-            if let Some(found) = find_tokenizer_json(&path, depth - 1) {
-                return Some(found);
-            }
+        if path.is_dir()
+            && let Some(found) = find_tokenizer_json(&path, depth - 1)
+        {
+            return Some(found);
         }
     }
     None

@@ -38,7 +38,11 @@ impl ItemKind {
 // `rename_all_fields`, otherwise `from_title` reaches the UI as snake_case
 // while everything around it is camelCase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Reason {
     /// The graph search for the user's query returned this entity directly.
     QueryMatch { query: String },
@@ -186,13 +190,7 @@ impl Provenance {
     }
 
     /// Record a reason for `id`, creating the trace when first seen.
-    pub fn record(
-        &mut self,
-        id: &str,
-        kind: ItemKind,
-        title: &str,
-        reason: Reason,
-    ) {
+    pub fn record(&mut self, id: &str, kind: ItemKind, title: &str, reason: Reason) {
         match self.traces.iter_mut().find(|t| t.id == id) {
             Some(existing) => existing.add_reason(reason),
             None => {
@@ -317,13 +315,17 @@ mod tests {
             "e1",
             ItemKind::Entity,
             "Alpha",
-            Reason::KeywordMatch { keyword: "rust".into() },
+            Reason::KeywordMatch {
+                keyword: "rust".into(),
+            },
         );
         p.record(
             "e1",
             ItemKind::Entity,
             "Alpha",
-            Reason::KeywordMatch { keyword: "async".into() },
+            Reason::KeywordMatch {
+                keyword: "async".into(),
+            },
         );
 
         assert_eq!(p.get("e1").unwrap().reasons.len(), 2);
@@ -336,7 +338,11 @@ mod tests {
             p.record(id, ItemKind::Entity, id, qm("q"));
         }
         let ids: Vec<&str> = p.traces().iter().map(|t| t.id.as_str()).collect();
-        assert_eq!(ids, ["a", "b", "c"], "explanation must read in pipeline order");
+        assert_eq!(
+            ids,
+            ["a", "b", "c"],
+            "explanation must read in pipeline order"
+        );
     }
 
     #[test]
@@ -346,7 +352,10 @@ mod tests {
         p.set_score(
             "e1",
             0.7,
-            vec![ScorePart::new("titleMatch", 0.4), ScorePart::new("recency", 0.3)],
+            vec![
+                ScorePart::new("titleMatch", 0.4),
+                ScorePart::new("recency", 0.3),
+            ],
         );
 
         let t = p.get("e1").unwrap();
@@ -354,7 +363,10 @@ mod tests {
         assert_eq!(t.score_parts.len(), 2);
         // The parts must actually add up to the score, or the explanation lies.
         let sum: f64 = t.score_parts.iter().map(|s| s.points).sum();
-        assert!((sum - 0.7).abs() < 1e-9, "parts must sum to the score, got {sum}");
+        assert!(
+            (sum - 0.7).abs() < 1e-9,
+            "parts must sum to the score, got {sum}"
+        );
     }
 
     #[test]
@@ -370,14 +382,20 @@ mod tests {
         p.record("e1", ItemKind::Entity, "Alpha", qm("alpha"));
         p.mark_dropped(
             "e1",
-            DropCause::BelowRelevance { score: 0.1, floor: 0.3 },
+            DropCause::BelowRelevance {
+                score: 0.1,
+                floor: 0.3,
+            },
         );
 
         let t = p.get("e1").unwrap();
         assert!(!t.included);
         assert_eq!(
             t.dropped,
-            Some(DropCause::BelowRelevance { score: 0.1, floor: 0.3 })
+            Some(DropCause::BelowRelevance {
+                score: 0.1,
+                floor: 0.3
+            })
         );
     }
 
@@ -399,13 +417,22 @@ mod tests {
     fn reconcile_does_not_overwrite_an_earlier_cause() {
         let mut p = Provenance::new();
         p.record("e1", ItemKind::Entity, "Alpha", qm("q"));
-        p.mark_dropped("e1", DropCause::BelowRelevance { score: 0.1, floor: 0.3 });
+        p.mark_dropped(
+            "e1",
+            DropCause::BelowRelevance {
+                score: 0.1,
+                floor: 0.3,
+            },
+        );
         // A later stage reconciles; the original, more specific cause must win.
         p.reconcile(&[], DropCause::TokenBudget { limit: 10 });
 
         assert_eq!(
             p.get("e1").unwrap().dropped,
-            Some(DropCause::BelowRelevance { score: 0.1, floor: 0.3 }),
+            Some(DropCause::BelowRelevance {
+                score: 0.1,
+                floor: 0.3
+            }),
             "the first recorded cause is the true one"
         );
     }
@@ -422,14 +449,23 @@ mod tests {
             .id(),
             "graphExpansion"
         );
-        assert_eq!(Reason::RecentActivity { age_days: 1 }.id(), "recentActivity");
+        assert_eq!(
+            Reason::RecentActivity { age_days: 1 }.id(),
+            "recentActivity"
+        );
         assert_eq!(
             Reason::HighImportance { importance: 0.9 }.id(),
             "highImportance"
         );
-        assert_eq!(Reason::MemorySearch { query: "q".into() }.id(), "memorySearch");
         assert_eq!(
-            Reason::KeywordMatch { keyword: "k".into() }.id(),
+            Reason::MemorySearch { query: "q".into() }.id(),
+            "memorySearch"
+        );
+        assert_eq!(
+            Reason::KeywordMatch {
+                keyword: "k".into()
+            }
+            .id(),
             "keywordMatch"
         );
     }
@@ -437,7 +473,11 @@ mod tests {
     #[test]
     fn drop_cause_ids_are_stable_for_the_ui() {
         assert_eq!(
-            DropCause::BelowRelevance { score: 0.0, floor: 0.3 }.id(),
+            DropCause::BelowRelevance {
+                score: 0.0,
+                floor: 0.3
+            }
+            .id(),
             "belowRelevance"
         );
         assert_eq!(DropCause::TokenBudget { limit: 1 }.id(), "tokenBudget");

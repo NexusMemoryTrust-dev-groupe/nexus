@@ -4,6 +4,12 @@ use crate::core::context::context_package::{IntentType, UserIntent};
 /// Now with keyword extraction and temporal reasoning.
 pub struct IntentDetector;
 
+impl Default for IntentDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IntentDetector {
     pub fn new() -> Self {
         Self
@@ -15,7 +21,7 @@ impl IntentDetector {
         let confidence = self.calculate_confidence(query, &intent_type);
         let keywords = self.extract_keywords(query);
         let temporal = self.detect_temporal(query);
-        
+
         UserIntent {
             query: query.to_string(),
             intent_type,
@@ -78,37 +84,225 @@ impl IntentDetector {
     pub fn extract_keywords(&self, query: &str) -> Vec<String> {
         let stop_words = [
             // English
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "be",
-            "been", "being", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "can", "shall", "all",
-            "this", "that", "these", "those", "it", "its", "my", "your", "his",
-            "her", "our", "their", "what", "which", "who", "whom", "how", "when",
-            "where", "why", "not", "no", "nor", "if", "then", "else", "than",
-            "too", "very", "just", "about", "also", "now", "here", "there",
-            "only", "own", "same", "so", "some", "such", "into", "over", "after",
-            "before", "between", "through", "during", "without", "again", "further",
-            "once", "each", "every", "both", "few", "more", "most", "other",
-            "any", "much", "many", "well", "back", "even", "still", "new",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+            "are",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "can",
+            "shall",
+            "all",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "my",
+            "your",
+            "his",
+            "her",
+            "our",
+            "their",
+            "what",
+            "which",
+            "who",
+            "whom",
+            "how",
+            "when",
+            "where",
+            "why",
+            "not",
+            "no",
+            "nor",
+            "if",
+            "then",
+            "else",
+            "than",
+            "too",
+            "very",
+            "just",
+            "about",
+            "also",
+            "now",
+            "here",
+            "there",
+            "only",
+            "own",
+            "same",
+            "so",
+            "some",
+            "such",
+            "into",
+            "over",
+            "after",
+            "before",
+            "between",
+            "through",
+            "during",
+            "without",
+            "again",
+            "further",
+            "once",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "any",
+            "much",
+            "many",
+            "well",
+            "back",
+            "even",
+            "still",
+            "new",
             // Russian
-            "и", "а", "но", "в", "на", "с", "для", "от", "по", "из", "к",
-            "что", "как", "где", "когда", "почему", "кто", "чем", "это", "все",
-            "не", "ни", "да", "нет", "уже", "еще", "тоже", "также", "только",
-            "все", "всё", "каждый", "каждая", "каждое", "можно", "нужно",
-            "надо", "быть", "был", "была", "было", "были", "будет", "будут",
-            "есть", "нет", "быть", "является", "являются", "этот", "эта",
-            "это", "эти", "тот", "та", "те", "такой", "такая", "такие",
-            "какой", "какая", "какие", "чей", "чья", "чьи", "мой", "моя",
-            "мои", "твой", "твоя", "твои", "наш", "наша", "наши", "ваш",
-            "ваша", "ваши", "его", "её", "их", "себя", "себе", "собой",
-            "сам", "сама", "само", "сами", "тут", "там", "здесь", "потом",
-            "тогда", "сейчас", "потому", "поэтому", "однако", "если",
-            "чтобы", "чтоб", "который", "которая", "которое", "которые",
+            "и",
+            "а",
+            "но",
+            "в",
+            "на",
+            "с",
+            "для",
+            "от",
+            "по",
+            "из",
+            "к",
+            "что",
+            "как",
+            "где",
+            "когда",
+            "почему",
+            "кто",
+            "чем",
+            "это",
+            "все",
+            "не",
+            "ни",
+            "да",
+            "нет",
+            "уже",
+            "еще",
+            "тоже",
+            "также",
+            "только",
+            "все",
+            "всё",
+            "каждый",
+            "каждая",
+            "каждое",
+            "можно",
+            "нужно",
+            "надо",
+            "быть",
+            "был",
+            "была",
+            "было",
+            "были",
+            "будет",
+            "будут",
+            "есть",
+            "нет",
+            "быть",
+            "является",
+            "являются",
+            "этот",
+            "эта",
+            "это",
+            "эти",
+            "тот",
+            "та",
+            "те",
+            "такой",
+            "такая",
+            "такие",
+            "какой",
+            "какая",
+            "какие",
+            "чей",
+            "чья",
+            "чьи",
+            "мой",
+            "моя",
+            "мои",
+            "твой",
+            "твоя",
+            "твои",
+            "наш",
+            "наша",
+            "наши",
+            "ваш",
+            "ваша",
+            "ваши",
+            "его",
+            "её",
+            "их",
+            "себя",
+            "себе",
+            "собой",
+            "сам",
+            "сама",
+            "само",
+            "сами",
+            "тут",
+            "там",
+            "здесь",
+            "потом",
+            "тогда",
+            "сейчас",
+            "потому",
+            "поэтому",
+            "однако",
+            "если",
+            "чтобы",
+            "чтоб",
+            "который",
+            "которая",
+            "которое",
+            "которые",
         ];
-        
+
         let mut keywords: Vec<String> = query
             .split_whitespace()
-            .map(|w| w.to_lowercase().chars().filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_').collect::<String>())
+            .map(|w| {
+                w.to_lowercase()
+                    .chars()
+                    .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                    .collect::<String>()
+            })
             .filter(|w| w.len() > 2 && !stop_words.contains(&w.as_str()))
             .collect();
         // `dedup()` only removes *adjacent* duplicates, so "rust vs rust" kept
@@ -121,7 +315,7 @@ impl IntentDetector {
     /// Detect temporal references in query.
     pub fn detect_temporal(&self, query: &str) -> Option<String> {
         let lower = query.to_lowercase();
-        
+
         if lower.contains("неделю назад") || lower.contains("week ago") {
             Some("1w_ago".to_string())
         } else if lower.contains("месяц назад") || lower.contains("month ago") {
@@ -205,8 +399,14 @@ mod tests {
     fn detect_english_keywords() {
         let d = IntentDetector::new();
         assert_eq!(d.detect("find all tasks").intent_type, IntentType::Search);
-        assert_eq!(d.detect("analyze performance").intent_type, IntentType::Analysis);
-        assert_eq!(d.detect("create new project").intent_type, IntentType::Creation);
+        assert_eq!(
+            d.detect("analyze performance").intent_type,
+            IntentType::Analysis
+        );
+        assert_eq!(
+            d.detect("create new project").intent_type,
+            IntentType::Creation
+        );
         assert_eq!(d.detect("update status").intent_type, IntentType::Update);
     }
 

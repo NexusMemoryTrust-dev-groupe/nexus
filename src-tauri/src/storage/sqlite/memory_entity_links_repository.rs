@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::Mutex;
 
 use crate::core::entity_id::EntityId;
@@ -86,9 +86,12 @@ fn row_to_link(row: &rusqlite::Row) -> rusqlite::Result<MemoryEntityLink> {
     let created_by: String = row.get(6)?;
 
     Ok(MemoryEntityLink {
-        id: EntityId::parse(&id_str).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
-        memory_id: EntityId::parse(&memory_id_str).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
-        entity_id: EntityId::parse(&entity_id_str).map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        id: EntityId::parse(&id_str)
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        memory_id: EntityId::parse(&memory_id_str)
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        entity_id: EntityId::parse(&entity_id_str)
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
         relationship,
         weight,
         created_at,
@@ -109,7 +112,7 @@ impl MemoryEntityLinkRepository for SqliteMemoryEntityLinkRepository {
             .conn
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        
+
         let id = EntityId::new();
         let now = chrono::Utc::now().to_rfc3339();
 
@@ -245,7 +248,10 @@ mod tests {
         let r = repo();
         let memory_id = EntityId::new();
         let entity_id = EntityId::new();
-        let id = r.create_link(&memory_id, &entity_id, "Related", 1.0).await.unwrap();
+        let id = r
+            .create_link(&memory_id, &entity_id, "Related", 1.0)
+            .await
+            .unwrap();
         assert!(!id.as_str().is_empty());
 
         let links = r.get_links_for_memory(&memory_id).await.unwrap();
@@ -258,7 +264,9 @@ mod tests {
         let r = repo();
         let memory_id = EntityId::new();
         let entity_id = EntityId::new();
-        r.create_link(&memory_id, &entity_id, "Related", 1.0).await.unwrap();
+        r.create_link(&memory_id, &entity_id, "Related", 1.0)
+            .await
+            .unwrap();
 
         let links = r.get_links_for_entity(&entity_id).await.unwrap();
         assert_eq!(links.len(), 1);
@@ -270,9 +278,13 @@ mod tests {
         let r = repo();
         let memory_id = EntityId::new();
         let entity_id = EntityId::new();
-        r.create_link(&memory_id, &entity_id, "Related", 1.0).await.unwrap();
+        r.create_link(&memory_id, &entity_id, "Related", 1.0)
+            .await
+            .unwrap();
 
-        r.delete_link(&memory_id, &entity_id, "Related").await.unwrap();
+        r.delete_link(&memory_id, &entity_id, "Related")
+            .await
+            .unwrap();
         let links = r.get_links_for_memory(&memory_id).await.unwrap();
         assert!(links.is_empty());
     }
@@ -283,8 +295,12 @@ mod tests {
         let memory_id = EntityId::new();
         let entity1 = EntityId::new();
         let entity2 = EntityId::new();
-        r.create_link(&memory_id, &entity1, "Related", 1.0).await.unwrap();
-        r.create_link(&memory_id, &entity2, "Related", 1.0).await.unwrap();
+        r.create_link(&memory_id, &entity1, "Related", 1.0)
+            .await
+            .unwrap();
+        r.create_link(&memory_id, &entity2, "Related", 1.0)
+            .await
+            .unwrap();
 
         r.delete_links_for_memory(&memory_id).await.unwrap();
         let links = r.get_links_for_memory(&memory_id).await.unwrap();
@@ -297,8 +313,12 @@ mod tests {
         let memory_id = EntityId::new();
         let entity1 = EntityId::new();
         let entity2 = EntityId::new();
-        r.create_link(&memory_id, &entity1, "Related", 1.0).await.unwrap();
-        r.create_link(&memory_id, &entity2, "Related", 1.0).await.unwrap();
+        r.create_link(&memory_id, &entity1, "Related", 1.0)
+            .await
+            .unwrap();
+        r.create_link(&memory_id, &entity2, "Related", 1.0)
+            .await
+            .unwrap();
 
         let mem_links = r.get_links_for_memory(&memory_id).await.unwrap();
         assert_eq!(mem_links.len(), 2);
@@ -311,8 +331,12 @@ mod tests {
         let r = repo();
         let memory_id = EntityId::new();
         let entity_id = EntityId::new();
-        r.create_link(&memory_id, &entity_id, "Related", 1.0).await.unwrap();
-        r.create_link(&memory_id, &entity_id, "Related", 0.5).await.unwrap();
+        r.create_link(&memory_id, &entity_id, "Related", 1.0)
+            .await
+            .unwrap();
+        r.create_link(&memory_id, &entity_id, "Related", 0.5)
+            .await
+            .unwrap();
 
         let links = r.get_links_for_memory(&memory_id).await.unwrap();
         assert_eq!(links.len(), 1);
@@ -323,8 +347,12 @@ mod tests {
         let r = repo();
         let memory_id = EntityId::new();
         let entity_id = EntityId::new();
-        r.create_link(&memory_id, &entity_id, "Related", 1.0).await.unwrap();
-        r.create_link(&memory_id, &entity_id, "CausedBy", 0.8).await.unwrap();
+        r.create_link(&memory_id, &entity_id, "Related", 1.0)
+            .await
+            .unwrap();
+        r.create_link(&memory_id, &entity_id, "CausedBy", 0.8)
+            .await
+            .unwrap();
 
         let links = r.get_links_for_memory(&memory_id).await.unwrap();
         assert_eq!(links.len(), 2);

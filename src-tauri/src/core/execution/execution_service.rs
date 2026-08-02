@@ -64,8 +64,7 @@ impl ExecutionService {
 
         // 3. Log result
         let status_str = format!("{:?}", state.status);
-        self.tracker
-            .log_event("execution_finished", &status_str)?;
+        self.tracker.log_event("execution_finished", &status_str)?;
 
         Ok(state)
     }
@@ -81,8 +80,7 @@ impl ExecutionService {
 
     /// Attempt to recover from a failed execution via replan + re-execute.
     pub async fn recover(&self, state: &ExecutionState, error: &str) -> Result<ExecutionState> {
-        self.tracker
-            .log_event("recovery_started", error)?;
+        self.tracker.log_event("recovery_started", error)?;
 
         let plan = self.planner.replan(state, error).await?;
         self.tracker
@@ -91,8 +89,7 @@ impl ExecutionService {
         let new_state = self.executor.execute_plan(&plan, &self.sandbox).await?;
 
         let status_str = format!("{:?}", new_state.status);
-        self.tracker
-            .log_event("recovery_finished", &status_str)?;
+        self.tracker.log_event("recovery_finished", &status_str)?;
 
         Ok(new_state)
     }
@@ -120,7 +117,11 @@ mod tests {
         fn description(&self) -> &str {
             "stub"
         }
-        async fn execute(&self, _params: &serde_json::Value, _sandbox: &Sandbox) -> Result<serde_json::Value> {
+        async fn execute(
+            &self,
+            _params: &serde_json::Value,
+            _sandbox: &Sandbox,
+        ) -> Result<serde_json::Value> {
             Ok(serde_json::json!({ "ok": true }))
         }
         fn validate_params(&self, _params: &serde_json::Value) -> Result<()> {

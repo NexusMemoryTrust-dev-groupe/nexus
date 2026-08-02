@@ -27,7 +27,10 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
         for (entity_type, title, description) in extracted_entities {
             // Check if entity already exists
             let existing = self.graph_store.search_entities(&title).await?;
-            if let Some(e) = existing.into_iter().find(|e| e.title.to_lowercase() == title.to_lowercase()) {
+            if let Some(e) = existing
+                .into_iter()
+                .find(|e| e.title.to_lowercase() == title.to_lowercase())
+            {
                 entities.push(e);
             } else {
                 // Create new entity
@@ -45,27 +48,25 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
             if source_idx < entities.len() && target_idx < entities.len() {
                 let source = &entities[source_idx];
                 let target = &entities[target_idx];
-                
+
                 // Check if relationship already exists
-                let existing_rels = self.graph_store.get_entity_relationships(&source.id).await?;
+                let existing_rels = self
+                    .graph_store
+                    .get_entity_relationships(&source.id)
+                    .await?;
                 let already_exists = existing_rels.iter().any(|r| {
-                    (r.source_entity_id == source.id && r.target_entity_id == target.id) ||
-                    (r.source_entity_id == target.id && r.target_entity_id == source.id)
+                    (r.source_entity_id == source.id && r.target_entity_id == target.id)
+                        || (r.source_entity_id == target.id && r.target_entity_id == source.id)
                 });
 
-                if !already_exists {
-                    if let Ok(rel) = Relationship::new(
-                        source.id.clone(),
-                        target.id.clone(),
-                        rel_type,
-                        weight,
-                    ) {
-                        if let Ok(rel_id) = self.graph_store.add_relationship(&rel).await {
-                            let mut rel = rel;
-                            rel.id = rel_id;
-                            relationships.push(rel);
-                        }
-                    }
+                if !already_exists
+                    && let Ok(rel) =
+                        Relationship::new(source.id.clone(), target.id.clone(), rel_type, weight)
+                    && let Ok(rel_id) = self.graph_store.add_relationship(&rel).await
+                {
+                    let mut rel = rel;
+                    rel.id = rel_id;
+                    relationships.push(rel);
                 }
             }
         }
@@ -80,7 +81,7 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
 
         for line in &lines {
             let trimmed = line.trim();
-            
+
             // Skip empty lines and comments
             if trimmed.is_empty() || trimmed.starts_with('#') {
                 continue;
@@ -113,7 +114,7 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
         }
 
         // Deduplicate by title
-        entities.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        entities.sort_by_key(|a| a.1.to_lowercase());
         entities.dedup_by(|a, b| a.1.to_lowercase() == b.1.to_lowercase());
 
         entities
@@ -122,19 +123,20 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     /// Extract project references from text.
     fn extract_project_reference(&self, text: &str) -> Option<String> {
         let lower = text.to_lowercase();
-        
+
         // Pattern: "project: ..." or "проект: ..."
         if lower.starts_with("project:") || lower.starts_with("проект:") {
-            let title = text.splitn(2, ':').nth(1)?.trim().to_string();
+            let title = text.split_once(':')?.1.trim().to_string();
             if !title.is_empty() {
                 return Some(title);
             }
         }
 
         // Pattern: "## Project Name" (markdown heading)
-        if text.starts_with("## ") {
-            let title = text[3..].trim().to_string();
-            if title.to_lowercase().contains("project") || title.to_lowercase().contains("проект") {
+        if let Some(heading) = text.strip_prefix("## ") {
+            let title = heading.trim().to_string();
+            if title.to_lowercase().contains("project") || title.to_lowercase().contains("проект")
+            {
                 return Some(title);
             }
         }
@@ -145,10 +147,10 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     /// Extract person references from text.
     fn extract_person_reference(&self, text: &str) -> Option<(String, String)> {
         let lower = text.to_lowercase();
-        
+
         // Pattern: "person: Name (Role)" or "person: Name"
         if lower.starts_with("person:") || lower.starts_with("человек:") {
-            let rest = text.splitn(2, ':').nth(1)?.trim().to_string();
+            let rest = text.split_once(':')?.1.trim().to_string();
             if let Some((name, role)) = rest.split_once('(') {
                 let name = name.trim().to_string();
                 let role = role.trim_end_matches(')').trim().to_string();
@@ -160,7 +162,10 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
         // Pattern: "@Name" mention
         if let Some(name) = text.find('@') {
             let after_at = &text[name + 1..];
-            let word: String = after_at.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            let word: String = after_at
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
             if !word.is_empty() {
                 return Some((word, String::new()));
             }
@@ -172,10 +177,10 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     /// Extract technology references from text.
     fn extract_technology_reference(&self, text: &str) -> Option<String> {
         let lower = text.to_lowercase();
-        
+
         // Pattern: "tech: ..." or "технология: ..."
         if lower.starts_with("tech:") || lower.starts_with("технология:") {
-            let title = text.splitn(2, ':').nth(1)?.trim().to_string();
+            let title = text.split_once(':')?.1.trim().to_string();
             if !title.is_empty() {
                 return Some(title);
             }
@@ -183,11 +188,41 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
 
         // Common technology keywords
         let tech_keywords = [
-            "rust", "python", "javascript", "typescript", "react", "vue", "angular",
-            "node", "deno", "bun", "postgresql", "mysql", "sqlite", "redis", "mongodb",
-            "docker", "kubernetes", "aws", "gcp", "azure", "tauri", "electron",
-            "openai", "anthropic", "gemini", "claude", "gpt", "llm", "ai",
-            "mcp", "api", "rest", "graphql", "grpc", "websocket",
+            "rust",
+            "python",
+            "javascript",
+            "typescript",
+            "react",
+            "vue",
+            "angular",
+            "node",
+            "deno",
+            "bun",
+            "postgresql",
+            "mysql",
+            "sqlite",
+            "redis",
+            "mongodb",
+            "docker",
+            "kubernetes",
+            "aws",
+            "gcp",
+            "azure",
+            "tauri",
+            "electron",
+            "openai",
+            "anthropic",
+            "gemini",
+            "claude",
+            "gpt",
+            "llm",
+            "ai",
+            "mcp",
+            "api",
+            "rest",
+            "graphql",
+            "grpc",
+            "websocket",
         ];
 
         for keyword in &tech_keywords {
@@ -208,21 +243,26 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     /// Extract task references from text.
     fn extract_task_reference(&self, text: &str) -> Option<(String, String)> {
         let lower = text.to_lowercase();
-        
+
         // Pattern: "task: ..." or "задача: ..."
         if lower.starts_with("task:") || lower.starts_with("задача:") {
-            let rest = text.splitn(2, ':').nth(1)?.trim().to_string();
-            
+            let rest = text.split_once(':')?.1.trim().to_string();
+
             // Check for status indicators
-            let status = if lower.contains("done") || lower.contains("выполнено") || lower.contains("✓") {
-                "Done"
-            } else if lower.contains("in progress") || lower.contains("в процессе") || lower.contains("⏳") {
-                "In Progress"
-            } else if lower.contains("pending") || lower.contains("ожидание") {
-                "Pending"
-            } else {
-                "Active"
-            };
+            let status =
+                if lower.contains("done") || lower.contains("выполнено") || lower.contains("✓")
+                {
+                    "Done"
+                } else if lower.contains("in progress")
+                    || lower.contains("в процессе")
+                    || lower.contains("⏳")
+                {
+                    "In Progress"
+                } else if lower.contains("pending") || lower.contains("ожидание") {
+                    "Pending"
+                } else {
+                    "Active"
+                };
 
             return Some((rest, status.to_string()));
         }
@@ -251,10 +291,10 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     /// Extract decision references from text.
     fn extract_decision_reference(&self, text: &str) -> Option<String> {
         let lower = text.to_lowercase();
-        
+
         // Pattern: "decision: ..." or "решение: ..."
         if lower.starts_with("decision:") || lower.starts_with("решение:") {
-            let title = text.splitn(2, ':').nth(1)?.trim().to_string();
+            let title = text.split_once(':')?.1.trim().to_string();
             if !title.is_empty() {
                 return Some(title);
             }
@@ -262,7 +302,7 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
 
         // Pattern: "DECIDED: ..." or "РЕШЕНО: ..."
         if lower.starts_with("decided:") || lower.starts_with("решено:") {
-            let title = text.splitn(2, ':').nth(1)?.trim().to_string();
+            let title = text.split_once(':')?.1.trim().to_string();
             if !title.is_empty() {
                 return Some(title);
             }
@@ -272,13 +312,17 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     }
 
     /// Extract relationships from text based on entity co-occurrence.
-    fn extract_relationships(&self, text: &str, entities: &[Entity]) -> Vec<(usize, usize, RelationshipType, f64)> {
+    fn extract_relationships(
+        &self,
+        text: &str,
+        entities: &[Entity],
+    ) -> Vec<(usize, usize, RelationshipType, f64)> {
         let mut relationships = Vec::new();
         let lines: Vec<&str> = text.lines().collect();
 
         for line in &lines {
             let lower = line.to_lowercase();
-            
+
             // Find entities mentioned in this line
             let mentioned: Vec<usize> = entities
                 .iter()
@@ -292,10 +336,14 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
                 for j in (i + 1)..mentioned.len() {
                     let source_idx = mentioned[i];
                     let target_idx = mentioned[j];
-                    
+
                     // Determine relationship type based on context
                     let rel_type = self.infer_relationship_type(&lower);
-                    let weight = self.calculate_relationship_weight(&lower, &entities[source_idx], &entities[target_idx]);
+                    let weight = self.calculate_relationship_weight(
+                        &lower,
+                        &entities[source_idx],
+                        &entities[target_idx],
+                    );
 
                     relationships.push((source_idx, target_idx, rel_type, weight));
                 }
@@ -307,7 +355,8 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
 
     /// Infer relationship type from context.
     fn infer_relationship_type(&self, context: &str) -> RelationshipType {
-        if context.contains("uses") || context.contains("использует") || context.contains("using") {
+        if context.contains("uses") || context.contains("использует") || context.contains("using")
+        {
             RelationshipType::Uses
         } else if context.contains("depends") || context.contains("зависит") {
             RelationshipType::DependsOn
@@ -337,11 +386,19 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
     }
 
     /// Calculate relationship weight based on context strength.
-    fn calculate_relationship_weight(&self, context: &str, source: &Entity, target: &Entity) -> f64 {
+    fn calculate_relationship_weight(
+        &self,
+        context: &str,
+        source: &Entity,
+        target: &Entity,
+    ) -> f64 {
         let mut weight: f64 = 0.5; // Base weight
 
         // Strong indicators increase weight
-        if context.contains("strongly") || context.contains("сильно") || context.contains("actively") {
+        if context.contains("strongly")
+            || context.contains("сильно")
+            || context.contains("actively")
+        {
             weight += 0.2;
         }
 
@@ -356,7 +413,7 @@ impl<G: GraphStore> AutoGraphBuilder<G> {
         }
 
         // Clamp to 0.0-1.0
-        weight.min(1.0).max(0.0)
+        weight.clamp(0.0, 1.0)
     }
 }
 

@@ -62,7 +62,11 @@ mod tests {
         let text = "ab🚀cd";
         for limit in 0..text.len() + 2 {
             let cut = truncate_chars(text, limit);
-            assert!(std::str::from_utf8(cut.as_bytes()).is_ok(), "limit={}", limit);
+            assert!(
+                std::str::from_utf8(cut.as_bytes()).is_ok(),
+                "limit={}",
+                limit
+            );
             assert!(cut.len() <= limit.min(text.len()), "limit={}", limit);
         }
     }

@@ -40,7 +40,8 @@ mod tests {
             keywords: vec!["test".to_string()],
             temporal: None,
         });
-        let snap = ContextSnapshot::new(EntityId::new(), pkg.clone(), Some("test label".to_string()));
+        let snap =
+            ContextSnapshot::new(EntityId::new(), pkg.clone(), Some("test label".to_string()));
         assert!(!snap.id.is_empty());
         assert_eq!(snap.label, Some("test label".to_string()));
         assert_eq!(snap.package.id, pkg.id);

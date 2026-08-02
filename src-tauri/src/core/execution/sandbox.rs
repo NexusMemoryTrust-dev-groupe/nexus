@@ -8,6 +8,12 @@ pub struct Sandbox {
     pub max_file_size: u64,
 }
 
+impl Default for Sandbox {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sandbox {
     /// Create a permissive sandbox (no path restrictions, standard blocked commands).
     pub fn new() -> Self {
@@ -41,10 +47,7 @@ impl Sandbox {
         {
             Ok(())
         } else {
-            Err(AppError::Security(format!(
-                "Path not allowed: {}",
-                path
-            )))
+            Err(AppError::Security(format!("Path not allowed: {}", path)))
         }
     }
 
@@ -55,10 +58,7 @@ impl Sandbox {
             .iter()
             .any(|c| command.contains(c.as_str()))
         {
-            Err(AppError::Security(format!(
-                "Command blocked: {}",
-                command
-            )))
+            Err(AppError::Security(format!("Command blocked: {}", command)))
         } else {
             Ok(())
         }

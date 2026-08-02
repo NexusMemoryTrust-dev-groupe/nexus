@@ -28,9 +28,14 @@ pub fn build_full_prompt(conversation: &[super::ai::ChatMessage]) -> String {
     let recent_messages = &conversation[start..];
 
     for msg in recent_messages {
-        let label = if msg.role == "user" { "User" } else { "Assistant" };
+        let label = if msg.role == "user" {
+            "User"
+        } else {
+            "Assistant"
+        };
         // Truncate individual messages (UTF-8 safe — Cyrillic is 2 bytes/char)
-        let content = crate::core::text::truncate_with_suffix(&msg.content, MAX_MESSAGE_CHARS, "...");
+        let content =
+            crate::core::text::truncate_with_suffix(&msg.content, MAX_MESSAGE_CHARS, "...");
         parts.push(format!("{}: {}", label, content));
     }
 

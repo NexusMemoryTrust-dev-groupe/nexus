@@ -72,25 +72,22 @@ impl<M: MemoryRepository> MemoryInjector<M> {
     /// Instead of N separate searches, one query with all entity names.
     fn build_combined_query(&self, entities: &[Entity], intent_query: &str) -> String {
         let mut parts: Vec<String> = Vec::new();
-        
+
         // Add intent query first (most relevant)
         if !intent_query.is_empty() {
             parts.push(intent_query.to_string());
         }
-        
+
         // Add top 5 entity titles (most entities = most relevant)
         for entity in entities.iter().take(5) {
             parts.push(entity.title.clone());
         }
-        
+
         parts.join(" ")
     }
 
     /// Find memory records related to a specific entity.
-    pub async fn inject_for_entity(
-        &self,
-        entity_id: &EntityId,
-    ) -> Result<Vec<MemoryRecord>> {
+    pub async fn inject_for_entity(&self, entity_id: &EntityId) -> Result<Vec<MemoryRecord>> {
         let query = entity_id.as_str().to_string();
         self.memory_repo.search(&query).await
     }
@@ -99,10 +96,8 @@ impl<M: MemoryRepository> MemoryInjector<M> {
     async fn get_recent_memories(&self, days: u32, limit: usize) -> Result<Vec<MemoryRecord>> {
         let all = self.memory_repo.list(50, 0).await?; // Load at most 50
         let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
-        let mut recent: Vec<MemoryRecord> = all
-            .into_iter()
-            .filter(|r| r.created_at >= cutoff)
-            .collect();
+        let mut recent: Vec<MemoryRecord> =
+            all.into_iter().filter(|r| r.created_at >= cutoff).collect();
         // Sort by importance descending, take top N
         recent.sort_by(|a, b| {
             b.importance_score
@@ -114,7 +109,11 @@ impl<M: MemoryRepository> MemoryInjector<M> {
     }
 
     /// Get memories with importance above threshold, limited to K results.
-    async fn get_important_memories(&self, threshold: f64, limit: usize) -> Result<Vec<MemoryRecord>> {
+    async fn get_important_memories(
+        &self,
+        threshold: f64,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
         let all = self.memory_repo.list(50, 0).await?; // Load at most 50
         let mut important: Vec<MemoryRecord> = all
             .into_iter()

@@ -5,8 +5,10 @@ pub mod memory_repository;
 pub mod memory_service;
 pub mod types;
 
-pub use memory_compression::{CompressedMemory, MemoryCompressionService, SimpleCompressionService};
-pub use memory_recall::{RecallContext, RecallResult, MemoryRecallService};
+pub use memory_compression::{
+    CompressedMemory, MemoryCompressionService, SimpleCompressionService,
+};
+pub use memory_recall::{MemoryRecallService, RecallContext, RecallResult};
 pub use memory_record::MemoryRecord;
 pub use memory_repository::MemoryRepository;
 pub use memory_service::MemoryService;

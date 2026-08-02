@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use nexus::core::entity_id::EntityId;
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use nexus::core::context::semantic_search::SemanticSearch;
+use nexus::core::entity_id::EntityId;
 
 // ═══════════════════════════════════════════════════════════════
 //  Benchmark: Fallback Embedding
@@ -44,9 +44,7 @@ fn bench_cosine_similarity(c: &mut Criterion) {
     group.bench_function("384dim", |bench| {
         let a_ref = &a;
         let b_ref = &b_vec;
-        bench.iter(|| {
-            SemanticSearch::cosine_similarity(a_ref, b_ref)
-        })
+        bench.iter(|| SemanticSearch::cosine_similarity(a_ref, b_ref))
     });
 
     // Orthogonal vectors
@@ -55,9 +53,7 @@ fn bench_cosine_similarity(c: &mut Criterion) {
     group.bench_function("orthogonal_384dim", |bench| {
         let a_ref = &a;
         let c_ref = &c_vec;
-        bench.iter(|| {
-            SemanticSearch::cosine_similarity(a_ref, c_ref)
-        })
+        bench.iter(|| SemanticSearch::cosine_similarity(a_ref, c_ref))
     });
 
     group.finish();
@@ -75,10 +71,14 @@ fn bench_lru_cache(c: &mut Criterion) {
         // Pre-populate cache
         for i in 0..1024 {
             let id = EntityId::new();
-            search.store_fingerprint(&id, &format!("cached text number {}", i)).unwrap();
+            search
+                .store_fingerprint(&id, &format!("cached text number {}", i))
+                .unwrap();
         }
         b.iter(|| {
-            search.search(black_box("cached text number 500"), 10).unwrap()
+            search
+                .search(black_box("cached text number 500"), 10)
+                .unwrap()
         })
     });
 
@@ -87,7 +87,9 @@ fn bench_lru_cache(c: &mut Criterion) {
         let id = EntityId::new();
         search.store_fingerprint(&id, "existing").unwrap();
         b.iter(|| {
-            search.search(black_box("completely new unique query text"), 10).unwrap()
+            search
+                .search(black_box("completely new unique query text"), 10)
+                .unwrap()
         })
     });
 
@@ -106,7 +108,12 @@ fn bench_store_search_pipeline(c: &mut Criterion) {
             let search = SemanticSearch::new_in_memory().unwrap();
             for i in 0..100 {
                 let id = EntityId::new();
-                search.store_fingerprint(&id, &format!("Memory about topic number {} with some content", i)).unwrap();
+                search
+                    .store_fingerprint(
+                        &id,
+                        &format!("Memory about topic number {} with some content", i),
+                    )
+                    .unwrap();
             }
             black_box(&search);
         })
@@ -116,11 +123,14 @@ fn bench_store_search_pipeline(c: &mut Criterion) {
         let search = SemanticSearch::new_in_memory().unwrap();
         for i in 0..100 {
             let id = EntityId::new();
-            search.store_fingerprint(&id, &format!("Memory about topic number {} with some content", i)).unwrap();
+            search
+                .store_fingerprint(
+                    &id,
+                    &format!("Memory about topic number {} with some content", i),
+                )
+                .unwrap();
         }
-        b.iter(|| {
-            search.search(black_box("topic number 50"), 10).unwrap()
-        })
+        b.iter(|| search.search(black_box("topic number 50"), 10).unwrap())
     });
 
     group.finish();

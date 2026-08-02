@@ -22,10 +22,7 @@ pub struct CreateCommitParams {
 #[async_trait]
 pub trait CommitService: Send + Sync {
     /// Create a new automatic commit from the given params.
-    async fn create_automatic_commit(
-        &self,
-        params: CreateCommitParams,
-    ) -> Result<AutomaticCommit>;
+    async fn create_automatic_commit(&self, params: CreateCommitParams) -> Result<AutomaticCommit>;
 
     /// Get a single commit by its ID.
     async fn get_commit(&self, commit_id: &str) -> Result<Option<AutomaticCommit>>;

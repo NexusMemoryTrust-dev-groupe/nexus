@@ -40,7 +40,8 @@ pub fn parse(content: &str) -> ParsedMarkdown {
                 if !title.is_empty() {
                     let desc = format!("Markdown H{} heading", level);
                     let mut e = Entity::new(EntityType::Document, title, desc);
-                    e.metadata.insert("kind".into(), serde_json::json!("heading"));
+                    e.metadata
+                        .insert("kind".into(), serde_json::json!("heading"));
                     e.metadata.insert("level".into(), serde_json::json!(level));
                     entities.push(e);
                     heading_count += 1;
@@ -55,14 +56,24 @@ pub fn parse(content: &str) -> ParsedMarkdown {
 
         // Task lists: - [ ] or - [x]
         if trimmed.starts_with("- [") || trimmed.starts_with("* [") {
-            let done = trimmed.starts_with("- [x]") || trimmed.starts_with("- [X]") || trimmed.starts_with("* [x]") || trimmed.starts_with("* [X]");
+            let done = trimmed.starts_with("- [x]")
+                || trimmed.starts_with("- [X]")
+                || trimmed.starts_with("* [x]")
+                || trimmed.starts_with("* [X]");
             let task_text = if done {
-                trimmed.strip_prefix("- [x]").or_else(|| trimmed.strip_prefix("- [X]"))
-                    .or_else(|| trimmed.strip_prefix("* [x]")).or_else(|| trimmed.strip_prefix("* [X]"))
-                    .unwrap_or("").trim()
+                trimmed
+                    .strip_prefix("- [x]")
+                    .or_else(|| trimmed.strip_prefix("- [X]"))
+                    .or_else(|| trimmed.strip_prefix("* [x]"))
+                    .or_else(|| trimmed.strip_prefix("* [X]"))
+                    .unwrap_or("")
+                    .trim()
             } else {
-                trimmed.strip_prefix("- [ ]").or_else(|| trimmed.strip_prefix("* [ ]"))
-                    .unwrap_or("").trim()
+                trimmed
+                    .strip_prefix("- [ ]")
+                    .or_else(|| trimmed.strip_prefix("* [ ]"))
+                    .unwrap_or("")
+                    .trim()
             };
             if !task_text.is_empty() {
                 let status = if done { "Done" } else { "Pending" };
@@ -75,8 +86,10 @@ pub fn parse(content: &str) -> ParsedMarkdown {
         }
     }
 
-    let summary = format!("Markdown: {} headings, {} links, {} code blocks",
-        heading_count, link_count, code_block_count);
+    let summary = format!(
+        "Markdown: {} headings, {} links, {} code blocks",
+        heading_count, link_count, code_block_count
+    );
     ParsedMarkdown { entities, summary }
 }
 

@@ -1,11 +1,11 @@
-pub mod memory;
-pub mod graph;
-pub mod context;
-pub mod config;
 pub mod ai;
 pub mod ai_prompt;
+pub mod config;
+pub mod context;
 pub mod copilot;
 pub mod files;
-pub mod workspace;
+pub mod graph;
+pub mod memory;
 pub mod savings;
 pub mod setup;
+pub mod workspace;

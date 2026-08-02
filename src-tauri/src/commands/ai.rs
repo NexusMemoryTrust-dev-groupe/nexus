@@ -81,7 +81,10 @@ fn find_opencode_binary() -> Result<String, String> {
         .into_iter()
         .flatten()
         {
-            candidates.push(format!("{}\\node_modules\\opencode-ai\\bin\\opencode.exe", prefix));
+            candidates.push(format!(
+                "{}\\node_modules\\opencode-ai\\bin\\opencode.exe",
+                prefix
+            ));
             candidates.push(format!("{}\\opencode.cmd", prefix));
         }
     } else {
@@ -90,32 +93,36 @@ fn find_opencode_binary() -> Result<String, String> {
     }
 
     for path in &candidates {
-        if std::path::Path::new(path).exists() {
-            if let Some(exe) = resolve_to_exe(path) {
-                return Ok(exe);
-            }
+        if std::path::Path::new(path).exists()
+            && let Some(exe) = resolve_to_exe(path)
+        {
+            return Ok(exe);
         }
     }
 
     // Last resort: ask the OS where the command lives. `where` can return
     // several lines; a real executable is preferred over a shim.
-    let which_cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
-    if let Ok(output) = Command::new(which_cmd).arg("opencode").output() {
-        if output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let found: Vec<&str> = stdout
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .collect();
-            let ordered = found
-                .iter()
-                .filter(|l| l.to_lowercase().ends_with(".exe"))
-                .chain(found.iter());
-            for path in ordered {
-                if let Some(exe) = resolve_to_exe(path) {
-                    return Ok(exe);
-                }
+    let which_cmd = if cfg!(target_os = "windows") {
+        "where"
+    } else {
+        "which"
+    };
+    if let Ok(output) = Command::new(which_cmd).arg("opencode").output()
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let found: Vec<&str> = stdout
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        let ordered = found
+            .iter()
+            .filter(|l| l.to_lowercase().ends_with(".exe"))
+            .chain(found.iter());
+        for path in ordered {
+            if let Some(exe) = resolve_to_exe(path) {
+                return Ok(exe);
             }
         }
     }
@@ -198,7 +205,7 @@ pub async fn ai_list_models(free_only: Option<bool>) -> Result<Vec<ModelInfo>, S
             .lines()
             .map(|l| l.trim())
             .filter(|l| !l.is_empty())
-            .map(|l| parse_model(l))
+            .map(parse_model)
             .filter(|m| !want_free || m.is_free)
             .collect();
 
@@ -223,15 +230,19 @@ pub async fn ai_chat_stream(
     model: Option<String>,
 ) -> Result<String, String> {
     let binary = find_opencode_binary()?;
-    let resolved_model = model.filter(|m| !m.is_empty()).unwrap_or_else(get_configured_model);
+    let resolved_model = model
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(get_configured_model);
     let prompt = build_prompt(&messages);
 
     let result = tokio::task::spawn_blocking(move || -> Result<String, String> {
         let mut child = Command::new(&binary)
             .args([
                 "run",
-                "--model", &resolved_model,
-                "--format", "json",
+                "--model",
+                &resolved_model,
+                "--format",
+                "json",
                 "--thinking",
                 &prompt,
             ])
@@ -279,20 +290,26 @@ pub async fn ai_chat_stream(
                         // Thinking/reasoning chunk from the model
                         if let Some(text) = part.text {
                             thinking_text.push_str(&text);
-                            let _ = app.emit("ai-thinking-chunk", serde_json::json!({
-                                "chunk": text,
-                                "full_thinking": thinking_text,
-                            }));
+                            let _ = app.emit(
+                                "ai-thinking-chunk",
+                                serde_json::json!({
+                                    "chunk": text,
+                                    "full_thinking": thinking_text,
+                                }),
+                            );
                         }
                     }
                     "text" => {
                         // Actual response text chunk
                         if let Some(text) = part.text {
                             full_text.push_str(&text);
-                            let _ = app.emit("ai-text-chunk", serde_json::json!({
-                                "chunk": text,
-                                "full_text": full_text,
-                            }));
+                            let _ = app.emit(
+                                "ai-text-chunk",
+                                serde_json::json!({
+                                    "chunk": text,
+                                    "full_text": full_text,
+                                }),
+                            );
                         }
                     }
                     _ => {}
@@ -321,10 +338,13 @@ pub async fn ai_chat_stream(
         };
 
         // Emit final event
-        let _ = app.emit("ai-stream-finish", serde_json::json!({
-            "full_text": response,
-            "had_thinking": !thinking_text.is_empty(),
-        }));
+        let _ = app.emit(
+            "ai-stream-finish",
+            serde_json::json!({
+                "full_text": response,
+                "had_thinking": !thinking_text.is_empty(),
+            }),
+        );
 
         Ok(response)
     })
@@ -339,45 +359,52 @@ pub async fn ai_chat_stream(
 #[tauri::command]
 pub async fn ai_chat(messages: Vec<ChatMessage>, model: Option<String>) -> Result<String, String> {
     let binary = find_opencode_binary()?;
-    let resolved_model = model.filter(|m| !m.is_empty()).unwrap_or_else(get_configured_model);
+    let resolved_model = model
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(get_configured_model);
     let prompt = build_prompt(&messages);
 
-    let result = tokio::time::timeout(Duration::from_secs(300), tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let output = Command::new(&binary)
-            .args(["run", "--model", &resolved_model, &prompt])
-            .output()
-            .map_err(|e| format!("Failed to run opencode: {}", e))?;
+    tokio::time::timeout(
+        Duration::from_secs(300),
+        tokio::task::spawn_blocking(move || -> Result<String, String> {
+            let output = Command::new(&binary)
+                .args(["run", "--model", &resolved_model, &prompt])
+                .output()
+                .map_err(|e| format!("Failed to run opencode: {}", e))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let msg = if !stderr.is_empty() {
-                stderr.trim().to_string()
-            } else {
-                stdout.trim().to_string()
-            };
-            return Err(format!("opencode error: {}", msg));
-        }
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let msg = if !stderr.is_empty() {
+                    stderr.trim().to_string()
+                } else {
+                    stdout.trim().to_string()
+                };
+                return Err(format!("opencode error: {}", msg));
+            }
 
-        let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if result.is_empty() {
-            return Err("Empty response from AI".to_string());
-        }
+            let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if result.is_empty() {
+                return Err("Empty response from AI".to_string());
+            }
 
-        Ok(result)
-    }))
+            Ok(result)
+        }),
+    )
     .await
-    .map_err(|_| "AI request timed out (5 min limit). Try a shorter question or switch model.".to_string())?
-    .map_err(|e| format!("AI error: {}", e))?;
-
-    Ok(result?)
+    .map_err(|_| {
+        "AI request timed out (5 min limit). Try a shorter question or switch model.".to_string()
+    })?
+    .map_err(|e| format!("AI error: {}", e))?
 }
 
 /// Health check — uses configured model unless overridden.
 #[tauri::command]
 pub async fn ai_health_check(model: Option<String>) -> Result<String, String> {
     let binary = find_opencode_binary()?;
-    let resolved_model = model.filter(|m| !m.is_empty()).unwrap_or_else(get_configured_model);
+    let resolved_model = model
+        .filter(|m| !m.is_empty())
+        .unwrap_or_else(get_configured_model);
 
     let result = tokio::task::spawn_blocking(move || -> Result<String, String> {
         let output = Command::new(&binary)

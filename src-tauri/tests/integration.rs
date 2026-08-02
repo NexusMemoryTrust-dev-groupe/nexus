@@ -1,22 +1,22 @@
 //! Integration tests: context pipeline, memory + semantic search, graph operations.
 
-use nexus::core::entity_id::EntityId;
+use nexus::core::context::compressor::ContextCompressor;
+use nexus::core::context::context_package::{ContextPackage, IntentType, UserIntent};
 use nexus::core::context::intent_detector::IntentDetector;
 use nexus::core::context::ranker::ContextRanker;
-use nexus::core::context::compressor::ContextCompressor;
-use nexus::core::context::context_package::{ContextPackage, UserIntent, IntentType};
 use nexus::core::context::semantic_search::SemanticSearch;
+use nexus::core::entity_id::EntityId;
+use nexus::core::graph::GraphQuery;
+use nexus::core::graph::GraphStore;
+use nexus::core::graph::GraphTraversal;
 use nexus::core::graph::entity::Entity;
 use nexus::core::graph::entity_types::EntityType;
 use nexus::core::graph::relationship::Relationship;
 use nexus::core::graph::relationship_types::RelationshipType;
 use nexus::core::memory::memory_record::MemoryRecord;
 use nexus::core::memory::types::MemorySource;
-use nexus::storage::sqlite::schema;
-use nexus::core::graph::GraphStore;
-use nexus::core::graph::GraphTraversal;
-use nexus::core::graph::GraphQuery;
 use nexus::storage::sqlite::SqliteGraphRepository;
+use nexus::storage::sqlite::schema;
 use rusqlite::Connection;
 
 fn setup_db() -> Connection {
@@ -48,7 +48,8 @@ fn integration_intent_detection_to_ranking() {
             format!("Content about Rust programming topic {}", i),
             "test".to_string(),
             MemorySource::Manual,
-        ).unwrap();
+        )
+        .unwrap();
         rec.confidence_score = 0.5 + (i as f64 * 0.1);
         rec.importance_score = 0.3 + (i as f64 * 0.1);
         package.memory_records.push(rec);
@@ -57,13 +58,26 @@ fn integration_intent_detection_to_ranking() {
     let ranker = ContextRanker::new();
     let ranked = ranker.rank(&package);
 
-    assert!(!ranked.relevance_scores.is_empty(), "Should have scored entities/memories");
+    assert!(
+        !ranked.relevance_scores.is_empty(),
+        "Should have scored entities/memories"
+    );
 
     for i in 1..ranked.memory_records.len() {
-        let score_a = ranked.relevance_scores.get(&ranked.memory_records[i - 1].id.to_string()).unwrap_or(&0.0);
-        let score_b = ranked.relevance_scores.get(&ranked.memory_records[i].id.to_string()).unwrap_or(&0.0);
-        assert!(score_a >= score_b,
-            "Ranking not sorted: {} < {}", score_a, score_b);
+        let score_a = ranked
+            .relevance_scores
+            .get(&ranked.memory_records[i - 1].id.to_string())
+            .unwrap_or(&0.0);
+        let score_b = ranked
+            .relevance_scores
+            .get(&ranked.memory_records[i].id.to_string())
+            .unwrap_or(&0.0);
+        assert!(
+            score_a >= score_b,
+            "Ranking not sorted: {} < {}",
+            score_a,
+            score_b
+        );
     }
 }
 
@@ -82,17 +96,25 @@ fn integration_compressor_limits_tokens() {
     for i in 0..20 {
         let rec = MemoryRecord::new(
             format!("Memory {}", i),
-            format!("Content for memory number {} with extra text to fill tokens", i),
+            format!(
+                "Content for memory number {} with extra text to fill tokens",
+                i
+            ),
             "test".to_string(),
             MemorySource::Manual,
-        ).unwrap();
+        )
+        .unwrap();
         package.memory_records.push(rec);
     }
 
     let compressed = compressor
         .compress(&package, 200, ContextCompressor::DEFAULT_MIN_RELEVANCE)
         .unwrap();
-    assert!(compressed.memory_records.len() <= 20, "Should compress: got {} records", compressed.memory_records.len());
+    assert!(
+        compressed.memory_records.len() <= 20,
+        "Should compress: got {} records",
+        compressed.memory_records.len()
+    );
 }
 
 // ── 2. Memory + Semantic Search Integration ──
@@ -106,9 +128,15 @@ fn integration_memory_store_and_semantic_search() {
     let id2 = EntityId::new();
     let id3 = EntityId::new();
 
-    search.store_fingerprint(&id1, "Rust programming language fundamentals").unwrap();
-    search.store_fingerprint(&id2, "Python web development with Django").unwrap();
-    search.store_fingerprint(&id3, "Rust ownership and borrowing").unwrap();
+    search
+        .store_fingerprint(&id1, "Rust programming language fundamentals")
+        .unwrap();
+    search
+        .store_fingerprint(&id2, "Python web development with Django")
+        .unwrap();
+    search
+        .store_fingerprint(&id3, "Rust ownership and borrowing")
+        .unwrap();
 
     let results = search.search("rust ownership borrowing", 10).unwrap();
     assert!(!results.is_empty());
@@ -122,8 +150,12 @@ fn integration_search_after_delete() {
 
     let id1 = EntityId::new();
     let id2 = EntityId::new();
-    search.store_fingerprint(&id1, "Machine learning algorithms").unwrap();
-    search.store_fingerprint(&id2, "Deep learning neural networks").unwrap();
+    search
+        .store_fingerprint(&id1, "Machine learning algorithms")
+        .unwrap();
+    search
+        .store_fingerprint(&id2, "Deep learning neural networks")
+        .unwrap();
     assert_eq!(search.count().unwrap(), 2);
 
     search.delete_fingerprint(&id1).unwrap();
@@ -140,9 +172,21 @@ fn integration_graph_entity_relationship_search() {
     let conn = setup_db();
     let repo = SqliteGraphRepository::new(conn).unwrap();
 
-    let e1 = Entity::new(EntityType::Technology, "Rust".to_string(), "Systems programming language".to_string());
-    let e2 = Entity::new(EntityType::Task, "Systems Programming".to_string(), "Low-level programming".to_string());
-    let e3 = Entity::new(EntityType::Task, "Memory Safety".to_string(), "Prevent memory bugs".to_string());
+    let e1 = Entity::new(
+        EntityType::Technology,
+        "Rust".to_string(),
+        "Systems programming language".to_string(),
+    );
+    let e2 = Entity::new(
+        EntityType::Task,
+        "Systems Programming".to_string(),
+        "Low-level programming".to_string(),
+    );
+    let e3 = Entity::new(
+        EntityType::Task,
+        "Memory Safety".to_string(),
+        "Prevent memory bugs".to_string(),
+    );
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -150,8 +194,20 @@ fn integration_graph_entity_relationship_search() {
         repo.add_entity(&e2).await.unwrap();
         repo.add_entity(&e3).await.unwrap();
 
-        let r1 = Relationship::new(e1.id.clone(), e2.id.clone(), RelationshipType::RelatedTo, 0.9).unwrap();
-        let r2 = Relationship::new(e1.id.clone(), e3.id.clone(), RelationshipType::RelatedTo, 0.8).unwrap();
+        let r1 = Relationship::new(
+            e1.id.clone(),
+            e2.id.clone(),
+            RelationshipType::RelatedTo,
+            0.9,
+        )
+        .unwrap();
+        let r2 = Relationship::new(
+            e1.id.clone(),
+            e3.id.clone(),
+            RelationshipType::RelatedTo,
+            0.8,
+        )
+        .unwrap();
         repo.add_relationship(&r1).await.unwrap();
         repo.add_relationship(&r2).await.unwrap();
 
@@ -182,8 +238,20 @@ fn integration_graph_traversal() {
         repo.add_entity(&e2).await.unwrap();
         repo.add_entity(&e3).await.unwrap();
 
-        let r1 = Relationship::new(e1.id.clone(), e2.id.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
-        let r2 = Relationship::new(e2.id.clone(), e3.id.clone(), RelationshipType::RelatedTo, 1.0).unwrap();
+        let r1 = Relationship::new(
+            e1.id.clone(),
+            e2.id.clone(),
+            RelationshipType::RelatedTo,
+            1.0,
+        )
+        .unwrap();
+        let r2 = Relationship::new(
+            e2.id.clone(),
+            e3.id.clone(),
+            RelationshipType::RelatedTo,
+            1.0,
+        )
+        .unwrap();
         repo.add_relationship(&r1).await.unwrap();
         repo.add_relationship(&r2).await.unwrap();
 
@@ -232,6 +300,8 @@ fn integration_full_memory_lifecycle() {
     assert_eq!(search.count().unwrap(), 3);
 
     let results = search.search("тайм-менеджмент", 10).unwrap();
-    assert!(!results.iter().any(|(id, _)| *id == memories[0].0),
-        "Deleted memory should not appear in search");
+    assert!(
+        !results.iter().any(|(id, _)| *id == memories[0].0),
+        "Deleted memory should not appear in search"
+    );
 }

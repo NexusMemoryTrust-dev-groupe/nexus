@@ -1,5 +1,5 @@
-pub mod domain_event_bus;
 pub mod application_event_bus;
+pub mod domain_event_bus;
 pub mod integration_event_bus;
 
 use async_trait::async_trait;

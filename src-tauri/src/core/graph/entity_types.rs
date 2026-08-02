@@ -41,8 +41,13 @@ impl EntityType {
             Self::Custom(s) => s,
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+// Conversion is infallible — anything unrecognised becomes `Custom`. That is
+// `From`, not `FromStr`: there is no error case for a caller to handle, and an
+// inherent `from_str` returning `Self` shadows the std trait confusingly.
+impl From<&str> for EntityType {
+    fn from(s: &str) -> Self {
         match s {
             "Person" => Self::Person,
             "Organization" => Self::Organization,
@@ -88,7 +93,7 @@ mod tests {
         for t in &types {
             let s = t.as_str();
             assert!(!s.is_empty());
-            assert_eq!(&EntityType::from_str(s), t);
+            assert_eq!(&EntityType::from(s), t);
         }
     }
 
@@ -96,12 +101,12 @@ mod tests {
     fn custom_type_roundtrip() {
         let ct = EntityType::Custom("MyType".to_string());
         assert_eq!(ct.as_str(), "MyType");
-        assert_eq!(EntityType::from_str("MyType"), ct);
+        assert_eq!(EntityType::from("MyType"), ct);
     }
 
     #[test]
     fn unknown_string_becomes_custom() {
-        let result = EntityType::from_str("UnknownThing");
+        let result = EntityType::from("UnknownThing");
         assert_eq!(result, EntityType::Custom("UnknownThing".to_string()));
     }
 
