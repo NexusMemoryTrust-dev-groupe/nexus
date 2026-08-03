@@ -1,6 +1,6 @@
 {
   "name": "nexus-memory-trust",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI Memory Operating System — desktop application for intelligent memory management",
   "main": "index.js",
   "bin": {

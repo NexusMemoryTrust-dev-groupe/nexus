@@ -56,7 +56,8 @@ coverage/
 
 # Rust
 **/*.rs.bk
-Cargo.lock
+# Cargo.lock is committed on purpose: Nexus is a binary application, not a
+# library, and lockfiles make release builds reproducible.
 
 # TypeScript
 *.tsbuildinfo
