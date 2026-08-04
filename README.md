@@ -6,16 +6,16 @@
 
 **Новая парадигма работы с памятью. Ваш ИИ больше не забывает.**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-2ea043?style=for-the-badge)](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-2ea043?style=for-the-badge)](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=for-the-badge&logo=windows)](https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases)
-[![Tests](https://img.shields.io/badge/tests-479%20passing-2ea043?style=for-the-badge)](#качество-и-тестирование)
+[![Tests](https://img.shields.io/badge/tests-501%20passing-2ea043?style=for-the-badge)](#качество-и-тестирование)
 [![License](https://img.shields.io/badge/license-PROPRIETARY-d73a49?style=for-the-badge)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-48%20tools-a855f7?style=for-the-badge)](#mcp-сервер--подключение-любого-ии)
+[![MCP](https://img.shields.io/badge/MCP-66%20tools-a855f7?style=for-the-badge)](#mcp-сервер--подключение-любого-ии)
 
 **Developed by NexusTeam**
 **CEO & Founder — Danila Sergeevich Shanin**
 
-[Скачать](#-установка) · [Документация](#-содержание) · [MCP-сервер](#mcp-сервер--подключение-любого-ии) · [English](README.en.md)
+[Скачать](#-установка) · [Документация](#-содержание) · [MCP-сервер](#mcp-сервер--подключение-любого-ии)
 
 </div>
 
@@ -84,6 +84,7 @@ TP4SPiuxgw2uXYyxAhq2VBxw16UcLuaQ21
 - [Горячие клавиши](#-горячие-клавиши)
 - [Архитектура](#-архитектура)
 - [Качество и тестирование](#качество-и-тестирование)
+- [Журнал изменений](#-журнал-изменений)
 - [Частые вопросы](#-частые-вопросы)
 - [Команда](#-команда)
 - [Лицензия](#-лицензия)
@@ -154,7 +155,7 @@ Nexus считает настоящим BPE-токенизатором (тот �
 
 ### 3. MCP как первоклассная функция
 
-**48 инструментов** доступны любому ИИ через Model Context Protocol. Автоматическая регистрация в один клик — не нужно вручную править JSON-конфиги.
+**66 инструментов** доступны любому ИИ через Model Context Protocol. Автоматическая регистрация в один клик — не нужно вручную править JSON-конфиги.
 
 Ваш ИИ-ассистент получает не просто «доступ к заметкам», а полноценный API к графу знаний: поиск, обход связей, создание сущностей, сборка контекста, файловые операции в песочнице.
 
@@ -177,9 +178,10 @@ Nexus считает настоящим BPE-токенизатором (тот �
 
 | Ваша система | Файл |
 |:---|:---|
-| Windows 10/11, Intel или AMD | `Nexus_1.0.0_x64-setup.exe` |
-| Windows 11 на ARM (Surface, Snapdragon) | `Nexus_1.0.0_arm64-setup.exe` |
-| Корпоративное развёртывание (GPO/SCCM) | `Nexus_1.0.0_x64_en-US.msi` |
+| Windows 10/11, Intel или AMD | `Nexus_1.0.1_x64-setup.exe` |
+| Windows 11 на ARM (Surface, Snapdragon) | `Nexus_1.0.1_arm64-setup.exe` |
+| Корпоративное развёртывание (GPO/SCCM), x64 | `Nexus_1.0.1_x64_en-US.msi` |
+| Корпоративное развёртывание (GPO/SCCM), ARM64 | `Nexus_1.0.1_arm64_en-US.msi` |
 
 Установщик:
 - Ставит приложение и создаёт ярлыки
@@ -189,7 +191,7 @@ Nexus считает настоящим BPE-токенизатором (тот �
 
 ### Способ 2 — npm
 
-Если у вас установлен Node.js 16+:
+Если у вас установлен Node.js 18+:
 
 ```bash
 npm install -g nexus-memory-trust
@@ -211,7 +213,7 @@ irm https://raw.githubusercontent.com/NexusMemoryTrust-dev-groupe/nexus/master/n
 К каждому релизу прилагается `SHA256SUMS.txt`. Проверить вручную:
 
 ```powershell
-Get-FileHash .\Nexus_1.0.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\Nexus_1.0.1_x64-setup.exe -Algorithm SHA256
 ```
 
 ---
@@ -224,7 +226,7 @@ Get-FileHash .\Nexus_1.0.0_x64-setup.exe -Algorithm SHA256
 
 Windows показывает предупреждение SmartScreen для программ, которые **не подписаны сертификатом Extended Validation (EV)**. Такой сертификат стоит от 300 до 600 долларов в год и требует юридической верификации организации.
 
-Nexus 1.0.0 — первый публичный релиз независимой команды. **Сертификата у нас пока нет.** Мы копим на него, в том числе на донаты.
+Nexus 1.0.1 — публичный релиз независимой команды. **Сертификата у нас пока нет.** Мы копим на него, в том числе на донаты.
 
 **Это не значит, что программа опасна.** Это значит, что Microsoft ещё не видел достаточно установок, чтобы построить репутацию файла. Ровно то же самое видят пользователи любого нового инди-приложения.
 
@@ -266,12 +268,12 @@ Nexus 1.0.0 — первый публичный релиз независимо�
 
 | Шаг | Что происходит | Автоматически? |
 |:---:|:---|:---:|
-| 1 | Проверка Node.js 18+ | Проверка |
-| 2 | Проверка / установка OpenCode CLI | Да, одна кнопка |
-| 3 | Ввод API-ключа | Ссылка на бесплатный ключ |
-| 4 | Выбор модели | Список загружается сам |
-| 5 | Регистрация MCP-сервера | Да, одна кнопка |
-| 6 | Проверка связи | Автотест |
+| 1 | Приветствие | — |
+| 2 | Проверка Node.js 18+ | Проверка |
+| 3 | Проверка / установка OpenCode CLI | Да, одна кнопка |
+| 4 | Ввод API-ключа | Ссылка на бесплатный ключ |
+| 5 | Выбор модели | Список загружается сам |
+| 6 | Регистрация MCP-сервера | Да, одна кнопка |
 | 7 | Готово | — |
 
 </div>
@@ -308,13 +310,13 @@ Nexus 1.0.0 — первый публичный релиз независимо�
 
 Сущности и связи, извлечённые из вашей работы автоматически.
 
-**Типы сущностей:** человек, проект, решение, задача, технология, файл, организация, встреча, концепция, документ
+**Типы сущностей:** Person, Organization, Project, Document, Meeting, Decision, Task, Technology, Incident, Repository, Service, Model, Conversation, Memory (+ Custom)
 
-**Типы связей:** RelatedTo, Uses, Implements, DependsOn, PartOf, Mentions, Contradicts, Supersedes
+**Типы связей:** Created, Modified, ParticipatedIn, DependsOn, CausedBy, RelatedTo, Owns, Uses, Mentions, DerivedFrom, BlockedBy, ReplacedBy (+ Custom)
 
 **3D-визуализация:**
 - Космическая сцена: сущности как планеты на орбитах вокруг кластеров
-- **LOD-система** — четыре уровня детализации по расстоянию, отсечение по пирамиде видимости, бюджет подписей и рёбер. Граф остаётся плавным на тысячах узлов
+- **LOD-система** — три уровня геометрии (24×24, 12×12, 8×8 сегментов) по расстоянию до камеры, отсечение за порогом видимости, бюджет подписей и рёбер. Граф остаётся плавным на тысячах узлов
 - Поиск с группировкой по типам, подсказки, навигация клавиатурой
 - Контекстное меню: фокус, раскрытие связей, спросить копилота
 
@@ -339,7 +341,7 @@ Nexus 1.0.0 — первый публичный релиз независимо�
 - Стриминг ответа по мере генерации
 - Блоки размышления модели (thinking)
 - Выбор модели, включая **бесплатные**
-- 48 инструментов для работы с графом и файлами
+- 66 инструментов для работы с графом и файлами
 
 ### Проекты и файлы
 
@@ -366,7 +368,7 @@ Nexus 1.0.0 — первый публичный релиз независимо�
 
 ## MCP-сервер — подключение любого ИИ
 
-Nexus работает как **MCP-сервер** (Model Context Protocol) и отдаёт **48 инструментов** любому совместимому ИИ.
+Nexus работает как **MCP-сервер** (Model Context Protocol) и отдаёт **66 инструментов** любому совместимому ИИ.
 
 ### Автоматическая регистрация
 
@@ -491,61 +493,68 @@ nexus.stdout.on('data', (d) => console.log(d.toString()));
 
 </details>
 
-### Все 48 инструментов
+### Все 66 инструментов
 
 <details>
-<summary><b>Память (7)</b></summary>
+<summary><b>Память (10)</b></summary>
 
-`nexus_list_memories` · `nexus_get_memory` · `nexus_create_memory` · `nexus_update_memory` · `nexus_delete_memory` · `nexus_search_memories` · `nexus_get_recent_memories`
+`nexus_list_memories` · `nexus_get_memory` · `nexus_create_memory` · `nexus_update_memory` · `nexus_delete_memory` · `nexus_search_memories` · `nexus_search_semantic` · `nexus_get_recent_memories` · `nexus_get_important_memories` · `nexus_store_fingerprint`
 
 </details>
 
 <details>
-<summary><b>Граф знаний (8)</b></summary>
+<summary><b>Граф знаний (10)</b></summary>
 
-`nexus_graph_stats` · `nexus_get_entity` · `nexus_create_entity` · `nexus_update_entity` · `nexus_delete_entity` · `nexus_link_entities` · `nexus_unlink_entities` · `nexus_list_graph_entities`
-
-</details>
-
-<details>
-<summary><b>Контекст и поиск (6)</b></summary>
-
-`nexus_build_context` · `nexus_build_context_for_entity` · `nexus_search_context` · `nexus_search_semantic` · `nexus_analyze_text` · `nexus_get_important_memories`
+`nexus_graph_stats` · `nexus_get_entity` · `nexus_create_entity` · `nexus_update_entity` · `nexus_delete_entity` · `nexus_link_entities` · `nexus_unlink_entities` · `nexus_list_graph_entities` · `nexus_entity_metadata` · `nexus_link_project_entity`
 
 </details>
 
 <details>
-<summary><b>Связи память ↔ сущность (5)</b></summary>
+<summary><b>Контекст и поиск (5)</b></summary>
 
-`nexus_link_memory_entity` · `nexus_unlink_memory_entity` · `nexus_get_memory_links` · `nexus_get_entity_memory_links` · `nexus_store_fingerprint`
-
-</details>
-
-<details>
-<summary><b>Рабочая область (3)</b></summary>
-
-`nexus_add_to_workspace` · `nexus_get_workspace` · `nexus_sync_workspace`
+`nexus_build_context` · `nexus_build_context_for_entity` · `nexus_search_context` · `nexus_analyze_text` · `nexus_parse_markdown`
 
 </details>
 
 <details>
-<summary><b>Файлы — все в песочнице (10)</b></summary>
+<summary><b>Связи память ↔ сущность (4)</b></summary>
 
-`nexus_index_file` · `nexus_index_folder` · `nexus_read_file_content` · `nexus_read_file` · `nexus_create_file` · `nexus_write_file` · `nexus_create_folder` · `nexus_delete_file` · `nexus_move_file` · `nexus_create_workspace_file`
-
-</details>
-
-<details>
-<summary><b>Экономия токенов (3)</b></summary>
-
-`nexus_savings_stats` · `nexus_savings_report` · `nexus_savings_per_model`
+`nexus_link_memory_entity` · `nexus_unlink_memory_entity` · `nexus_get_memory_links` · `nexus_get_entity_memory_links`
 
 </details>
 
 <details>
-<summary><b>Система (6)</b></summary>
+<summary><b>Проекты (3)</b></summary>
 
-`nexus_copilot_command` · `nexus_stats` · `nexus_health` · `nexus_settings` · `nexus_timeline` · `nexus_parse_markdown`
+`nexus_projects` · `nexus_project_entities` · `nexus_project_memories`
+
+</details>
+
+<details>
+<summary><b>Рабочая область (8)</b></summary>
+
+`nexus_add_to_workspace` · `nexus_get_workspace` · `nexus_sync_workspace` · `nexus_workspace_check_stale` · `nexus_workspace_rename` · `nexus_workspace_move` · `nexus_workspace_delete` · `nexus_workspace_remove`
+
+</details>
+
+<details>
+<summary><b>Файлы — все в песочнице (13)</b></summary>
+
+`nexus_index_file` · `nexus_index_folder` · `nexus_scan_folder` · `nexus_read_file_content` · `nexus_read_file` · `nexus_create_file` · `nexus_write_file` · `nexus_create_folder` · `nexus_delete_file` · `nexus_delete_folder` · `nexus_rename_file` · `nexus_move_file` · `nexus_create_workspace_file`
+
+</details>
+
+<details>
+<summary><b>Экономия токенов (4)</b></summary>
+
+`nexus_savings_stats` · `nexus_savings_report` · `nexus_savings_per_model` · `nexus_savings_record`
+
+</details>
+
+<details>
+<summary><b>Система и диагностика (9)</b></summary>
+
+`nexus_copilot_command` · `nexus_stats` · `nexus_db_stats` · `nexus_health` · `nexus_settings` · `nexus_config_get` · `nexus_config_set` · `nexus_timeline` · `nexus_ai_models`
 
 </details>
 
@@ -608,7 +617,7 @@ Nexus возвращает:
 
 ### Песочница файловых операций
 
-Все 10 файловых инструментов MCP проходят через **whitelist-проверку путей**. ИИ-модель не может читать или писать вне разрешённых папок.
+Все 13 файловых инструментов MCP проходят через **whitelist-проверку путей**. ИИ-модель не может читать или писать вне разрешённых папок.
 
 **Разрешено:**
 - Папки, добавленные вами в рабочую область проекта
@@ -666,7 +675,8 @@ nexus_read_file ..\..\..\Windows\System32\config\SAM
 | `Ctrl` + `2` | Граф |
 | `Ctrl` + `3` | Хронология |
 | `Ctrl` + `4` | Проекты |
-| `Ctrl` + `5` | Контекст |
+| `Ctrl` + `5` | Экономия |
+| `Ctrl` + `6` | Контекст |
 | `Ctrl` + `,` | Настройки |
 | `Ctrl` + `N` | Новая запись |
 | `Ctrl` + `R` / `F5` | Обновить |
@@ -695,7 +705,7 @@ nexus_read_file ..\..\..\Windows\System32\config\SAM
 │  Токенизатор: BPE из embedding-модели                    │
 │  Песочница:  whitelist путей для всех файловых операций   │
 │  Индексатор: фоновые эмбеддинги                          │
-│  MCP-сервер: 48 инструментов через stdio                 │
+│  MCP-сервер: 66 инструментов через stdio                 │
 └────────────────────────┬─────────────────────────────────┘
                          │
 ┌────────────────────────┴─────────────────────────────────┐
@@ -721,15 +731,52 @@ nexus_read_file ..\..\..\Windows\System32\config\SAM
 
 | Метрика | Значение |
 |:---|:---|
-| Rust unit-тесты | **472** |
+| Rust unit-тесты | **452** |
 | Rust интеграционные | **7** |
-| Frontend-тесты (LOD) | **32** |
+| Frontend-тесты (vitest, LOD) | **32** |
+| E2E-тесты (Playwright) | **10** |
 | Ошибок TypeScript | **0** |
 | Предупреждений сборки | **0** |
 
 </div>
 
-Тесты покрывают логику, а не геттеры: UTF-8-безопасное усечение, границы LOD-уровней, whitelist песочницы, идемпотентность MCP-регистрации, точность токенизатора, миграции схемы, трассировку провенанса.
+Тесты покрывают логику, а не геттеры: UTF-8-безопасное усечение, границы LOD-уровней, whitelist песочницы, идемпотентность MCP-регистрации, точность токенизатора, миграции схемы, трассировку провенанса. Качество держится жёсткими гейтами: `tsc` без ошибок, `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check` — все в CI.
+
+---
+
+## Журнал изменений
+
+### v1.0.1 — текущий релиз
+
+| # | Область | Что сделано | Технические детали |
+|:---:|:---|:---|:---|
+| 1 | 3D-граф | Исправлена физика космической сцены | `CosmicGraphView`: ленивая инициализация вектора скорости `vj` в цикле физики устраняет `TypeError` на каждом кадре — граф снова анимируется |
+| 2 | Tauri IPC / ACL | Разблокированы события ИИ-копилота | Новый манифест `capabilities/default.json` включает `core:event:default`; стриминговые события `ai-thinking-chunk`, `ai-text-chunk`, `ai-stream-finish` проходят через ACL (`event\|listen not allowed by ACL` устранено) |
+| 3 | ИИ-копилот | Исправлена отправка повторного Enter | `FloatingCopilot`: палитра команд после выбора команды остаётся закрытой (`setShowCommands(input.startsWith('/') && input.length > 0 && !input.endsWith(' '))`) — повторный Enter отправляет команду вместо повторного открытия палитры |
+| 4 | MCP-API | Расширен с 48 до 66 инструментов | Добавлены `nexus_projects`, `nexus_project_entities`, `nexus_project_memories`, `nexus_link_project_entity`, `nexus_workspace_rename/move/delete/remove/check_stale`, `nexus_rename_file`, `nexus_delete_folder`, `nexus_scan_folder`, `nexus_entity_metadata`, `nexus_savings_record`, `nexus_ai_models`, `nexus_db_stats`, `nexus_config_get`, `nexus_config_set` |
+| 5 | ИИ-копилот | Новые slash-команды | `create-file`, `write-file`, `create-folder`, `read-file`, `index-file`, `index-folder`, `workspace-file`, `entity-meta`, `config-get`, `config-set`, `file-rename`, `file-delete-folder` |
+| 6 | Контекст (UI) | Полностью переписан конвейер сборки контекста | `ContextView`: модульная компоновка пайплайна, многослойные strata-панели, компонент `Instruments`, удалён устаревший `WhyPanel`; добавлены `layers.ts`, `useMotion.ts`, `format.ts` |
+| 7 | Локализация | Расширены словари RU/EN | `pagesLocale.ts`: полные копии всех новых экранов; переключение языка на лету |
+| 8 | Память (UI) | Переработаны карточки и детализация записей | `MemoryCard`, `MemoryDetail`, `MemoryExplorer`: новая верстка, отображение метаданных, связей и провенанса |
+| 9 | Хронология (UI) | Тепловая карта активности | `TimelineView`: heatmap по дням, плотность записей, быстрая навигация по периодам |
+| 10 | Проекты (UI) | Обновлён экран проекта | `ProjectDetail`: обновлённая структура, синхронизация с новыми MCP-инструментами проектов |
+| 11 | E2E-тесты | Добавлен визуальный спек | `e2e/strata-visual.spec.ts`: проверка многослойного UI, 10 E2E-тестов Playwright суммарно |
+| 12 | CI/CD | Пайплайн приведён в соответствие с реальной структурой репозитория | Workflow-файлы указывают на фактические пути (`src-tauri`), ручной релиз публикуется в существующий тег, actions обновлены до v5 |
+
+### v1.0.0 — первый публичный релиз
+
+| # | Область | Что сделано | Технические детали |
+|:---:|:---|:---|:---|
+| 1 | Лицензирование | MIT заменён на проприетарную лицензию | Полный запрет копирования/переиспользования, статья 146 УК РФ и пр. — см. [LICENSE](LICENSE) |
+| 2 | MCP-документация | Схемы инструментов синхронизированы с кодом | Описания `tools/list` приведены в соответствие с фактическими схемами параметров |
+| 3 | Миграции БД | Сделаны идемпотентными | `ALTER TABLE ADD COLUMN` выполняется с проверкой существования колонки (`column_exists`), повторный запуск безопасен |
+| 4 | Установка | npm-пакет и кросс-платформенные установщики | `npm-package` с автоматическим скачиванием установщика под архитектуру и проверкой SHA-256; NSIS + MSI для x64 и ARM64 |
+| 5 | MCP-клиент | Node.js helper-библиотека | Официальная библиотека для подключения Nexus к собственным агентам на Node.js |
+| 6 | Rust-ядро | Проверка модели до запроса к БД | Модель проверяется до обращения к базе; повышен порог кириллического fallback-токенизатора для честного подсчёта |
+| 7 | Rust-ядро | Интент-чувствительный поиск сущностей | Поиск учитывает семантический интент; добавлено распознавание JS-стрелочных функций в индексаторе |
+| 8 | Rust-ядро | Удалён мёртвый код | Выпилен неиспользуемый operator-mode модуль и `ai_chat`; `clippy -D warnings` чист |
+| 9 | Frontend | Приведены в порядок шорткаты и навигация | Согласованы горячие клавиши, экран экономии в сайдбаре, экран Context в навигации |
+| 10 | CI | Гейты качества запускаемы | Lint и тесты фронтенда проходят в CI; `react-hooks` предупреждения устранены |
 
 ---
 
