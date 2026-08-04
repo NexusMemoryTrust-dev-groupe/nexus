@@ -1,0 +1,1085 @@
+/* ========================================================================== */
+/* Nexus Strata / Assembly pages                                              */
+/*                                                                            */
+/* Scope is intentionally narrow: Memories, Timeline and Context. The shell,  */
+/* project pages and graph keep their existing rules. Colour tokens come from */
+/* globals.css; this file changes information architecture, not the brand.    */
+/*                                                                            */
+/* Motion contract: every hover / active / state change eases over --st-dur   */
+/* (500ms) on a single settle curve. No overshoot, no hop — surfaces glide to */
+/* their target and stop. Only transform, opacity and colour are animated, so */
+/* the whole thing stays on the compositor.                                   */
+/* ========================================================================== */
+
+:root {
+  /* One duration for interaction feedback. Long enough to read as a glide,    */
+  /* short enough to still feel connected to the pointer.                      */
+  --st-dur: .5s;
+  /* Slightly quicker clock for the press-down, so a click still feels like a  */
+  /* click while staying smooth.                                               */
+  --st-dur-press: .32s;
+  /* Settle curve: fast out of the gate, long gentle landing. This is what     */
+  /* reads as "smooth" rather than "sprung".                                   */
+  --st-ease: cubic-bezier(.22, .61, .36, 1);
+  --st-ease-soft: cubic-bezier(.25, .46, .45, .94);
+  --st-content: 1240px;
+  --st-reading: 920px;
+}
+
+@property --st-ring {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes st-enter {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+}
+
+@keyframes st-pulse {
+  0%, 100% { opacity: .32; transform: scale(.72); }
+  52% { opacity: 0; transform: scale(2.4); }
+}
+
+@keyframes st-sheen {
+  from { transform: translateX(-120%) skewX(-18deg); }
+  to { transform: translateX(240%) skewX(-18deg); }
+}
+
+/* Ambient wash drift. Translating an oversized layer produces a slow wander on
+ * the compositor instead of repainting a gradient every frame. */
+@keyframes st-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.06); }
+  50% { transform: translate3d(-4%, 3%, 0) scale(1.14); }
+}
+
+@keyframes st-shimmer {
+  from { background-position: 180% 0; }
+  to { background-position: -60% 0; }
+}
+
+/* Entrance animations use `backwards`, never `both`. A forwards fill keeps the
+ * animation applied after it ends, and animation values outrank normal
+ * declarations — so a hover transform would snap instead of transition.
+ * `backwards` holds the start value during the stagger delay, then hands the
+ * property back to the transition once done. */
+.st-page {
+  width: 100%;
+  max-width: var(--st-content);
+  margin: 0 auto;
+  padding: 4px 2px 72px;
+  animation: st-enter .42s var(--st-ease) backwards;
+}
+
+.st-page--reading { max-width: var(--st-reading); }
+
+.st-rise {
+  animation: st-enter .48s var(--st-ease) backwards;
+  animation-delay: calc(min(var(--st-i, 0) * 38ms, 440ms));
+}
+
+/* Hero --------------------------------------------------------------------- */
+
+.st-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  min-height: 176px;
+  padding: 26px 28px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  isolation: isolate;
+}
+
+.st-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 74% 130% at 4% -15%, color-mix(in srgb, var(--st-accent, var(--tangerine)) 18%, transparent), transparent 62%),
+    radial-gradient(ellipse 62% 110% at 96% 115%, color-mix(in srgb, var(--st-secondary, var(--periwinkle)) 13%, transparent), transparent 58%);
+  will-change: transform;
+  animation: st-drift 22s ease-in-out infinite;
+}
+
+.st-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .34;
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--bone) 9%, transparent) 1px, transparent 0);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(90deg, #000, transparent 72%);
+  pointer-events: none;
+}
+
+.st-hero-main { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+
+.st-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-bottom: 13px;
+  color: var(--st-accent, var(--tangerine));
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.st-hero-kicker::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.st-hero-title {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--bone);
+  font-family: var(--brand);
+  font-size: clamp(30px, 3.2vw, 46px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.st-hero-copy {
+  max-width: 72ch;
+  margin: 15px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.st-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(100px, 1fr));
+  align-self: stretch;
+  min-width: 235px;
+  border-left: 1px solid var(--line);
+}
+
+.st-hero-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.st-hero-stat:nth-last-child(-n+2) { border-bottom: none; }
+
+.st-hero-stat-value {
+  color: var(--stat-color, var(--bone));
+  font-family: var(--mono);
+  font-size: 25px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-hero-stat-label {
+  margin-top: 6px;
+  color: var(--muted-2);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* Explanatory surfaces ----------------------------------------------------- */
+
+.st-section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  color: var(--bone);
+  font-family: var(--brand);
+  font-size: 15.5px;
+  font-weight: 700;
+}
+
+.st-section-title svg { color: var(--section-color, var(--muted)); }
+
+.st-section-hint {
+  margin: 5px 0 0;
+  color: var(--muted-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* Info trigger. The mark is a bare `?` centred by grid — HelpCircle draws its
+ * own ring, which nested inside this bordered circle and pushed the glyph off
+ * centre.
+ *
+ * Deliberately NO transform on any state. Two reasons: a scale on hover made the
+ * badge jump under the pointer, and — more importantly — a transformed element
+ * becomes the containing block for its `position: fixed` descendants, so the
+ * tooltip would anchor to this 18px badge instead of the viewport and land in
+ * the wrong place. Feedback here is colour only. */
+.st-info {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--carbon);
+  color: var(--muted-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--st-dur) var(--st-ease),
+    border-color var(--st-dur) var(--st-ease),
+    background var(--st-dur) var(--st-ease);
+}
+
+.st-info-mark {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: inherit;
+}
+
+.st-info:hover, .st-info:focus-visible {
+  color: var(--carbon);
+  border-color: var(--tangerine);
+  background: var(--tangerine);
+  outline: none;
+}
+
+/* Tooltip bubble. Fixed-positioned because the ancestors that host these
+ * triggers (.st-ask, .st-day, .st-hero) all need overflow:hidden for their
+ * rounded corners — and an ancestor's overflow clips a descendant regardless
+ * of z-index. JS writes --tip-x / --tip-y in viewport coordinates and flips
+ * data-flip when there is no room below. */
+.st-tip {
+  position: fixed;
+  left: var(--tip-x, 50%);
+  top: var(--tip-y, 100%);
+  z-index: 200;
+  width: 264px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(13, 16, 20, .98);
+  color: var(--muted);
+  box-shadow: 0 16px 46px rgba(0, 0, 0, .52);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: left;
+  transform: translate(-50%, -4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--st-dur) var(--st-ease),
+    transform var(--st-dur) var(--st-ease),
+    visibility var(--st-dur);
+}
+
+.st-info:hover .st-tip, .st-info:focus-visible .st-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+/* Strata distribution and layer legend ----------------------------------- */
+
+.st-strata-panel {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.st-strata-copy, .st-legend {
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.st-strata {
+  display: flex;
+  gap: 5px;
+  min-height: 74px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--carbon);
+}
+
+/* Every segment takes an equal share of width and stretches to the full height
+ * of the bar. The old design sized each one by its memory count, which left
+ * near-empty layers as unreadable slivers. Equal tiles read cleanly and the
+ * count still lives inside each one. No lift here — the user asked for a calm
+ * colour wash on hover, not a hop. */
+.st-strata-segment {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 13px 14px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--layer-color) 7%, var(--surface));
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--st-dur) var(--st-ease),
+    background var(--st-dur) var(--st-ease),
+    box-shadow var(--st-dur) var(--st-ease);
+}
+
+.st-strata-segment::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--layer-color) 16%, transparent), transparent 68%);
+  opacity: .5;
+  transition: opacity var(--st-dur) var(--st-ease);
+}
+
+.st-strata-segment:hover:not(:disabled) { border-color: color-mix(in srgb, var(--layer-color) 42%, transparent); background: color-mix(in srgb, var(--layer-color) 14%, var(--surface)); box-shadow: inset 0 0 26px color-mix(in srgb, var(--layer-color) 12%, transparent); }
+.st-strata-segment:hover::before { opacity: .9; }
+.st-strata-segment:focus-visible { outline: 2px solid var(--layer-color); outline-offset: 2px; }
+.st-strata-segment[aria-pressed='true'] { border-color: color-mix(in srgb, var(--layer-color) 58%, transparent); background: color-mix(in srgb, var(--layer-color) 16%, var(--surface)); }
+.st-strata-segment:disabled { opacity: .34; cursor: not-allowed; }
+.st-strata-segment > * { position: relative; z-index: 1; }
+
+.st-strata-top { display: flex; align-items: center; gap: 7px; }
+.st-strata-name { color: var(--layer-color); font-size: 11.5px; font-weight: 750; letter-spacing: .05em; }
+.st-strata-count { margin-left: auto; color: var(--bone); font-family: var(--mono); font-size: 18px; font-weight: 650; }
+.st-strata-meaning { display: block; max-width: 25ch; margin-top: 9px; color: var(--muted-2); font-size: 11px; line-height: 1.45; }
+
+.st-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 0; overflow: hidden; }
+
+/* The four "what the layers mean" blocks are meaningful surfaces the user
+ * reads and hovers, so they take a pointer cursor and lift like the rest. */
+.st-legend-item {
+  position: relative;
+  padding: 15px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  cursor: pointer;
+  transition: background var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease);
+}
+
+.st-legend-item:last-child { border-right: none; }
+.st-legend-item:hover { background: color-mix(in srgb, var(--layer-color) 6%, var(--surface)); }
+/* Scaled rather than resized: `height` on a positioned bar reflows and repaints
+ * every frame, `scaleY` rides the compositor. */
+.st-legend-item::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--layer-color); opacity: .7; transform: scaleY(.667); transform-origin: top; transition: opacity var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-legend-item:hover::before { opacity: 1; transform: scaleY(1); }
+.st-legend-head { display: flex; align-items: center; gap: 7px; color: var(--layer-color); font-size: 11.5px; font-weight: 750; }
+.st-legend-text { margin-top: 7px; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.st-legend-next { display: block; margin-top: 6px; color: var(--muted-2); font-size: 10.5px; line-height: 1.45; }
+
+/* Command rail ------------------------------------------------------------- */
+
+/* This rail is sticky AND was using backdrop-filter: blur(24px). That pairing is
+ * the single worst thing for scroll performance: the bar stays pinned while the
+ * whole page scrolls beneath it, so the browser re-computed a 24px blur of all
+ * the moving content on every single frame of every scroll. The graph page has
+ * no such element, which is why it stayed smooth while these pages stuttered.
+ *
+ * A near-opaque solid background reads almost identically to the frosted panel
+ * (the content underneath was barely visible through 75% dark anyway) and costs
+ * nothing to keep pinned. */
+.st-rail {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 9px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+}
+
+.st-rail::before { content: ''; position: absolute; left: -1px; right: -1px; bottom: calc(100% + 1px); height: var(--gutter); background: var(--carbon); pointer-events: none; }
+.st-rail-spacer { flex: 1; min-width: 0; }
+.st-rail-count { color: var(--muted-2); font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+
+.st-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 210px;
+  flex: 1 1 260px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--carbon);
+  color: var(--muted-2);
+  cursor: text;
+  transition: border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease);
+}
+
+.st-search:hover { border-color: color-mix(in srgb, var(--tangerine) 26%, transparent); }
+.st-search:focus-within { border-color: color-mix(in srgb, var(--tangerine) 48%, transparent); box-shadow: 0 0 0 3px var(--tangerine-soft); }
+.st-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--bone); font-family: var(--sans); font-size: 13px; }
+.st-search input::placeholder { color: var(--muted-2); }
+
+.st-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted-2);
+  cursor: pointer;
+  transition: color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease);
+}
+
+.st-icon-button:hover { color: var(--bone); border-color: var(--muted-2); background: var(--raised); transform: translate3d(0, -2px, 0); box-shadow: 0 6px 14px rgba(0,0,0,.24); }
+.st-icon-button:focus-visible { outline: 2px solid color-mix(in srgb, var(--tangerine) 55%, transparent); outline-offset: 2px; }
+.st-icon-button:active { transform: translate3d(0, 0, 0) scale(.92); transition-duration: var(--st-dur-press); }
+.st-icon-button.is-success { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 38%, transparent); }
+
+.st-chips { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.st-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: color var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease);
+}
+
+.st-chip:hover:not(:disabled) { color: var(--bone); border-color: color-mix(in srgb, var(--chip-color, var(--bone)) 34%, transparent); transform: translate3d(0, -3px, 0); box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+.st-chip:focus-visible { outline: 2px solid color-mix(in srgb, var(--chip-color, var(--bone)) 55%, transparent); outline-offset: 2px; }
+.st-chip:active:not(:disabled) { transform: translate3d(0, 0, 0) scale(.94); transition-duration: var(--st-dur-press); }
+.st-chip:disabled { opacity: .38; cursor: not-allowed; }
+.st-chip[aria-pressed='true'] { color: var(--chip-color, var(--bone)); border-color: color-mix(in srgb, var(--chip-color, var(--bone)) 48%, transparent); background: color-mix(in srgb, var(--chip-color, var(--bone)) 10%, transparent); }
+.st-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--chip-color, var(--muted-2)); box-shadow: 0 0 8px color-mix(in srgb, var(--chip-color, transparent) 55%, transparent); }
+.st-chip-count { color: currentColor; font-family: var(--mono); opacity: .62; }
+
+.st-seg { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); }
+.st-seg button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--muted-2); font-family: var(--sans); font-size: 11px; font-weight: 650; cursor: pointer; transition: color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-seg button:hover { color: var(--bone); transform: translate3d(0, -2px, 0); }
+.st-seg button:focus-visible { outline: 2px solid color-mix(in srgb, var(--tangerine) 50%, transparent); outline-offset: 1px; }
+.st-seg button:active { transform: translate3d(0, 0, 0) scale(.94); transition-duration: var(--st-dur-press); }
+.st-seg button[aria-pressed='true'] { color: var(--bone); background: var(--raised); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+
+/* Instruments -------------------------------------------------------------- */
+
+.st-ring-wrap { position: relative; display: inline-grid; place-items: center; width: var(--ring-size, 58px); height: var(--ring-size, 58px); flex-shrink: 0; }
+/* The conic-gradient + radial mask is one of the most expensive things to paint
+ * in CSS, and there is one on every memory card and timeline entry. `contain:
+ * paint` walls each ring off into its own paint box, so a repaint of the ring
+ * cannot force the whole card to repaint and vice versa. The `st-ring-in` sweep
+ * was also removed: an animation on this exact construction re-rasterised the
+ * conic gradient every frame of its run, and `useCountUp` already animates the
+ * number, so the ring can simply arrive filled. */
+.st-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from -90deg, var(--ring-color) calc(var(--st-ring) * 1turn), var(--raised) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  contain: paint;
+}
+.st-ring-wrap::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; background: radial-gradient(circle, var(--ring-soft) 0, transparent 68%); pointer-events: none; }
+.st-ring-value { position: relative; color: var(--bone); font-family: var(--mono); font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.st-ring-label { position: absolute; top: calc(100% + 5px); left: 50%; color: var(--muted-2); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; transform: translateX(-50%); white-space: nowrap; }
+
+.st-blocks { display: inline-flex; align-items: center; gap: 3px; }
+.st-block { width: 11px; height: 5px; border-radius: 2px; background: var(--raised-2); transition: background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-block.on { background: var(--block-color, var(--tangerine)); box-shadow: 0 0 7px color-mix(in srgb, var(--block-color, var(--tangerine)) 42%, transparent); transform: scaleY(1.3); }
+
+.st-pulse { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--pulse-color, var(--mint)); flex-shrink: 0; contain: layout paint; }
+/* The expanding ring loops forever on every "fresh" card. Kept cheap: it only
+ * animates transform + opacity (compositor properties), `will-change` promotes
+ * just this 5px halo to its own layer instead of the whole card, and `contain`
+ * stops its repaint from touching anything around it. */
+.st-pulse::after { content: ''; position: absolute; inset: -1px; border: 1px solid var(--pulse-color, var(--mint)); border-radius: 50%; will-change: transform, opacity; animation: st-pulse 2s ease-out infinite; }
+.st-pulse.is-still::after { animation: none; display: none; }
+
+.st-layer-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--layer-color); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.st-layer-tag svg { width: 12px; height: 12px; }
+
+.st-glyph {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--glyph-size, 34px);
+  height: var(--glyph-size, 34px);
+  border: 1px solid color-mix(in srgb, var(--layer-color) 30%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--layer-color) 10%, var(--surface));
+  color: var(--layer-color);
+  flex-shrink: 0;
+  transition: transform var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease);
+}
+.st-glyph::after { content: ''; position: absolute; inset: 5px; border-radius: 5px; box-shadow: 0 0 15px color-mix(in srgb, var(--layer-color) 17%, transparent); }
+.st-glyph svg { position: relative; z-index: 1; }
+
+/* Memory bento ------------------------------------------------------------- */
+
+.st-bento {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  grid-auto-rows: minmax(118px, auto);
+  gap: 12px;
+}
+
+/* The card. A single smooth lift over --st-dur: it rises, the accent rail
+ * widens, the layer glyph and the ambient wash respond, and everything eases to
+ * a stop on the same clock. No keyframe, no overshoot — releasing the hover
+ * glides it back down the same way. */
+.st-memory-tile {
+  --tile-col: span 4;
+  --tile-row: span 2;
+  position: relative;
+  grid-column: var(--tile-col);
+  grid-row: var(--tile-row);
+  display: flex;
+  flex-direction: column;
+  min-height: 232px;
+  padding: 17px 18px 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  isolation: isolate;
+  /* `contain: content` walls each tile's layout and paint into itself, so a
+   * hover repaint on one card never invalidates its neighbours. Deliberately NOT
+   * `content-visibility: auto` here — this is a dense bento grid, and hiding an
+   * off-screen tile makes `grid-auto-flow: dense` re-pack the remaining ones,
+   * which is its own layout cost on every scroll. The list is dozens of items,
+   * not thousands, so containment beats skip-rendering. */
+  contain: content;
+  transition:
+    transform var(--st-dur) var(--st-ease),
+    border-color var(--st-dur) var(--st-ease),
+    box-shadow var(--st-dur) var(--st-ease),
+    background var(--st-dur) var(--st-ease);
+}
+
+.st-memory-tile[data-size='small'] { --tile-col: span 3; --tile-row: span 1; min-height: 118px; }
+.st-memory-tile[data-size='medium'] { --tile-col: span 4; --tile-row: span 2; }
+.st-memory-tile[data-size='large'] { --tile-col: span 6; --tile-row: span 2; }
+.st-memory-tile[data-size='hero'] { --tile-col: span 8; --tile-row: span 3; min-height: 356px; }
+
+/* Cursor-tracked wash + a resting layer tint. */
+.st-memory-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(460px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--layer-color) 15%, transparent), transparent 60%),
+    linear-gradient(150deg, color-mix(in srgb, var(--layer-color) 9%, transparent), transparent 60%);
+  opacity: .6;
+  transition: opacity var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease);
+}
+
+/* Accent rail, drawn at full width and scaled down at rest so thickening it is
+ * a transform, not a `width` change. */
+.st-memory-tile::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 5px; background: var(--layer-color); opacity: .5; transform: scaleX(.55); transform-origin: left; transition: opacity var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+
+.st-memory-tile:hover {
+  transform: translate3d(0, -6px, 0);
+  border-color: color-mix(in srgb, var(--layer-color) 44%, transparent);
+  box-shadow: 0 24px 60px rgba(0,0,0,.4), 0 0 32px color-mix(in srgb, var(--layer-color) 12%, transparent);
+  will-change: transform;
+}
+.st-memory-tile:hover::before { opacity: 1; transform: scale(1.04); }
+.st-memory-tile:hover::after { transform: scaleX(1); opacity: 1; }
+.st-memory-tile:hover .st-glyph { transform: translate3d(0, -1px, 0) scale(1.06); border-color: color-mix(in srgb, var(--layer-color) 50%, transparent); }
+.st-memory-tile:active { transform: translate3d(0, -2px, 0) scale(.995); transition-duration: var(--st-dur-press); }
+.st-memory-tile:focus-visible { outline: 2px solid var(--layer-color); outline-offset: 2px; }
+
+.st-tile-sheen { position: absolute; z-index: -1; top: -30%; bottom: -30%; width: 34%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bone) 7%, transparent), transparent); transform: translateX(-120%) skewX(-18deg); pointer-events: none; }
+.st-memory-tile:hover .st-tile-sheen { animation: st-sheen 1s var(--st-ease); }
+
+.st-tile-top { display: flex; align-items: center; gap: 9px; }
+.st-tile-fresh { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted-2); font-size: 10px; font-weight: 650; text-transform: uppercase; }
+.st-tile-title { margin: 15px 0 0; color: var(--bone); font-family: var(--brand); font-size: 19px; font-weight: 750; line-height: 1.18; letter-spacing: 0; overflow-wrap: anywhere; }
+.st-memory-tile[data-size='small'] .st-tile-title { margin-top: 11px; font-size: 14.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-memory-tile[data-size='hero'] .st-tile-title { max-width: 19ch; margin-top: 26px; font-size: 31px; line-height: 1.05; }
+.st-tile-summary { margin: 11px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.st-memory-tile[data-size='small'] .st-tile-summary { display: none; }
+.st-memory-tile[data-size='hero'] .st-tile-summary { max-width: 66ch; margin-top: 14px; font-size: 14px; -webkit-line-clamp: 5; }
+
+/* The footer of the tile sat flush against the bottom edge with its ring and
+ * blocks crammed together. A hairline separator, real top padding and a
+ * centre-aligned row give the instruments room to breathe instead of looking
+ * dumped at the floor. */
+.st-tile-bottom { display: flex; align-items: flex-start; gap: 18px; margin-top: auto; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.st-memory-tile[data-size='small'] .st-tile-bottom { padding-top: 10px; }
+.st-tile-signals { display: flex; align-items: flex-start; gap: 22px; }
+/* The ring prints its label with position:absolute below the disc, so it takes
+ * no space in the flow. Without a reserved gap the "Trust" caption collides with
+ * the tile's bottom edge — the "crammed at the floor" look. This margin is the
+ * height of that caption plus air. */
+.st-tile-signals .st-ring-wrap { margin-bottom: 22px; }
+.st-tile-impact { display: flex; flex-direction: column; gap: 8px; }
+.st-tile-signal-label { color: var(--muted-2); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.st-memory-tile[data-size='small'] .st-ring-wrap, .st-memory-tile[data-size='small'] .st-tile-impact { display: none; }
+.st-tile-meta { min-width: 0; margin-left: auto; color: var(--muted-2); font-size: 10.5px; text-align: right; }
+.st-tile-source { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-tile-time { display: block; margin-top: 4px; font-family: var(--mono); }
+.st-tile-open { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; color: var(--layer-color); font-size: 10.5px; font-weight: 700; opacity: 0; transform: translateX(-5px); transition: opacity var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-memory-tile:hover .st-tile-open, .st-memory-tile:focus-visible .st-tile-open { opacity: 1; transform: translateX(0); }
+.st-memory-tile:hover .st-tile-open svg { transition: transform var(--st-dur) var(--st-ease); }
+.st-memory-tile:hover .st-tile-open:hover svg { transform: translateX(3px); }
+
+.st-memory-row { --tile-col: 1 / -1; --tile-row: auto; min-height: 82px; display: grid; grid-template-columns: auto minmax(0, 1fr) 210px auto; align-items: center; gap: 14px; padding: 12px 14px; }
+.st-memory-row:hover { transform: translate3d(0, -3px, 0); }
+.st-memory-row .st-tile-title { margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-memory-row .st-tile-summary { margin-top: 3px; -webkit-line-clamp: 1; font-size: 12px; }
+.st-memory-row .st-tile-bottom { display: contents; }
+.st-memory-row .st-tile-signals { justify-content: flex-end; }
+.st-memory-row .st-tile-meta { margin: 0; }
+
+/* Memory detail ------------------------------------------------------------ */
+
+/* `backwards`, not `both`: a forwards fill leaves the entrance transform
+ * applied after the animation ends, and in the WebView that lingering transform
+ * turns the sheet into a containing block for `position: fixed`. Every InfoTip
+ * bubble inside then measured its coordinates against the card instead of the
+ * viewport, which is why the tooltip landed wrong only in this view. */
+.st-sheet { width: 100%; max-width: 980px; margin: 0 auto; padding-bottom: 70px; animation: st-enter .4s var(--st-ease) backwards; }
+.st-sheet-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+.st-back { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-family: var(--sans); font-size: 12px; font-weight: 650; cursor: pointer; transition: color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-back:hover { color: var(--bone); border-color: color-mix(in srgb, var(--layer-color) 40%, transparent); transform: translate3d(-4px, 0, 0); box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.st-back:active { transform: translate3d(-2px, 0, 0) scale(.96); transition-duration: var(--st-dur-press); }
+
+.st-sheet-hero { position: relative; padding: 27px 28px 24px; overflow: hidden; border: 1px solid var(--line); border-radius: 18px 18px 0 0; background: var(--surface); isolation: isolate; }
+.st-sheet-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse 80% 130% at 0 0, color-mix(in srgb, var(--layer-color) 20%, transparent), transparent 64%), linear-gradient(125deg, color-mix(in srgb, var(--layer-color) 6%, transparent), transparent 70%); }
+.st-sheet-kicker { display: flex; align-items: center; gap: 10px; }
+.st-sheet-title { max-width: 25ch; margin: 18px 0 0; color: var(--bone); font-family: var(--brand); font-size: 34px; font-weight: 800; line-height: 1.06; letter-spacing: 0; overflow-wrap: anywhere; }
+.st-sheet-facts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 17px; }
+/* Facts are metadata pills. Each dimension gets its own colour so visibility,
+ * author, source and capture mode are distinguishable at a glance rather than a
+ * uniform grey run. Colour lives on --fact-color; the pill tints its border,
+ * icon and text from that one token. */
+.st-fact { --fact-color: var(--muted); display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 10px; border: 1px solid color-mix(in srgb, var(--fact-color) 30%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--fact-color) 9%, var(--carbon)); color: color-mix(in srgb, var(--fact-color) 75%, var(--bone)); font-size: 11px; font-weight: 600; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-fact svg { width: 12px; height: 12px; flex-shrink: 0; color: var(--fact-color); }
+.st-fact:hover { border-color: color-mix(in srgb, var(--fact-color) 50%, transparent); background: color-mix(in srgb, var(--fact-color) 14%, var(--carbon)); }
+.st-fact--visibility { --fact-color: var(--cyan); }
+.st-fact--author { --fact-color: var(--periwinkle); }
+.st-fact--source { --fact-color: var(--tangerine); }
+.st-fact--mode { --fact-color: var(--mint); }
+.st-fact--linked { --fact-color: var(--steel); }
+.st-fact--files { --fact-color: var(--gold); }
+
+.st-sheet-map { display: grid; grid-template-columns: 1.2fr .8fr; border: 1px solid var(--line); border-top: none; background: var(--surface-2); }
+.st-ladder { padding: 20px 24px; border-right: 1px solid var(--line); }
+.st-ladder-track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.st-ladder-track::before { content: ''; position: absolute; left: 10%; right: 10%; top: 15px; height: 1px; background: var(--line); }
+.st-ladder-step { position: relative; z-index: 1; text-align: center; }
+.st-ladder-node { display: grid; place-items: center; width: 30px; height: 30px; margin: 0 auto; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); color: var(--muted-2); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-ladder-step.on .st-ladder-node { border-color: color-mix(in srgb, var(--step-color) 52%, transparent); background: color-mix(in srgb, var(--step-color) 12%, var(--carbon)); color: var(--step-color); box-shadow: 0 0 16px color-mix(in srgb, var(--step-color) 14%, transparent); transform: scale(1.08); }
+.st-ladder-name { display: block; margin-top: 7px; color: var(--muted-2); font-size: 11px; transition: color var(--st-dur) var(--st-ease); }
+.st-ladder-step.on .st-ladder-name { color: var(--step-color); font-weight: 700; }
+.st-ladder-meaning { margin: 15px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+/* Two equal signal cards, stretched to fill the panel. Each is a self-contained
+ * tile with its own accent colour and a slow drifting wash behind it, so Trust
+ * and Impact read as two distinct instruments rather than grey boxes. The wash
+ * is an oversized layer translated on the compositor — no per-frame repaint. */
+.st-sheet-signals { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 20px; align-items: stretch; }
+.st-signal {
+  --sig-color: var(--periwinkle);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 22px 18px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--sig-color) 26%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sig-color) 7%, var(--surface));
+  text-align: center;
+  isolation: isolate;
+  transition: border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease);
+}
+.st-signal--trust { --sig-color: var(--periwinkle); }
+.st-signal--impact { --sig-color: var(--tangerine); }
+.st-signal::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 60% at 30% 20%, color-mix(in srgb, var(--sig-color) 22%, transparent), transparent 60%),
+    radial-gradient(ellipse 50% 50% at 80% 90%, color-mix(in srgb, var(--sig-color) 14%, transparent), transparent 58%);
+  will-change: transform;
+  animation: st-drift 18s ease-in-out infinite;
+}
+.st-signal--impact::before { animation-delay: -9s; }
+.st-signal:hover { border-color: color-mix(in srgb, var(--sig-color) 45%, transparent); box-shadow: 0 0 26px color-mix(in srgb, var(--sig-color) 12%, transparent); }
+.st-signal-title { color: var(--sig-color); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+/* The ring's label is absolutely placed below the disc, so the wrap needs room
+ * reserved underneath it or the label lands on top of the copy. */
+.st-signal .st-ring-wrap { margin-bottom: 20px; }
+.st-signal-impact { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.st-signal-impact-value { color: var(--sig-color); font-family: var(--mono); font-size: 30px; font-weight: 650; line-height: 1; }
+.st-signal-copy { max-width: 100%; color: var(--muted); font-size: 11.5px; line-height: 1.55; text-align: center; }
+
+.st-sheet-body { padding: 24px 26px 26px; border: 1px solid var(--line); border-top: none; border-radius: 0 0 18px 18px; background: var(--surface); }
+.st-sheet-section { margin-bottom: 24px; }
+.st-sheet-section:last-child { margin-bottom: 0; }
+.st-sheet-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.st-sheet-section-title { color: var(--bone); font-size: 11.5px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.st-sheet-section-line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+.st-sheet-section-note { color: var(--muted-2); font-size: 10.5px; }
+.st-quote { position: relative; padding: 16px 18px 16px 21px; border-radius: 10px; background: color-mix(in srgb, var(--layer-color) 6%, var(--surface-2)); color: var(--bone); font-size: 14px; line-height: 1.66; }
+.st-quote::before { content: ''; position: absolute; left: 0; top: 11px; bottom: 11px; width: 2px; border-radius: 2px; background: var(--layer-color); box-shadow: 0 0 10px var(--layer-glow); }
+.st-read { position: relative; padding: 17px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--carbon); color: var(--bone); font-family: var(--mono); font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.st-read.is-clipped { max-height: 350px; overflow: hidden; }
+.st-read.is-clipped::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: linear-gradient(transparent, var(--carbon) 82%); pointer-events: none; }
+.st-read-tools { position: absolute; top: 8px; right: 8px; z-index: 2; opacity: 0; transition: opacity var(--st-dur) var(--st-ease); }
+.st-read:hover .st-read-tools, .st-read:focus-within .st-read-tools { opacity: 1; }
+.st-expand { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 7px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--muted); font-family: var(--sans); font-size: 11px; font-weight: 650; cursor: pointer; transition: color var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-expand:hover { color: var(--bone); border-color: var(--muted-2); background: var(--raised); transform: translate3d(0, -2px, 0); }
+.st-expand:active { transform: translate3d(0, 0, 0) scale(.98); transition-duration: var(--st-dur-press); }
+
+.st-files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.st-file { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-file:hover { border-color: color-mix(in srgb, var(--layer-color) 36%, transparent); transform: translate3d(0, -4px, 0); background: var(--surface-2); box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+.st-file:active { transform: translate3d(0, -1px, 0) scale(.98); transition-duration: var(--st-dur-press); }
+.st-file-main { min-width: 0; flex: 1; }
+.st-file-name { color: var(--bone); font-size: 12px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-file-path { margin-top: 3px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-file-size { color: var(--muted-2); font-family: var(--mono); font-size: 10px; flex-shrink: 0; }
+.st-sheet-footer { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-top: 21px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-sheet-footer span { display: inline-flex; align-items: center; gap: 5px; }
+.st-sheet-footer .id { margin-left: auto; opacity: .55; }
+
+/* Timeline heat map + 24-hour tracks -------------------------------------- */
+
+.st-heat-panel { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 18px; align-items: center; padding: 16px 18px; margin-bottom: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.st-heat { display: grid; grid-template-columns: repeat(30, minmax(7px, 1fr)); grid-template-rows: repeat(3, 10px); grid-auto-flow: column; gap: 3px; }
+/* 90 cells: hover stays on transform + a lighter colour token. No `filter`. */
+.st-heat-cell { position: relative; min-width: 7px; padding: 0; border: 0; border-radius: 2px; background: color-mix(in srgb, var(--tangerine) calc(8% + var(--heat) * 18%), var(--raised)); cursor: pointer; transition: transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-heat-cell:hover { z-index: 2; transform: scale(1.55); background: color-mix(in srgb, var(--tangerine) calc(26% + var(--heat) * 22%), var(--raised)); box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+.st-heat-cell:active { transform: scale(1.2); transition-duration: var(--st-dur-press); }
+.st-heat-cell[aria-current='date'] { outline: 1px solid var(--tangerine); outline-offset: 2px; }
+.st-heat-empty { background: var(--raised); opacity: .55; }
+
+.st-timeline-days { display: flex; flex-direction: column; gap: 10px; }
+/* Same off-screen paint skip as the memory tiles. A day card carries an axis,
+ * dots and a two-column entry grid; below the fold that is all wasted paint on
+ * scroll. The intrinsic size is a rough per-day guess so the scrollbar stays
+ * stable — the real height still comes from content once revealed. */
+/* `content-visibility: auto` was removed here. Days have wildly different
+ * heights (a day with two entries vs twenty), so the single 320px
+ * `contain-intrinsic-size` placeholder was wrong for almost every day — when one
+ * scrolled into view its real height replaced the guess and the scrollbar jumped,
+ * which read as the whole list "bouncing". `contain: content` gives the same
+ * paint/layout isolation without ever guessing a height, so scrolling stays
+ * stable. */
+.st-day { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; contain: content; }
+.st-day-head { display: flex; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.st-day-date { color: var(--bone); font-family: var(--brand); font-size: 14.5px; font-weight: 720; }
+.st-day-relative { padding: 3px 8px; border-radius: 999px; background: var(--tangerine-soft); color: var(--tangerine); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
+.st-day-count { margin-left: auto; color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; }
+
+.st-axis { position: relative; min-height: 96px; margin: 17px 26px 4px; }
+.st-axis-line { position: absolute; left: 0; right: 0; top: 38px; height: 1px; background: linear-gradient(90deg, var(--line), var(--muted-2), var(--line)); }
+.st-axis-tick { position: absolute; top: 31px; width: 1px; height: 15px; background: var(--line); }
+.st-axis-label { position: absolute; top: 53px; color: var(--muted-2); font-family: var(--mono); font-size: 9px; transform: translateX(-50%); }
+.st-axis-dot { --dot-size: 10px; position: absolute; top: calc(38px - var(--dot-size) / 2); left: calc(var(--at) * 100%); width: var(--dot-size); height: var(--dot-size); padding: 0; border: 2px solid var(--surface); border-radius: 50%; background: var(--layer-color); box-shadow: 0 0 10px var(--layer-glow); transform: translate3d(-50%, 0, 0); cursor: pointer; transition: transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+/* The dot is centred by translateX(-50%), so every state carries that offset. */
+.st-axis-dot:hover, .st-axis-dot:focus-visible { z-index: 5; transform: translate3d(-50%, -2px, 0) scale(1.8); box-shadow: 0 0 22px var(--layer-glow); outline: none; }
+.st-axis-dot:active { transform: translate3d(-50%, 0, 0) scale(1.4); transition-duration: var(--st-dur-press); }
+
+.st-day-entries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 12px 12px; }
+/* A row in a dense list: it slides toward the reader and lifts a little rather
+ * than travelling the full height of a tile. Same gesture, scaled to the row. */
+.st-entry { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 10px 11px; border: 1px solid transparent; border-radius: 8px; background: var(--carbon); color: inherit; text-align: left; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-entry:hover, .st-entry.is-hovered { border-color: color-mix(in srgb, var(--layer-color) 35%, transparent); background: color-mix(in srgb, var(--layer-color) 5%, var(--carbon)); transform: translate3d(4px, -2px, 0); box-shadow: 0 8px 18px rgba(0,0,0,.2); }
+.st-entry:active { transform: translate3d(2px, 0, 0) scale(.985); transition-duration: var(--st-dur-press); }
+.st-entry:focus-visible { outline: 2px solid var(--layer-color); outline-offset: 2px; }
+.st-entry-time { color: var(--layer-color); font-family: var(--mono); font-size: 10px; }
+.st-entry-title { color: var(--bone); font-size: 12px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-entry-layer { color: var(--muted-2); font-size: 9.5px; text-transform: uppercase; }
+.st-entry-impact { display: flex; align-items: center; gap: 3px; }
+
+/* Context Assembly --------------------------------------------------------- */
+
+.st-ask { position: relative; padding: 18px 20px; margin-bottom: 14px; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); isolation: isolate; }
+.st-ask::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse 80% 130% at 0 0, var(--gold-soft), transparent 63%), radial-gradient(ellipse 60% 100% at 100% 100%, var(--tangerine-soft), transparent 60%); will-change: transform; animation: st-drift 22s ease-in-out infinite; }
+.st-ask-label { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--gold); font-size: 10.5px; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.st-ask-field { display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--carbon); transition: border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-ask-field:focus-within { border-color: color-mix(in srgb, var(--gold) 52%, transparent); box-shadow: 0 0 0 4px var(--gold-soft), 0 0 30px color-mix(in srgb, var(--gold) 8%, transparent); }
+.st-ask-prompt { color: var(--gold); font-family: var(--mono); font-size: 18px; font-weight: 700; }
+.st-ask-field input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--bone); font-family: var(--sans); font-size: 14px; font-weight: 550; }
+.st-ask-field input::placeholder { color: var(--muted-2); font-weight: 400; }
+.st-ask-hint { padding: 4px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; white-space: nowrap; }
+/* A lightened background instead of `filter: brightness()` keeps the button on
+ * the compositor. */
+.st-run { display: inline-flex; align-items: center; gap: 6px; padding: 9px 15px; border: 0; border-radius: 7px; background: var(--gold); color: var(--carbon); font-family: var(--sans); font-size: 12px; font-weight: 750; cursor: pointer; transition: background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-run:hover:not(:disabled) { background: color-mix(in srgb, #fff 12%, var(--gold)); transform: translate3d(0, -3px, 0); box-shadow: 0 10px 26px color-mix(in srgb, var(--gold) 24%, transparent); }
+.st-run:active:not(:disabled) { transform: translate3d(0, 0, 0) scale(.96); transition-duration: var(--st-dur-press); }
+.st-run:disabled { opacity: .38; cursor: not-allowed; transform: none; box-shadow: none; }
+.st-seeds { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
+.st-seed-label { color: var(--muted-2); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
+.st-seed { padding: 5px 10px; border: 1px dashed var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-family: var(--sans); font-size: 10.5px; cursor: pointer; transition: color var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-seed:hover:not(:disabled) { color: var(--gold); border-style: solid; border-color: color-mix(in srgb, var(--gold) 40%, transparent); background: var(--gold-soft); transform: translate3d(0, -2px, 0); }
+.st-seed:active:not(:disabled) { transform: translate3d(0, 0, 0) scale(.94); transition-duration: var(--st-dur-press); }
+.st-seed:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+.st-pipeline-intro { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.st-pipeline-intro-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--gold-soft); color: var(--gold); flex-shrink: 0; }
+
+.st-flow { --flow-color: var(--gold); position: relative; display: flex; flex-direction: column; }
+.st-stage { --stage-color: var(--muted-2); position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 0; opacity: .58; transition: opacity var(--st-dur) var(--st-ease); }
+.st-stage.is-ready { opacity: 1; }
+.st-stage-rail { position: relative; display: flex; justify-content: center; }
+.st-stage-rail::after { content: ''; position: absolute; top: 44px; bottom: -1px; width: 1px; background: linear-gradient(var(--stage-color), var(--line)); opacity: .4; }
+.st-stage:last-child .st-stage-rail::after { display: none; }
+.st-stage-node { position: relative; z-index: 2; display: grid; place-items: center; width: 34px; height: 34px; margin-top: 13px; border: 1px solid color-mix(in srgb, var(--stage-color) 30%, var(--line)); border-radius: 10px; background: var(--carbon); color: var(--stage-color); font-family: var(--mono); font-size: 10px; font-weight: 700; transition: background var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-stage.is-ready .st-stage-node { background: color-mix(in srgb, var(--stage-color) 10%, var(--carbon)); box-shadow: 0 0 20px color-mix(in srgb, var(--stage-color) 12%, transparent); transform: translate3d(0, 0, 0) scale(1.04); }
+.st-stage.is-running .st-stage-node::after { content: ''; position: absolute; inset: -3px; border: 1px solid var(--stage-color); border-radius: 12px; will-change: transform, opacity; animation: st-pulse 1.45s ease-out infinite; }
+.st-stage-card { margin-bottom: 8px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-stage-card:hover { border-color: color-mix(in srgb, var(--stage-color) 20%, var(--line)); }
+.st-stage.is-ready .st-stage-card { transform: translate3d(2px, 0, 0); }
+.st-stage-head { display: flex; align-items: flex-start; gap: 10px; }
+.st-stage-title-wrap { min-width: 0; flex: 1; }
+.st-stage-title { color: var(--bone); font-family: var(--brand); font-size: 14px; font-weight: 720; }
+.st-stage-desc { max-width: 76ch; margin-top: 4px; color: var(--muted-2); font-size: 11.5px; line-height: 1.5; }
+.st-stage-state { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--stage-color) 10%, transparent); color: var(--stage-color); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.st-stage-body { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); animation: st-enter .5s var(--st-ease) both; }
+
+.st-stage-question { color: var(--bone); font-size: 13px; font-weight: 600; line-height: 1.5; }
+.st-intent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-value-card { padding: 11px 12px; border: 1px solid transparent; border-radius: 8px; background: var(--carbon); transition: background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease); }
+.st-value-card:hover { background: var(--surface-2); transform: translate3d(0, -3px, 0); border-color: color-mix(in srgb, var(--gold) 20%, var(--line)); }
+.st-value-label { color: var(--muted-2); font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.st-value-main { margin-top: 5px; color: var(--bone); font-family: var(--mono); font-size: 18px; font-weight: 650; }
+.st-value-note { margin-top: 4px; color: var(--muted-2); font-size: 10.5px; line-height: 1.4; }
+
+.st-source-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.st-source { position: relative; padding: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+/* Full-height bar scaled down, so thickening it on hover is a compositor op. */
+.st-source::after { content: ''; position: absolute; inset: auto 0 0; height: 3px; background: var(--source-color); transform: scaleY(.667); transform-origin: bottom; transition: transform var(--st-dur) var(--st-ease); }
+.st-source:hover { border-color: color-mix(in srgb, var(--source-color) 34%, transparent); transform: translate3d(0, -4px, 0); background: var(--surface-2); box-shadow: 0 10px 26px rgba(0,0,0,.22); }
+.st-source:hover::after { transform: scaleY(1); }
+.st-source-head { display: flex; align-items: center; gap: 7px; color: var(--source-color); font-size: 10.5px; font-weight: 700; }
+.st-source-value { margin-top: 7px; color: var(--bone); font-family: var(--mono); font-size: 23px; font-weight: 650; transition: transform var(--st-dur) var(--st-ease); }
+.st-source:hover .st-source-value { transform: translate3d(0, 1px, 0); }
+.st-source-note { margin-top: 4px; color: var(--muted-2); font-size: 10.5px; line-height: 1.35; }
+
+.st-rank-list { display: flex; flex-direction: column; gap: 5px; }
+/* Rank rows are read-only, so they lift without a press state — nothing here is
+ * clickable and a pointer cursor would promise otherwise. */
+.st-rank-row { --row-color: var(--muted-2); display: grid; grid-template-columns: auto minmax(0, 1fr) 68px 36px 34px; gap: 9px; align-items: center; padding: 10px 11px; border: 1px solid transparent; border-radius: 8px; background: var(--carbon); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-rank-row:hover { border-color: color-mix(in srgb, var(--row-color) 34%, transparent); transform: translate3d(4px, -2px, 0); background: var(--surface-2); box-shadow: 0 6px 16px rgba(0,0,0,.16); }
+.st-rank-kind { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 7px; background: color-mix(in srgb, var(--row-color) 12%, transparent); color: var(--row-color); transition: background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-rank-row:hover .st-rank-kind { background: color-mix(in srgb, var(--row-color) 18%, transparent); transform: scale(1.1); }
+.st-rank-main { min-width: 0; }
+.st-rank-title { color: var(--bone); font-size: 12px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-rank-reasons { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.st-reason { padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--reason-color) 25%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--reason-color) 8%, transparent); color: var(--reason-color); font-size: 9.5px; }
+.st-score-track { height: 4px; overflow: hidden; border-radius: 2px; background: var(--raised); }
+.st-score-fill { height: 100%; border-radius: 2px; background: var(--row-color); transform: scaleX(var(--score, 0)); transform-origin: left; transition: transform .7s var(--st-ease); }
+.st-score-value { color: var(--row-color); font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
+.st-token-cost { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-rank-row.is-dropped { opacity: .55; }
+
+.st-prune-summary { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 8px; background: var(--carbon); color: var(--muted); font-size: 11.5px; }
+.st-prune-summary.good { color: var(--mint); }
+
+.st-budget { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px; align-items: center; }
+.st-budget-total { padding: 13px 14px; border-radius: 9px; background: var(--carbon); }
+.st-budget-value { color: var(--gold); font-family: var(--mono); font-size: 27px; font-weight: 650; }
+.st-budget-label { margin-top: 5px; color: var(--muted-2); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
+.st-budget-bar { display: flex; height: 12px; overflow: hidden; border-radius: 4px; background: var(--raised); }
+.st-budget-part { width: var(--part, 0%); min-width: 2px; background: var(--part-color); transition: width .8s var(--st-ease); }
+.st-budget-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.st-budget-legend span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-2); font-size: 10px; }
+.st-budget-legend i { width: 6px; height: 6px; border-radius: 2px; background: var(--part-color); }
+
+.st-export-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.st-export-button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--carbon); color: var(--bone); font-family: var(--sans); font-size: 11px; font-weight: 650; cursor: pointer; transition: color var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-export-button:hover:not(:disabled) { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 38%, transparent); transform: translate3d(0, -3px, 0); background: var(--surface-2); box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+.st-export-button:active:not(:disabled) { transform: translate3d(0, 0, 0) scale(.96); transition-duration: var(--st-dur-press); }
+.st-export-button:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+.st-export-result { margin-top: 9px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--carbon); }
+.st-export-meta { display: flex; align-items: center; gap: 9px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-export-preview { max-height: 190px; margin: 8px 0 0; overflow: auto; color: var(--muted); font-family: var(--mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* States ------------------------------------------------------------------- */
+
+.st-alert { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; margin-bottom: 12px; border: 1px solid color-mix(in srgb, var(--rose) 28%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--rose) 7%, transparent); color: var(--rose); font-size: 12px; line-height: 1.5; }
+.st-void { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 310px; padding: 45px 22px; text-align: center; }
+.st-void-icon { position: relative; display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 17px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--st-accent, var(--tangerine)); transition: transform var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-void-icon::after { content: ''; position: absolute; inset: -12px; border-radius: 25px; background: radial-gradient(circle, color-mix(in srgb, var(--st-accent, var(--tangerine)) 13%, transparent), transparent 70%); transition: opacity var(--st-dur) var(--st-ease); }
+.st-void:hover .st-void-icon { transform: translate3d(0, -5px, 0) scale(1.04); border-color: color-mix(in srgb, var(--st-accent, var(--tangerine)) 34%, transparent); box-shadow: 0 14px 34px color-mix(in srgb, var(--st-accent, var(--tangerine)) 10%, transparent); }
+.st-void:hover .st-void-icon::after { opacity: .8; }
+.st-void-title { color: var(--bone); font-family: var(--brand); font-size: 18px; font-weight: 730; }
+.st-void-copy { max-width: 52ch; margin-top: 7px; color: var(--muted); font-size: 13px; line-height: 1.58; }
+.st-void-copy kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted); font-family: var(--mono); font-size: 10px; }
+
+.st-skeleton-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 118px; gap: 12px; }
+.st-skeleton { grid-column: span 4; grid-row: span 2; padding: 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.st-skeleton:nth-child(2) { grid-column: span 5; }
+.st-skeleton:nth-child(3) { grid-column: span 3; grid-row: span 1; }
+.st-skeleton-bar { height: 8px; margin-bottom: 9px; border-radius: 4px; background: linear-gradient(90deg, var(--raised), var(--raised-2), var(--raised)); background-size: 220% 100%; animation: st-shimmer 1.5s ease-in-out infinite; }
+
+.st-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Responsive --------------------------------------------------------------- */
+
+@media (max-width: 1050px) {
+  .st-memory-tile[data-size='hero'] { --tile-col: span 12; --tile-row: span 2; min-height: 260px; }
+  .st-memory-tile[data-size='large'] { --tile-col: span 6; }
+  .st-memory-tile[data-size='medium'] { --tile-col: span 6; }
+  .st-memory-tile[data-size='small'] { --tile-col: span 4; }
+  .st-hero { grid-template-columns: 1fr; }
+  .st-hero-stats { border-left: 0; border-top: 1px solid var(--line); }
+  .st-strata-panel { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .st-page { padding-bottom: 45px; }
+  .st-hero { padding: 21px 19px; min-height: 0; }
+  .st-hero-title { font-size: 29px; }
+  .st-hero-stats { min-width: 0; }
+  .st-legend { grid-template-columns: repeat(2, 1fr); }
+  .st-legend-item:nth-child(2) { border-right: none; }
+  .st-legend-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .st-strata { flex-direction: column; }
+  .st-strata-segment { flex: none; width: 100%; }
+  .st-bento { grid-template-columns: repeat(6, 1fr); }
+  .st-memory-tile[data-size='small'], .st-memory-tile[data-size='medium'], .st-memory-tile[data-size='large'], .st-memory-tile[data-size='hero'] { --tile-col: span 6; --tile-row: span 2; min-height: 220px; }
+  .st-memory-row { display: flex; min-height: 0; }
+  .st-memory-row .st-tile-signals { display: none; }
+  .st-sheet-map { grid-template-columns: 1fr; }
+  .st-ladder { border-right: none; border-bottom: 1px solid var(--line); }
+  .st-files, .st-day-entries { grid-template-columns: 1fr; }
+  .st-heat-panel { grid-template-columns: 1fr; }
+  .st-heat { grid-template-columns: repeat(18, minmax(7px, 1fr)); grid-template-rows: repeat(5, 10px); }
+  .st-axis { margin-left: 18px; margin-right: 18px; }
+  .st-source-grid { grid-template-columns: 1fr; }
+  .st-budget { grid-template-columns: 1fr; }
+  .st-stage { grid-template-columns: 44px minmax(0, 1fr); }
+  .st-stage-card { padding: 12px; }
+  .st-ask-field { flex-wrap: wrap; }
+  .st-ask-field input { flex-basis: calc(100% - 30px); }
+  .st-run { margin-left: auto; }
+}
+
+/* Reduced motion.
+ *
+ * Colour, border and shadow feedback survives; only travel, scaling and looping
+ * decoration are removed. The tile sheen is an animation (which outranks a plain
+ * declaration), so it is cancelled by name in the animation reset. */
+@media (prefers-reduced-motion: reduce) {
+  .st-page,
+  .st-rise,
+  .st-ring,
+  .st-hero::before,
+  .st-ask::before,
+  .st-pulse::after,
+  .st-stage.is-running .st-stage-node::after,
+  .st-skeleton-bar,
+  .st-memory-tile:hover .st-tile-sheen {
+    animation: none !important;
+  }
+
+  /* Loaders keep turning — a spinner is the only signal the app is still
+   * working, and freezing it reads as a hang. Slow it, do not stop it. */
+  .spinning { animation-duration: 1.8s; }
+
+  .st-ring { --st-ring: var(--ring-value, 0); }
+
+  .st-memory-tile:hover,
+  .st-memory-tile:active,
+  .st-memory-tile:hover::before,
+  .st-memory-tile:hover .st-glyph,
+  .st-memory-row:hover,
+  .st-strata-segment:hover,
+  .st-strata-segment:active,
+  .st-entry:hover,
+  .st-entry.is-hovered,
+  .st-entry:active,
+  .st-file:hover,
+  .st-file:active,
+  .st-export-button:hover:not(:disabled),
+  .st-export-button:active:not(:disabled),
+  .st-chip:hover,
+  .st-chip:active,
+  .st-run:hover:not(:disabled),
+  .st-run:active:not(:disabled),
+  .st-seed:hover:not(:disabled),
+  .st-seed:active:not(:disabled),
+  .st-back:hover,
+  .st-back:active,
+  .st-source:hover,
+  .st-source:hover .st-source-value,
+  .st-value-card:hover,
+  .st-void:hover .st-void-icon,
+  .st-stage.is-ready .st-stage-card,
+  .st-stage.is-ready .st-stage-node,
+  .st-info:hover,
+  .st-info:active,
+  .st-seg button:hover,
+  .st-seg button:active,
+  .st-rank-row:hover,
+  .st-rank-row:hover .st-rank-kind,
+  .st-expand:hover,
+  .st-expand:active,
+  .st-icon-button:hover,
+  .st-icon-button:active,
+  .st-heat-cell:hover,
+  .st-heat-cell:active {
+    transform: none !important;
+  }
+
+  /* The axis dot is centred by its own transform, so "no motion" still keeps
+   * the -50% offset rather than resetting to nothing. */
+  .st-axis-dot,
+  .st-axis-dot:hover,
+  .st-axis-dot:focus-visible,
+  .st-axis-dot:active {
+    transform: translate3d(-50%, 0, 0) !important;
+  }
+}

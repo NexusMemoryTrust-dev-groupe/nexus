@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { setupEn, setupRu } from './setupLocale';
 import { contextEn, contextRu } from './contextLocale';
+import { pagesEn, pagesRu } from './pagesLocale';
 
 type Locale = 'en' | 'ru';
 
@@ -10,6 +11,9 @@ const translations: Record<Locale, Record<string, string>> = {
     // be reviewed on its own; the SetupCopy type keeps both locales in step.
     ...setupEn,
     ...contextEn,
+    // Copy for the Memories / Timeline / Context pages. Split out because the
+    // explanatory prose there is long enough to review on its own.
+    ...pagesEn,
     // Settings page
     'settings.title': 'Settings',
     'settings.subtitle': 'Configure your Nexus Memory Trust workspace',
@@ -189,6 +193,7 @@ const translations: Record<Locale, Record<string, string>> = {
   ru: {
     ...setupRu,
     ...contextRu,
+    ...pagesRu,
     // Settings page
     'settings.title': 'Настройки',
     'settings.subtitle': 'Настройте ваше рабочее пространство Nexus Memory Trust',

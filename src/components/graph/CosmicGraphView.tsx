@@ -576,7 +576,8 @@ function Scene({
           const fy = (dy / dist) * force * PHYSICS_INTERVAL;
           const fz = (dz / dist) * force * PHYSICS_INTERVAL;
           const vi = vel.get(clusters[i].coreId)!;
-          const vj = vel.get(clusters[j].coreId)!;
+          let vj = vel.get(clusters[j].coreId);
+          if (!vj) { vj = new THREE.Vector3(); vel.set(clusters[j].coreId, vj); }
           if (dragRef.current !== clusters[i].coreId) { vi.x += fx; vi.y += fy; vi.z += fz; }
           if (dragRef.current !== clusters[j].coreId) { vj.x -= fx; vj.y -= fy; vj.z -= fz; }
         }

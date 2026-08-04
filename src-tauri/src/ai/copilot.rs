@@ -119,6 +119,29 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "help" => cmd_help().await,
         "projects" => cmd_projects().await,
 
+        // ── File operations (sandboxed) ──
+        "create-file" => cmd_create_file(&cmd.args).await,
+        "write-file" => cmd_write_file(&cmd.args).await,
+        "create-folder" => cmd_create_folder(&cmd.args).await,
+        "delete" => cmd_delete(&cmd.args).await,
+        "move" => cmd_move(&cmd.args).await,
+        "read-file" => cmd_read_file(&cmd.args).await,
+
+        // ── File interpreter ──
+        "index-file" => cmd_index_file(&cmd.args).await,
+        "index-folder" => cmd_index_folder(&cmd.args).await,
+
+        // ── Workspace ──
+        "workspace-file" => cmd_workspace_file(&cmd.args).await,
+        "workspace" => cmd_workspace(&cmd.args).await,
+
+        // ── Entity / Config / File management ──
+        "entity-meta" => cmd_entity_meta(&cmd.args).await,
+        "config-get" => cmd_config_get(&cmd.args).await,
+        "config-set" => cmd_config_set(&cmd.args).await,
+        "file-rename" => cmd_file_rename(&cmd.args).await,
+        "file-delete-folder" => cmd_file_delete_folder(&cmd.args).await,
+
         // ── Unknown ──
         other => CopilotResponse::err(format!("Unknown command: /{}", other)),
     }
@@ -946,27 +969,37 @@ Savings Commands:
   /savings                           Show token/cost savings stats (hard data)
   /savings-model <name>              Show savings for a specific model (e.g. /savings-model GPT-5.6 Terra)
 
-File Operations:
+File Operations (sandboxed to the Nexus data folder):
   /create-file <path> <content>      Create a new file on disk
   /write-file <path> <content>       Write/overwrite a file
   /create-folder <path>              Create a directory
   /delete <path>                     Delete a file or directory
-  /move <source> <dest>              Move/rename a file
+  /move <source> <dest> [new_name]   Move/rename a file
   /read-file <path>                  Read raw file content
+  /file-rename <old_path> <new_name> Rename a file/folder on disk
+  /file-delete-folder <folder_path>  Recursively delete a folder
 
 File Interpreter:
-  /index-file <path>                 Index file into knowledge graph
-  /index-folder <path>               Index all files in folder
+  /index-file <path> [project_id]    Index file into knowledge graph
+  /index-folder <path> [project_id]  Index all files in folder
 
 Workspace:
+  /workspace <project_id>            Show the workspace file tree
   /workspace-file <pid> <parent> <name> <content>  Create file in workspace
+
+Projects:
+  /projects                          List all Project entities
+  /entity-meta <id>                  Show entity metadata map
+
+Config:
+  /config-get [key]                  Show all config (or a single key)
+  /config-set <key> <value>          Set a config value
 
 System Commands:
   /stats                             Show database statistics
   /health                            Check system health
   /settings                          Show application settings
   /timeline                          Show entity timeline
-  /projects                          List all Project entities
   /help                              Show this help message"#;
 
     CopilotResponse::ok(help_text, None)
@@ -1003,6 +1036,320 @@ async fn cmd_projects() -> CopilotResponse {
         format!("Found {} projects", count),
         Some(serde_json::json!({ "projects": rows, "count": count })),
     )
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  File operations (sandboxed)
+// ═══════════════════════════════════════════════════════════════
+
+async fn cmd_create_file(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /create-file <path> <content>");
+    }
+    let path = &args[0];
+    let content = args[1..].join(" ");
+    match create_file(path, &content) {
+        Ok(()) => CopilotResponse::ok(
+            format!("Created file: {}", path),
+            Some(serde_json::json!({ "path": path, "created": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Create error: {}", e)),
+    }
+}
+
+async fn cmd_write_file(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /write-file <path> <content>");
+    }
+    let path = &args[0];
+    let content = args[1..].join(" ");
+    match write_file(path, &content) {
+        Ok(()) => CopilotResponse::ok(
+            format!("Written to: {}", path),
+            Some(serde_json::json!({ "path": path, "written": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Write error: {}", e)),
+    }
+}
+
+async fn cmd_create_folder(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /create-folder <path>");
+    }
+    let path = &args[0];
+    match create_folder(path) {
+        Ok(()) => CopilotResponse::ok(
+            format!("Created folder: {}", path),
+            Some(serde_json::json!({ "path": path, "created": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Create folder error: {}", e)),
+    }
+}
+
+async fn cmd_delete(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /delete <path>");
+    }
+    let path = &args[0];
+    match delete_path(path) {
+        Ok(()) => CopilotResponse::ok(
+            format!("Deleted: {}", path),
+            Some(serde_json::json!({ "path": path, "deleted": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Delete error: {}", e)),
+    }
+}
+
+async fn cmd_move(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /move <source> <dest> [new_name]");
+    }
+    let source = &args[0];
+    let dest_arg = &args[1];
+    let explicit_new_name = args.get(2).map(|s| s.as_str());
+
+    // If <dest> is an existing directory, move the source INTO it (keeping the
+    // filename unless [new_name] is given). Otherwise <dest> is the full new path.
+    // Note: only a heuristic for argument interpretation; the real sandbox guard
+    // still runs inside move_file().
+    if std::path::Path::new(dest_arg).is_dir() {
+        let default_name = std::path::Path::new(source)
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned());
+        let new_name = explicit_new_name.map(|s| s.to_string()).or(default_name);
+        match move_file(source, None, Some(dest_arg), new_name.as_deref()) {
+            Ok(dest) => CopilotResponse::ok(
+                format!("Moved: {} → {}", source, dest),
+                Some(serde_json::json!({ "source": source, "destination": dest })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Move error: {}", e)),
+        }
+    } else {
+        match move_file(source, Some(dest_arg), None, explicit_new_name) {
+            Ok(dest) => CopilotResponse::ok(
+                format!("Moved: {} → {}", source, dest),
+                Some(serde_json::json!({ "source": source, "destination": dest })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Move error: {}", e)),
+        }
+    }
+}
+
+async fn cmd_read_file(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /read-file <path>");
+    }
+    let path = &args[0];
+    match read_raw_file(path) {
+        Ok(content) => {
+            let total = content.len();
+            let truncated = total > 4000;
+            let display_content = if truncated {
+                format!(
+                    "{}...(truncated, {} total chars)",
+                    crate::core::text::truncate_chars(&content, 4000),
+                    total
+                )
+            } else {
+                content.clone()
+            };
+            CopilotResponse::ok(
+                format!("Read file: {}", path),
+                Some(serde_json::json!({
+                    "path": path,
+                    "content": display_content,
+                    "truncated": truncated,
+                    "total_chars": total,
+                })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Read error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  File interpreter
+// ═══════════════════════════════════════════════════════════════
+
+async fn cmd_index_file(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /index-file <path> [project_id]");
+    }
+    let path = &args[0];
+    let project_id = args.get(1).map(|s| s.as_str());
+    match index_file(path, project_id).await {
+        Ok(result) => CopilotResponse::ok(
+            format!(
+                "Indexed '{}': {} entities, {} sub-entities — {}",
+                result.file_name,
+                result.entities_created,
+                result.sub_entities_created,
+                result.summary
+            ),
+            Some(serde_json::json!({
+                "file_name": result.file_name,
+                "entities_created": result.entities_created,
+                "sub_entities_created": result.sub_entities_created,
+                "summary": result.summary,
+            })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Index error: {}", e)),
+    }
+}
+
+async fn cmd_index_folder(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /index-folder <path> [project_id]");
+    }
+    let path = &args[0];
+    let project_id = args.get(1).map(|s| s.as_str());
+    match index_folder(path, project_id).await {
+        Ok(result) => CopilotResponse::ok(
+            format!(
+                "Indexed folder '{}': {} files, {} entities, {} sub-entities",
+                result.folder_name,
+                result.total_files,
+                result.total_entities,
+                result.total_sub_entities
+            ),
+            Some(serde_json::json!({
+                "folder_name": result.folder_name,
+                "total_files": result.total_files,
+                "total_entities": result.total_entities,
+                "total_sub_entities": result.total_sub_entities,
+            })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Index folder error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Workspace commands
+// ═══════════════════════════════════════════════════════════════
+
+async fn cmd_workspace_file(args: &[String]) -> CopilotResponse {
+    if args.len() < 4 {
+        return CopilotResponse::err(
+            "Usage: /workspace-file <project_id> <parent_path> <name> <content>",
+        );
+    }
+    let project_id = &args[0];
+    let parent_path = &args[1];
+    let name = &args[2];
+    let content = args[3..].join(" ");
+    match create_workspace_file(project_id, parent_path, name, &content).await {
+        Ok(path) => CopilotResponse::ok(
+            format!("Created workspace file: {}", path),
+            Some(serde_json::json!({ "path": path, "created": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Workspace file error: {}", e)),
+    }
+}
+
+async fn cmd_workspace(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /workspace <project_id>");
+    }
+    let project_id = &args[0];
+    match crate::commands::workspace::get_workspace_tree(project_id.clone()).await {
+        Ok(tree) => {
+            let count = tree
+                .as_ref()
+                .and_then(|t| t.children.as_ref())
+                .map(|c| c.len())
+                .unwrap_or(0);
+            CopilotResponse::ok(
+                format!("Workspace has {} top-level entries", count),
+                Some(serde_json::json!({ "tree": tree })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Workspace error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Entity metadata / Config / File management commands
+// ═══════════════════════════════════════════════════════════════
+
+async fn cmd_entity_meta(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /entity-meta <id>");
+    }
+    let id = &args[0];
+    match crate::commands::graph::get_entity_metadata(id.clone()).await {
+        Ok(meta) => CopilotResponse::ok(
+            format!("Entity {} has {} metadata fields", id, meta.len()),
+            Some(serde_json::json!({ "metadata": meta })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Metadata error: {}", e)),
+    }
+}
+
+async fn cmd_config_get(args: &[String]) -> CopilotResponse {
+    match args.first() {
+        Some(key) => match crate::commands::config::get_config(key.clone()).await {
+            Ok(Some(value)) => CopilotResponse::ok(
+                format!("config.{} = {}", key, value),
+                Some(serde_json::json!({ "key": key, "value": value })),
+            ),
+            Ok(None) => CopilotResponse::ok(
+                format!("config.{} is not set", key),
+                Some(serde_json::json!({ "key": key, "value": null })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Config get error: {}", e)),
+        },
+        None => match crate::commands::config::get_all_config().await {
+            Ok(entries) => CopilotResponse::ok(
+                format!("Found {} config entries", entries.len()),
+                Some(serde_json::json!({ "config": entries })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Config list error: {}", e)),
+        },
+    }
+}
+
+async fn cmd_config_set(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /config-set <key> <value>");
+    }
+    let key = &args[0];
+    let value = args[1..].join(" ");
+    match crate::commands::config::set_config(key.clone(), value.clone()).await {
+        Ok(()) => CopilotResponse::ok(
+            format!("Set config.{} = {}", key, value),
+            Some(serde_json::json!({ "key": key, "value": value })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Config set error: {}", e)),
+    }
+}
+
+async fn cmd_file_rename(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /file-rename <old_path> <new_name>");
+    }
+    let old_path = &args[0];
+    let new_name = &args[1];
+    match crate::commands::files::rename_file(old_path.clone(), new_name.clone()).await {
+        Ok(new_abs) => CopilotResponse::ok(
+            format!("Renamed '{}' → '{}'", old_path, new_abs),
+            Some(serde_json::json!({ "new_path": new_abs })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Rename error: {}", e)),
+    }
+}
+
+async fn cmd_file_delete_folder(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /file-delete-folder <folder_path>");
+    }
+    let folder_path = &args[0];
+    match crate::commands::files::delete_folder(folder_path.clone()).await {
+        Ok(()) => CopilotResponse::ok(
+            format!("Deleted folder: {}", folder_path),
+            Some(serde_json::json!({ "path": folder_path, "deleted": true })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Delete folder error: {}", e)),
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1099,6 +1446,94 @@ mod tests {
     #[tokio::test]
     async fn execute_savings_model_usage() {
         let cmd = parse_command("/savings-model").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[test]
+    fn parse_command_new_file_commands() {
+        let cmd = parse_command("/create-file C:\\x\\a.txt hello world").unwrap();
+        assert_eq!(cmd.name, "create-file");
+        assert_eq!(cmd.args[0], "C:\\x\\a.txt");
+        let cmd = parse_command("/read-file C:\\x\\a.txt").unwrap();
+        assert_eq!(cmd.name, "read-file");
+        assert_eq!(cmd.args, vec!["C:\\x\\a.txt"]);
+        let cmd = parse_command("/file-rename C:\\x\\a.txt b.txt").unwrap();
+        assert_eq!(cmd.name, "file-rename");
+        assert_eq!(cmd.args, vec!["C:\\x\\a.txt", "b.txt"]);
+    }
+
+    #[test]
+    fn parse_command_workspace_config() {
+        let cmd = parse_command("/workspace abc-123").unwrap();
+        assert_eq!(cmd.name, "workspace");
+        assert_eq!(cmd.args, vec!["abc-123"]);
+        let cmd = parse_command("/config-get ai.model").unwrap();
+        assert_eq!(cmd.name, "config-get");
+        assert_eq!(cmd.args, vec!["ai.model"]);
+        let cmd = parse_command("/config-set app.theme dark").unwrap();
+        assert_eq!(cmd.name, "config-set");
+        assert_eq!(cmd.args, vec!["app.theme", "dark"]);
+        let cmd = parse_command("/entity-meta abc-123").unwrap();
+        assert_eq!(cmd.name, "entity-meta");
+    }
+
+    #[tokio::test]
+    async fn execute_workspace_usage() {
+        let cmd = parse_command("/workspace").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_config_set_usage() {
+        let cmd = parse_command("/config-set").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_file_rename_usage() {
+        let cmd = parse_command("/file-rename").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_file_delete_folder_usage() {
+        let cmd = parse_command("/file-delete-folder").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_entity_meta_usage() {
+        let cmd = parse_command("/entity-meta").unwrap();
         let resp = execute_command(&cmd).await;
         assert!(!resp.success);
         assert!(
@@ -1471,8 +1906,11 @@ pub async fn index_folder(
                         .and_then(|e| e.to_str())
                         .unwrap_or("")
                         .to_lowercase();
+                    // Must match index_file()'s acceptance criterion (is_editable +
+                    // images), otherwise /index-folder silently skips files that
+                    // /index-file can process (e.g. .txt).
                     if crate::core::interpreter::image_interpreter::is_image(&ext)
-                        || crate::core::interpreter::file_interpreter::is_interpretable(&ext)
+                        || crate::commands::files::is_editable(&path)
                     {
                         out.push(path);
                     }

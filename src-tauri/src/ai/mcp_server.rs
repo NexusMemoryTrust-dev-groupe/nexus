@@ -594,6 +594,217 @@ fn tool_definitions() -> Vec<ToolDefinition> {
                 "required": ["model"]
             }),
         },
+        // ── Project Tools ──
+        ToolDefinition {
+            name: "nexus_projects".to_string(),
+            description: "List all projects (entities with type Project) in the knowledge graph. Use this to enumerate projects and get their IDs for workspace/project-scoped operations.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_project_entities".to_string(),
+            description: "Get all entities linked to a project via relationships, plus the relationships themselves. Use this to see what a project contains (documents, people, decisions, etc.).".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" }
+                },
+                "required": ["project_id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_project_memories".to_string(),
+            description: "Get all memory records linked to a specific project. Use this to list the memories saved in a project's space.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" }
+                },
+                "required": ["project_id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_link_project_entity".to_string(),
+            description: "Link an entity to a project by creating a relationship (default type: Uses). Use this to attach documents, people, decisions and other entities to a project.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" },
+                    "entity_id": { "type": "string", "description": "Entity UUID to link to the project" },
+                    "relationship_type": { "type": "string", "description": "Relationship type (default: Uses)", "default": "Uses" },
+                    "weight": { "type": "number", "description": "Relationship weight (default: 0.8)", "default": 0.8 }
+                },
+                "required": ["project_id", "entity_id"]
+            }),
+        },
+        // ── Workspace CRUD Tools ──
+        ToolDefinition {
+            name: "nexus_workspace_rename".to_string(),
+            description: "Rename a workspace entry (file or folder) — renames on disk AND updates the workspace database, including all children. Returns the new absolute path.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" },
+                    "old_path": { "type": "string", "description": "Current absolute path of the entry" },
+                    "new_name": { "type": "string", "description": "New name (file/folder name only, not a full path)" }
+                },
+                "required": ["project_id", "old_path", "new_name"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_workspace_move".to_string(),
+            description: "Move a workspace entry (file or folder) to another directory — moves on disk (with cross-filesystem fallback) AND updates the workspace database. Returns the new absolute path.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" },
+                    "source_path": { "type": "string", "description": "Absolute path of the entry to move" },
+                    "dest_dir": { "type": "string", "description": "Absolute path of the destination directory" }
+                },
+                "required": ["project_id", "source_path", "dest_dir"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_workspace_delete".to_string(),
+            description: "Delete a workspace entry (file or folder) — deletes from disk AND removes it from the workspace database (including all descendants). Irreversible.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" },
+                    "file_path": { "type": "string", "description": "Absolute path of the entry to delete" }
+                },
+                "required": ["project_id", "file_path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_workspace_remove".to_string(),
+            description: "Remove an entry from the workspace database ONLY — does NOT delete the file/folder from disk. Use this to un-register a file from a project without touching the filesystem.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "project_id": { "type": "string", "description": "Project entity UUID" },
+                    "file_path": { "type": "string", "description": "Absolute path of the entry to remove from the workspace DB" }
+                },
+                "required": ["project_id", "file_path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_workspace_check_stale".to_string(),
+            description: "Check all projects for stale folders — returns the list of project_ids whose ALL workspace root directories no longer exist on disk. Use this to detect dead projects before cleanup.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        // ── File Management Tools (standalone, outside workspace) ──
+        ToolDefinition {
+            name: "nexus_rename_file".to_string(),
+            description: "Rename a file or folder on disk (not tied to a workspace project). Returns the new absolute path.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "old_path": { "type": "string", "description": "Current absolute path" },
+                    "new_name": { "type": "string", "description": "New name (file/folder name only, not a full path)" }
+                },
+                "required": ["old_path", "new_name"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_delete_folder".to_string(),
+            description: "Recursively delete a folder on disk (not tied to a workspace project). Irreversible.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "folder_path": { "type": "string", "description": "Absolute path of the folder to delete" }
+                },
+                "required": ["folder_path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_scan_folder".to_string(),
+            description: "Scan a folder on disk and return its file tree (FileEntry with children). Use this to inspect a directory before indexing or linking it to a project.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "folder_path": { "type": "string", "description": "Absolute path of the folder to scan" }
+                },
+                "required": ["folder_path"]
+            }),
+        },
+        // ── Entity / AI / DB Tools ──
+        ToolDefinition {
+            name: "nexus_entity_metadata".to_string(),
+            description: "Get the metadata map of an entity (key/value pairs stored on the entity). Returns an empty object if the entity has no metadata.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Entity UUID" }
+                },
+                "required": ["id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_savings_record".to_string(),
+            description: "Record a measured token-savings event manually (baseline vs context usage). Use this to log a savings measurement that the UI would normally record automatically.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "baseline_tokens": { "type": "integer", "description": "Baseline token count" },
+                    "context_tokens": { "type": "integer", "description": "Context token count" },
+                    "entities_count": { "type": "integer", "description": "Entities included", "default": 0 },
+                    "memories_count": { "type": "integer", "description": "Memories included", "default": 0 },
+                    "relationships_count": { "type": "integer", "description": "Relationships included", "default": 0 },
+                    "candidate_entities": { "type": "integer", "description": "Candidate entities filtered", "default": 0 },
+                    "candidate_memories": { "type": "integer", "description": "Candidate memories filtered", "default": 0 },
+                    "query": { "type": "string", "description": "Query text", "default": "" },
+                    "intent_type": { "type": "string", "description": "Detected intent type", "default": "unknown" }
+                },
+                "required": ["baseline_tokens", "context_tokens"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_ai_models".to_string(),
+            description: "List all available LLM models (via the opencode CLI). Pass free_only=true to list only free models. Use this to discover which models can be selected for AI features.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "free_only": { "type": "boolean", "description": "Only list free models", "default": false }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_db_stats".to_string(),
+            description: "Get database statistics: memory count, entity count, relationship count, commit count, snapshot count, and DB file size. Use this for health/status reports.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        // ── Config Tools ──
+        ToolDefinition {
+            name: "nexus_config_get".to_string(),
+            description: "Get configuration values. Pass a key to read a single value, or omit key to list ALL configuration entries. Use this to inspect app settings.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "key": { "type": "string", "description": "Config key (optional — omit to list all)" }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_config_set".to_string(),
+            description: "Set a configuration value (creates or updates the key). Use this to change app settings programmatically.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "key": { "type": "string", "description": "Config key" },
+                    "value": { "type": "string", "description": "Config value" }
+                },
+                "required": ["key", "value"]
+            }),
+        },
     ]
 }
 
@@ -1111,6 +1322,347 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                 Err(e) => CopilotResponse::err(format!("Workspace sync error: {}", e)),
             }
         }
+        // ── Project Tools ──
+        "nexus_projects" => match crate::commands::graph::get_projects().await {
+            Ok(projects) => CopilotResponse::ok(
+                format!("Found {} projects", projects.len()),
+                Some(serde_json::json!({ "projects": projects })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Projects error: {}", e)),
+        },
+        "nexus_project_entities" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match crate::commands::graph::get_project_entities(project_id.to_string()).await {
+                Ok(data) => CopilotResponse::ok(
+                    format!(
+                        "Project {} has {} linked entities and {} relationships",
+                        project_id,
+                        data.nodes.len(),
+                        data.edges.len()
+                    ),
+                    Some(serde_json::json!({
+                        "nodes": data.nodes,
+                        "edges": data.edges,
+                    })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Project entities error: {}", e)),
+            }
+        }
+        "nexus_project_memories" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match crate::commands::memory::get_project_memories(project_id.to_string()).await {
+                Ok(memories) => CopilotResponse::ok(
+                    format!(
+                        "Project {} has {} linked memories",
+                        project_id,
+                        memories.len()
+                    ),
+                    Some(serde_json::json!({ "memories": memories })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Project memories error: {}", e)),
+            }
+        }
+        "nexus_link_project_entity" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let entity_id = args.get("entity_id").and_then(|v| v.as_str()).unwrap_or("");
+            let rel_type = args
+                .get("relationship_type")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let weight = args.get("weight").and_then(|v| v.as_f64());
+            match crate::commands::graph::link_entity_to_project(
+                project_id.to_string(),
+                entity_id.to_string(),
+                rel_type,
+                weight,
+            )
+            .await
+            {
+                Ok(edge) => CopilotResponse::ok(
+                    format!(
+                        "Linked entity {} to project {} (relationship: {}, weight: {})",
+                        entity_id, project_id, edge.relationship_type, edge.weight
+                    ),
+                    Some(serde_json::json!({ "relationship": edge })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Link error: {}", e)),
+            }
+        }
+        "nexus_workspace_rename" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let old_path = args.get("old_path").and_then(|v| v.as_str()).unwrap_or("");
+            let new_name = args.get("new_name").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::workspace::rename_workspace_entry(
+                project_id.to_string(),
+                old_path.to_string(),
+                new_name.to_string(),
+            )
+            .await
+            {
+                Ok(new_abs) => CopilotResponse::ok(
+                    format!("Renamed '{}' → '{}'", old_path, new_abs),
+                    Some(serde_json::json!({ "new_path": new_abs })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Rename error: {}", e)),
+            }
+        }
+        "nexus_workspace_move" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let source_path = args
+                .get("source_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let dest_dir = args.get("dest_dir").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::workspace::move_workspace_entry(
+                project_id.to_string(),
+                source_path.to_string(),
+                dest_dir.to_string(),
+            )
+            .await
+            {
+                Ok(new_abs) => CopilotResponse::ok(
+                    format!("Moved '{}' → '{}'", source_path, new_abs),
+                    Some(serde_json::json!({ "new_path": new_abs })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Move error: {}", e)),
+            }
+        }
+        "nexus_workspace_delete" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let file_path = args.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::workspace::delete_workspace_entry(
+                project_id.to_string(),
+                file_path.to_string(),
+            )
+            .await
+            {
+                Ok(()) => CopilotResponse::ok(
+                    format!("Deleted '{}' from disk and workspace", file_path),
+                    None,
+                ),
+                Err(e) => CopilotResponse::err(format!("Delete error: {}", e)),
+            }
+        }
+        "nexus_workspace_remove" => {
+            let project_id = args
+                .get("project_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let file_path = args.get("file_path").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::workspace::remove_from_workspace(
+                project_id.to_string(),
+                file_path.to_string(),
+            )
+            .await
+            {
+                Ok(()) => CopilotResponse::ok(
+                    format!("Removed '{}' from workspace DB (disk untouched)", file_path),
+                    None,
+                ),
+                Err(e) => CopilotResponse::err(format!("Remove error: {}", e)),
+            }
+        }
+        "nexus_workspace_check_stale" => {
+            match crate::commands::workspace::check_stale_projects().await {
+                Ok(stale) => CopilotResponse::ok(
+                    format!("Found {} stale projects", stale.len()),
+                    Some(serde_json::json!({ "stale_project_ids": stale })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Stale check error: {}", e)),
+            }
+        }
+        "nexus_rename_file" => {
+            let old_path = args.get("old_path").and_then(|v| v.as_str()).unwrap_or("");
+            let new_name = args.get("new_name").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::files::rename_file(old_path.to_string(), new_name.to_string())
+                .await
+            {
+                Ok(new_abs) => CopilotResponse::ok(
+                    format!("Renamed '{}' → '{}'", old_path, new_abs),
+                    Some(serde_json::json!({ "new_path": new_abs })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Rename error: {}", e)),
+            }
+        }
+        "nexus_delete_folder" => {
+            let folder_path = args
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match crate::commands::files::delete_folder(folder_path.to_string()).await {
+                Ok(()) => CopilotResponse::ok(
+                    format!("Deleted folder: {}", folder_path),
+                    Some(serde_json::json!({ "path": folder_path, "deleted": true })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Delete folder error: {}", e)),
+            }
+        }
+        "nexus_scan_folder" => {
+            let folder_path = args
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            match crate::commands::files::scan_folder(folder_path.to_string()).await {
+                Ok(entry) => CopilotResponse::ok(
+                    format!("Scanned folder: {}", folder_path),
+                    Some(serde_json::json!({ "entry": entry })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Scan error: {}", e)),
+            }
+        }
+        "nexus_entity_metadata" => {
+            let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::graph::get_entity_metadata(id.to_string()).await {
+                Ok(meta) => CopilotResponse::ok(
+                    format!("Entity {} has {} metadata fields", id, meta.len()),
+                    Some(serde_json::json!({ "metadata": meta })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Metadata error: {}", e)),
+            }
+        }
+        "nexus_savings_record" => {
+            let baseline = args
+                .get("baseline_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let context = args
+                .get("context_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let entities = args
+                .get("entities_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let memories = args
+                .get("memories_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let rels = args
+                .get("relationships_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let cand_entities = args
+                .get("candidate_entities")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let cand_memories = args
+                .get("candidate_memories")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let query = args
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let intent = args
+                .get("intent_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            match crate::commands::savings::record_savings_event(
+                baseline,
+                context,
+                entities,
+                memories,
+                rels,
+                cand_entities,
+                cand_memories,
+                query,
+                intent,
+            ) {
+                Ok(()) => CopilotResponse::ok(
+                    format!(
+                        "Recorded savings event: {} baseline → {} context tokens",
+                        baseline, context
+                    ),
+                    None,
+                ),
+                Err(e) => CopilotResponse::err(format!("Savings record error: {}", e)),
+            }
+        }
+        "nexus_ai_models" => {
+            let free_only = args
+                .get("free_only")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            match crate::commands::ai::ai_list_models(Some(free_only)).await {
+                Ok(models) => CopilotResponse::ok(
+                    format!(
+                        "Found {} models ({})",
+                        models.len(),
+                        if free_only { "free only" } else { "all" }
+                    ),
+                    Some(serde_json::json!({ "models": models })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Models error: {}", e)),
+            }
+        }
+        "nexus_db_stats" => match crate::commands::config::get_db_stats().await {
+            Ok(stats) => CopilotResponse::ok(
+                format!(
+                    "DB: {} memories, {} entities, {} relationships, {} commits, {} snapshots",
+                    stats.memory_count,
+                    stats.entity_count,
+                    stats.relationship_count,
+                    stats.commit_count,
+                    stats.snapshot_count
+                ),
+                Some(serde_json::json!({ "stats": stats })),
+            ),
+            Err(e) => CopilotResponse::err(format!("DB stats error: {}", e)),
+        },
+        "nexus_config_get" => {
+            let key = args.get("key").and_then(|v| v.as_str());
+            match key {
+                Some(k) => match crate::commands::config::get_config(k.to_string()).await {
+                    Ok(Some(value)) => CopilotResponse::ok(
+                        format!("config.{} = {}", k, value),
+                        Some(serde_json::json!({ "key": k, "value": value })),
+                    ),
+                    Ok(None) => CopilotResponse::ok(
+                        format!("config.{} is not set", k),
+                        Some(serde_json::json!({ "key": k, "value": null })),
+                    ),
+                    Err(e) => CopilotResponse::err(format!("Config get error: {}", e)),
+                },
+                None => match crate::commands::config::get_all_config().await {
+                    Ok(entries) => CopilotResponse::ok(
+                        format!("Found {} config entries", entries.len()),
+                        Some(serde_json::json!({ "config": entries })),
+                    ),
+                    Err(e) => CopilotResponse::err(format!("Config list error: {}", e)),
+                },
+            }
+        }
+        "nexus_config_set" => {
+            let key = args.get("key").and_then(|v| v.as_str()).unwrap_or("");
+            let value = args.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            match crate::commands::config::set_config(key.to_string(), value.to_string()).await {
+                Ok(()) => CopilotResponse::ok(
+                    format!("Set config.{} = {}", key, value),
+                    Some(serde_json::json!({ "key": key, "value": value })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Config set error: {}", e)),
+            }
+        }
         // ── File Interpreter Tools ──
         "nexus_index_file" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
@@ -1622,7 +2174,7 @@ mod tests {
     fn tool_definitions_not_empty() {
         let tools = tool_definitions();
         assert!(!tools.is_empty());
-        assert_eq!(tools.len(), 48);
+        assert_eq!(tools.len(), 66);
     }
 
     #[test]
@@ -1780,7 +2332,7 @@ mod tests {
         let resp = handle_request(req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 48);
+        assert_eq!(tools.len(), 66);
     }
 
     #[tokio::test]

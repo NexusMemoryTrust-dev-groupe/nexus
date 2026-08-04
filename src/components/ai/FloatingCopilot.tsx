@@ -278,7 +278,9 @@ export function FloatingCopilot() {
   }, [input, commands, t]);
 
   useEffect(() => {
-    setShowCommands(input.startsWith('/') && input.length > 0);
+    // Не переоткрывать палитру, если команда уже выбрана из списка (инпут заканчивается пробелом) —
+    // иначе повторный Enter перехватывается списком, filtered пуст, и handleSend не вызывается.
+    setShowCommands(input.startsWith('/') && input.length > 0 && !input.endsWith(' '));
     setSelectedIndex(0);
   }, [input]);
 

@@ -1,593 +1,328 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import {
+  AlertTriangle, Archive, ArrowRight, Brain, Check, CircleDot,
+  ClipboardCopy, Download, FileJson, FileText, GitBranch, Hash,
+  Layers, Link2, Loader2, Network, PackageCheck, Search, Sparkles,
+  Target, Type, XCircle,
+} from 'lucide-react';
 import { useContextStore } from '../../stores/contextStore';
 import { useLocale } from '../../stores/localeStore';
-import { WhyPanel } from './WhyPanel';
+import { compact } from '../../lib/format';
+import type { ContextTrace } from '../../types';
 import {
-  Brain, Layers, Sparkles, Network, Link2,
-  Hash, ArrowRight, Loader2, Search, ChevronRight, ChevronDown,
-  Download, Copy, Check, FileJson, FileText, Type,
-} from 'lucide-react';
+  InfoTip, PageHero, StrataAlert, StrataVoid,
+} from '../ui/Instruments';
 
-const entityColors: Record<string, string> = {
-  person: '#63d8d2', project: '#ff8a5b', decision: '#818cf8',
-  task: '#f472b6', technology: '#60a5fa', file: '#a99cf8',
-  organization: '#f59e0b', meeting: '#34d399', document: '#c084fc',
-  concept: '#ddbb65', default: '#93c5fd',
+const SEEDS_EN = ['What did I decide about auth?', 'Recent work on the parser', 'Everything about Nexus MCP'];
+const SEEDS_RU = ['Что я решил про авторизацию?', 'Последняя работа над парсером', 'Всё про Nexus MCP'];
+
+type StageProps = {
+  number: string;
+  icon: typeof Search;
+  color: string;
+  name: string;
+  description: string;
+  ready: boolean;
+  running?: boolean;
+  children?: ReactNode;
 };
 
-function getEntityColor(type: string): string {
-  const lower = type.toLowerCase();
-  for (const [key, val] of Object.entries(entityColors)) {
-    if (lower.includes(key)) return val;
-  }
-  return entityColors.default;
+function Stage({ number, icon: Icon, color, name, description, ready, running, children }: StageProps) {
+  const { t } = useLocale();
+  return (
+    <section
+      className={`st-stage${ready ? ' is-ready' : ''}${running ? ' is-running' : ''}`}
+      style={{ '--stage-color': color } as CSSProperties}
+    >
+      <div className="st-stage-rail">
+        <span className="st-stage-node">{number}</span>
+      </div>
+      <div className="st-stage-card">
+        <div className="st-stage-head">
+          <Icon size={14} style={{ color, flexShrink: 0, marginTop: 2 }} />
+          <div className="st-stage-title-wrap">
+            <div className="st-stage-title">{name}</div>
+            <div className="st-stage-desc">{description}</div>
+          </div>
+          <span className="st-stage-state">
+            {running ? <Loader2 size={10} className="spinning" /> : ready ? <Check size={10} /> : <CircleDot size={10} />}
+            {running ? t('ctx.state.working') : ready ? t('ctx.state.ready') : t('ctx.state.waiting')}
+          </span>
+        </div>
+        {children && <div className="st-stage-body">{children}</div>}
+      </div>
+    </section>
+  );
 }
 
-export function ContextView() {
+function SourceCard({ icon: Icon, label, value, note, color }: { icon: typeof Network; label: string; value: number; note: string; color: string }) {
+  return (
+    <div className="st-source" style={{ '--source-color': color } as CSSProperties}>
+      <div className="st-source-head"><Icon size={12} /> {label}</div>
+      <div className="st-source-value">{value}</div>
+      <div className="st-source-note">{note}</div>
+    </div>
+  );
+}
+
+function TraceRows({
+  traces,
+  dropped = false,
+}: {
+  traces: ContextTrace[];
+  dropped?: boolean;
+}) {
   const { t } = useLocale();
-  const { context, isLoading, error, buildContext, clearContext } = useContextStore();
-  const [query, setQuery] = useState('');
-  const [showEntities, setShowEntities] = useState(true);
-  const [showMemories, setShowMemories] = useState(true);
-  const [showRelationships, setShowRelationships] = useState(true);
-
-  const handleBuild = useCallback(() => {
-    if (query.trim()) {
-      buildContext(query.trim());
-    }
-  }, [query, buildContext]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && query.trim()) {
-      handleBuild();
-    }
-  }, [query, handleBuild]);
+  if (traces.length === 0) {
+    return (
+      <div className={`st-prune-summary${dropped ? ' good' : ''}`}>
+        {dropped ? <Check size={12} /> : <Hash size={12} />}
+        {dropped ? t('ctx.prune.none') : t('ctx.rank.none')}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <div style={{
-            width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--gold-soft)', borderRadius: '10px', color: 'var(--gold)',
-          }}>
-            <Layers size={18} />
-          </div>
-          <div>
-            <h2 style={{
-              fontFamily: 'var(--brand)', fontSize: '20px', fontWeight: 700,
-              color: 'var(--bone)', letterSpacing: '-0.02em', margin: 0,
-            }}>
-              {t('context.title')}
-            </h2>
-            <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-              Build a context package from your knowledge graph and memories
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Query input */}
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--line)',
-        borderRadius: 'var(--radius)', padding: '16px', marginBottom: '20px',
-      }}>
-        <div className="context-label" style={{ marginBottom: '8px' }}>
-          <Search size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-          {t('context.query')}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter a query to build context for..."
-            autoFocus
-            style={{
-              flex: 1, padding: '10px 14px',
-              background: 'var(--carbon)', border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-xs)', color: 'var(--bone)', fontSize: '14px',
-              fontFamily: 'var(--sans)', outline: 'none',
-            }}
-          />
-          <button
-            onClick={handleBuild}
-            disabled={!query.trim() || isLoading}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '10px 20px', background: 'var(--gold)', border: 'none',
-              borderRadius: 'var(--radius-xs)', color: '#000', fontSize: '13px',
-              fontWeight: 600, cursor: query.trim() && !isLoading ? 'pointer' : 'not-allowed',
-              opacity: query.trim() && !isLoading ? 1 : 0.5,
-              transition: 'opacity 0.15s',
-            }}
+    <div className="st-rank-list">
+      {traces.map((trace) => {
+        const color = trace.kind === 'entity' ? 'var(--cyan)' : 'var(--tangerine)';
+        const score = Math.max(trace.score ?? 0, 0);
+        return (
+          <div
+            key={`${trace.kind}-${trace.id}`}
+            className={`st-rank-row${dropped ? ' is-dropped' : ''}`}
+            style={{ '--row-color': color, '--score': Math.min(score, 1) } as CSSProperties}
           >
-            {isLoading ? <Loader2 size={14} className="spinning" /> : <Sparkles size={14} />}
-            Build
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div style={{
-          padding: '12px 16px', marginBottom: '20px',
-          background: 'rgba(255, 112, 133, 0.08)',
-          border: '1px solid rgba(255, 112, 133, 0.2)',
-          borderRadius: 'var(--radius-xs)',
-          color: 'var(--rose)', fontSize: '13px',
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Results */}
-      {context && (
-        <div>
-          {/* Stats bar */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px',
-            marginBottom: '20px',
-          }}>
-            <StatCard icon={Hash} label="Tokens" value={String(context.tokenCount)} color="var(--gold)" />
-            <StatCard icon={Network} label="Entities" value={String(context.entities.length)} color="var(--cyan)" />
-            <StatCard icon={Brain} label="Memories" value={String(context.memoryRecords.length)} color="var(--tangerine)" />
-            <StatCard icon={Link2} label="Relationships" value={String(context.relationships.length)} color="var(--periwinkle)" />
-          </div>
-
-          {/* Intent */}
-          <div style={{
-            background: 'var(--surface)', border: '1px solid var(--line)',
-            borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: '16px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ flex: 1 }}>
-                <div className="context-label" style={{ marginBottom: '4px' }}>Query</div>
-                <div style={{ color: 'var(--bone)', fontSize: '14px', fontWeight: 500 }}>
-                  {context.query}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className="context-label" style={{ marginBottom: '4px' }}>{t('context.intent')}</div>
-                <div style={{
-                  padding: '2px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: 600,
-                  background: 'var(--gold-soft)', color: 'var(--gold)',
-                }}>
-                  {context.intentType}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className="context-label" style={{ marginBottom: '4px' }}>{t('context.confidence')}</div>
-                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--bone)' }}>
-                  {(context.confidence * 100).toFixed(0)}%
-                </div>
+            <span className="st-rank-kind">
+              {trace.kind === 'entity' ? <Network size={12} /> : <Brain size={12} />}
+            </span>
+            <div className="st-rank-main">
+              <div className="st-rank-title">{trace.title || trace.id.slice(0, 8)}</div>
+              <div className="st-rank-reasons">
+                {trace.reasons.slice(0, 3).map((reason, index) => (
+                  <span
+                    key={`${reason.kind}-${index}`}
+                    className="st-reason"
+                    style={{ '--reason-color': color } as CSSProperties}
+                  >
+                    {reason.kind === 'queryMatch' ? t('ctx.reason.query') :
+                      reason.kind === 'keywordMatch' ? `${t('ctx.reason.keyword')}: ${reason.keyword}` :
+                        reason.kind === 'graphExpansion' ? `${t('ctx.reason.graph')} +${reason.hops}` :
+                          reason.kind === 'memorySearch' ? t('ctx.reason.memory') :
+                            reason.kind === 'recentActivity' ? t('ctx.reason.recent') : t('ctx.reason.important')}
+                  </span>
+                ))}
+                {trace.dropped && (
+                  <span className="st-reason" style={{ '--reason-color': 'var(--rose)' } as CSSProperties}>
+                    {trace.dropped.kind === 'tokenBudget' ? t('ctx.drop.budget') : trace.dropped.kind === 'entityCap' ? t('ctx.drop.cap') : t('ctx.drop.relevance')}
+                  </span>
+                )}
               </div>
             </div>
+            <span className="st-score-track"><span className="st-score-fill" /></span>
+            <span className="st-score-value">{trace.score === null ? '—' : trace.score.toFixed(2)}</span>
+            <span className="st-token-cost">{trace.tokens}t</span>
           </div>
-
-          {/* Why is this in my context? — the part no note-taking app can show. */}
-          <WhyPanel traces={context.provenance} />
-
-          {/* Export — hands the package to any model, not just the bundled one. */}
-          <ExportBar />
-
-          {/* Entities */}
-          {context.entities.length > 0 && (
-            <CollapsibleSection
-              title="Entities"
-              icon={Network}
-              count={context.entities.length}
-              color="var(--cyan)"
-              open={showEntities}
-              onToggle={() => setShowEntities(!showEntities)}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {context.entities.map((entity) => (
-                  <div key={entity.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '10px 12px', background: 'var(--carbon)',
-                    borderRadius: 'var(--radius-xs)',
-                  }}>
-                    <div style={{
-                      width: '8px', height: '8px', borderRadius: '50%',
-                      background: getEntityColor(entity.entityType), flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--bone)' }}>
-                        {entity.title}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted-2)', marginTop: '1px' }}>
-                        {entity.entityType}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Memories */}
-          {context.memoryRecords.length > 0 && (
-            <CollapsibleSection
-              title="Memories"
-              icon={Brain}
-              count={context.memoryRecords.length}
-              color="var(--tangerine)"
-              open={showMemories}
-              onToggle={() => setShowMemories(!showMemories)}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {context.memoryRecords.map((mem) => (
-                  <div key={mem.id} style={{
-                    padding: '10px 12px', background: 'var(--carbon)',
-                    borderRadius: 'var(--radius-xs)',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--bone)' }}>
-                        {mem.title}
-                      </div>
-                      <span style={{
-                        padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
-                        background: 'var(--tangerine-soft)', color: 'var(--tangerine)',
-                      }}>
-                        {mem.layer}
-                      </span>
-                    </div>
-                    {mem.summary && (
-                      <div style={{
-                        fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4,
-                        display: '-webkit-box', WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                      }}>
-                        {mem.summary}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Relationships */}
-          {context.relationships.length > 0 && (
-            <CollapsibleSection
-              title="Relationships"
-              icon={Link2}
-              count={context.relationships.length}
-              color="var(--periwinkle)"
-              open={showRelationships}
-              onToggle={() => setShowRelationships(!showRelationships)}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {context.relationships.map((rel) => {
-                  const srcEntity = context.entities.find(e => e.id === rel.sourceEntityId);
-                  const tgtEntity = context.entities.find(e => e.id === rel.targetEntityId);
-                  const srcLabel = srcEntity?.title || rel.sourceEntityId.slice(0, 8);
-                  const tgtLabel = tgtEntity?.title || rel.targetEntityId.slice(0, 8);
-                  const srcColor = srcEntity ? getEntityColor(srcEntity.entityType) : 'var(--muted-2)';
-                  const tgtColor = tgtEntity ? getEntityColor(tgtEntity.entityType) : 'var(--muted-2)';
-                  return (
-                    <div key={rel.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '8px 12px', background: 'var(--carbon)',
-                      borderRadius: 'var(--radius-xs)', fontSize: '12px',
-                    }}>
-                      <span style={{ color: srcColor, fontWeight: 500, fontSize: '11px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {srcLabel}
-                      </span>
-                      <ArrowRight size={12} style={{ color: 'var(--muted-3)', flexShrink: 0 }} />
-                      <span style={{
-                        padding: '1px 6px', borderRadius: '4px',
-                        background: 'var(--periwinkle-soft)', color: 'var(--periwinkle)',
-                        fontSize: '10px', fontWeight: 600,
-                      }}>
-                        {rel.relationshipType}
-                      </span>
-                      <ArrowRight size={12} style={{ color: 'var(--muted-3)', flexShrink: 0 }} />
-                      <span style={{ color: tgtColor, fontWeight: 500, fontSize: '11px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {tgtLabel}
-                      </span>
-                      <span style={{ marginLeft: 'auto', color: 'var(--muted-3)', fontSize: '10px' }}>
-                        w: {rel.weight.toFixed(2)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CollapsibleSection>
-          )}
-
-          {/* Clear */}
-          <button
-            onClick={clearContext}
-            style={{
-              marginTop: '16px', padding: '8px 16px',
-              background: 'none', border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-xs)', color: 'var(--muted)',
-              fontSize: '12px', cursor: 'pointer',
-            }}
-          >
-            Clear context
-          </button>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!context && !isLoading && (
-        <div style={{
-          padding: '60px 20px', textAlign: 'center',
-          background: 'var(--surface)', border: '1px solid var(--line)',
-          borderRadius: 'var(--radius)',
-        }}>
-          <Layers size={48} style={{ color: 'var(--muted-3)', marginBottom: '16px' }} />
-          <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--bone)', marginBottom: '8px' }}>
-            Build Context Package
-          </div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '400px', margin: '0 auto', lineHeight: 1.5 }}>
-            Enter a query above to aggregate relevant entities, memories, and relationships from your knowledge graph into a unified context package.
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
 
-// ── Stat Card ──
-function StatCard({ icon: Icon, label, value, color }: {
-  icon: typeof Brain; label: string; value: string; color: string;
-}) {
-  return (
-    <div style={{
-      background: 'var(--surface)', border: '1px solid var(--line)',
-      borderRadius: 'var(--radius-sm)', padding: '14px 16px',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-        <Icon size={13} style={{ color, flexShrink: 0 }} />
-        <span style={{ fontSize: '10px', color: 'var(--muted-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {label}
-        </span>
-      </div>
-      <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--bone)', fontFamily: 'var(--brand)' }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-// ── Collapsible Section ──
-function CollapsibleSection({ title, icon: Icon, count, color, open, onToggle, children }: {
-  title: string; icon: typeof Brain; count: number; color: string;
-  open: boolean; onToggle: () => void; children: React.ReactNode;
-}) {
-  return (
-    <div style={{
-      background: 'var(--surface)', border: '1px solid var(--line)',
-      borderRadius: 'var(--radius)', marginBottom: '12px', overflow: 'hidden',
-    }}>
-      <button
-        onClick={onToggle}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          width: '100%', padding: '12px 16px', background: 'none',
-          border: 'none', cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <Icon size={14} style={{ color, flexShrink: 0 }} />
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--bone)', flex: 1 }}>
-          {title}
-        </span>
-        <span style={{
-          padding: '1px 6px', borderRadius: '999px', fontSize: '10px', fontWeight: 600,
-          background: `${color}15`, color,
-        }}>
-          {count}
-        </span>
-        {open
-          ? <ChevronDown size={14} style={{ color: 'var(--muted-3)' }} />
-          : <ChevronRight size={14} style={{ color: 'var(--muted-3)' }} />
-        }
-      </button>
-      {open && (
-        <div style={{ padding: '0 16px 12px' }}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Export bar ──
-//
-// Lets the package leave Nexus for any model, not just the one wired through
-// OpenCode. Three formats because the audiences differ: Markdown to paste into
-// a chat, JSON for another program to consume, Plain for models where every
-// token of scaffolding is a cost the user pays.
-const EXPORT_FORMATS = [
-  { id: 'markdown' as const, icon: FileText, labelKey: 'export.markdown' },
-  { id: 'plain' as const, icon: Type, labelKey: 'export.plain' },
-  { id: 'json' as const, icon: FileJson, labelKey: 'export.json' },
-];
-
-function ExportBar() {
+function ExportStage() {
   const { t } = useLocale();
   const { exportContext, lastExport, isExporting } = useContextStore();
   const [copied, setCopied] = useState(false);
+  const formats = [
+    { id: 'markdown' as const, icon: FileText, label: t('export.markdown') },
+    { id: 'plain' as const, icon: Type, label: t('export.plain') },
+    { id: 'json' as const, icon: FileJson, label: t('export.json') },
+  ];
 
-  const handleExport = useCallback(
-    async (format: 'markdown' | 'json' | 'plain') => {
-      const result = await exportContext(format);
-      if (!result) return;
-      // Copy immediately: the point of exporting is to paste it somewhere, and
-      // an extra click between "export" and "paste" is a step nobody wants.
-      try {
-        await navigator.clipboard.writeText(result.content);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 2000);
-      } catch {
-        // Clipboard can be denied; the payload is still on screen below.
-      }
-    },
-    [exportContext],
-  );
+  const flash = () => {
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1_800);
+  };
+
+  const run = async (format: 'markdown' | 'plain' | 'json') => {
+    const result = await exportContext(format);
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.content);
+      flash();
+    } catch {
+      // The preview still exposes the result if clipboard permissions are off.
+    }
+  };
 
   return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--line)',
-        borderRadius: 'var(--radius)',
-        padding: '14px 16px',
-        marginBottom: '16px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-        <Download size={14} style={{ color: 'var(--mint)', flexShrink: 0 }} />
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--bone)' }}>
-          {t('export.title')}
-        </span>
-        {copied && (
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              marginLeft: 'auto',
-              fontSize: '11px',
-              color: 'var(--mint)',
-              fontWeight: 600,
-            }}
-          >
-            <Check size={12} />
-            {t('export.copied')}
-          </span>
-        )}
-      </div>
-
-      <p style={{ fontSize: '11px', color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.5 }}>
-        {t('export.subtitle')}
-      </p>
-
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {EXPORT_FORMATS.map(({ id, icon: Icon, labelKey }) => (
-          <button
-            key={id}
-            onClick={() => handleExport(id)}
-            disabled={isExporting}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              background: 'var(--carbon)',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-xs)',
-              color: 'var(--bone)',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: isExporting ? 'not-allowed' : 'pointer',
-              opacity: isExporting ? 0.5 : 1,
-            }}
-          >
-            {isExporting ? <Loader2 size={12} className="spinning" /> : <Icon size={12} />}
-            {t(labelKey)}
+    <div>
+      <div className="st-export-actions">
+        {formats.map(({ id, icon: Icon, label }) => (
+          <button key={id} type="button" className="st-export-button" onClick={() => run(id)} disabled={isExporting}>
+            {isExporting ? <Loader2 size={11} className="spinning" /> : <Icon size={11} />}
+            {label}
           </button>
         ))}
+        {copied && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--mint)', fontSize: 9 }}><Check size={11} /> {t('sheet.copied')}</span>}
       </div>
-
       {lastExport && (
-        <div style={{ marginTop: '12px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginBottom: '8px',
-              fontSize: '11px',
-              color: 'var(--muted-2)',
-              flexWrap: 'wrap',
-            }}
-          >
-            <span style={{ fontFamily: 'var(--mono)', color: 'var(--muted)' }}>
-              {lastExport.filename}
-            </span>
-            {/* The measured cost of what is about to be pasted, including the
-                formatting scaffolding, so the figure is honest. */}
-            <span
-              style={{
-                padding: '1px 6px',
-                borderRadius: '4px',
-                background: 'var(--gold-soft)',
-                color: 'var(--gold)',
-                fontWeight: 600,
-              }}
-            >
-              {lastExport.tokens} {t('export.tokens')}
-            </span>
-            <span
-              title={t(
-                lastExport.tokenMethod === 'exact'
-                  ? 'export.methodExactHint'
-                  : 'export.methodEstimatedHint',
-              )}
-              style={{ color: 'var(--muted-3)' }}
-            >
-              {t(
-                lastExport.tokenMethod === 'exact'
-                  ? 'export.methodExact'
-                  : 'export.methodEstimated',
-              )}
-            </span>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(lastExport.content).then(
-                  () => {
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 2000);
-                  },
-                  () => undefined,
-                );
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                marginLeft: 'auto',
-                padding: '4px 10px',
-                background: 'none',
-                border: '1px solid var(--line)',
-                borderRadius: 'var(--radius-xs)',
-                color: 'var(--muted)',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              <Copy size={11} />
-              {t('export.copy')}
+        <div className="st-export-result">
+          <div className="st-export-meta">
+            <span>{lastExport.filename}</span>
+            <span>{lastExport.tokens} {t('export.tokens')}</span>
+            <button type="button" className="st-icon-button" style={{ marginLeft: 'auto' }} onClick={() => { navigator.clipboard.writeText(lastExport.content).then(flash, () => undefined); }} aria-label={t('sheet.copy')}>
+              <ClipboardCopy size={11} />
             </button>
           </div>
-          <pre
-            style={{
-              margin: 0,
-              padding: '12px',
-              maxHeight: '220px',
-              overflow: 'auto',
-              background: 'var(--carbon)',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--radius-xs)',
-              fontSize: '11px',
-              lineHeight: 1.5,
-              color: 'var(--muted)',
-              fontFamily: 'var(--mono)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}
-          >
-            {lastExport.content}
-          </pre>
+          <pre className="st-export-preview">{lastExport.content}</pre>
         </div>
       )}
     </div>
   );
+}
+
+export function ContextView() {
+  const { t, locale } = useLocale();
+  const { context, isLoading, error, buildContext, clearContext } = useContextStore();
+  const [query, setQuery] = useState('');
+  const seeds = locale === 'ru' ? SEEDS_RU : SEEDS_EN;
+  const ready = query.trim().length > 0 && !isLoading;
+
+  const run = useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (trimmed) buildContext(trimmed);
+  }, [buildContext]);
+
+  const included = useMemo(() => context?.provenance.filter((trace) => trace.included) ?? [], [context]);
+  const dropped = useMemo(() => context?.provenance.filter((trace) => !trace.included) ?? [], [context]);
+  const packageItems = context ? context.entities.length + context.memoryRecords.length : 0;
+  // Only compare traces to traces. Entities/memories/relationships are not the
+  // same unit as ranked candidates, so mixing them made the ratio look precise
+  // while saying nothing truthful about selection.
+  const candidateTotal = included.length + dropped.length;
+  const keptShare = candidateTotal > 0 ? included.length / candidateTotal : 1;
+
+  return (
+    <div className="st-page st-page--reading" style={{ '--st-accent': 'var(--gold)' } as CSSProperties}>
+      <PageHero
+        kicker={t('ctx.hero.kicker')}
+        title={t('context.title')}
+        copy={t('ctx.hero.sub')}
+        accent="var(--gold)"
+        secondary="var(--tangerine)"
+        stats={context ? [
+          { label: t('ctx.pack.tokens'), value: compact(context.tokenCount, locale), color: 'var(--gold)' },
+          { label: t('ctx.stats.selected'), value: String(packageItems), color: 'var(--mint)' },
+        ] : []}
+      />
+
+      <section className="st-ask">
+        <div className="st-ask-label"><Sparkles size={12} /> {t('ctx.ask.label')} <InfoTip text={t('ctx.stage.query.desc')} /></div>
+        <div className="st-ask-field">
+          <span className="st-ask-prompt">›</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') run(query); }}
+            placeholder={t('ctx.ask.placeholder')}
+            autoFocus
+            aria-label={t('ctx.ask.label')}
+          />
+          {ready && <span className="st-ask-hint">↵ {t('ctx.ask.hint')}</span>}
+          <button type="button" className="st-run" disabled={!ready} onClick={() => run(query)}>
+            {isLoading ? <Loader2 size={12} className="spinning" /> : <PackageCheck size={12} />}
+            {t('ctx.ask.run')}
+          </button>
+        </div>
+        {!context && (
+          <div className="st-seeds">
+            <span className="st-seed-label">{t('ctx.seeds')}</span>
+            {seeds.map((seed) => <button key={seed} type="button" className="st-seed" onClick={() => { setQuery(seed); run(seed); }}>{seed}</button>)}
+          </div>
+        )}
+      </section>
+
+      {error && <StrataAlert icon={AlertTriangle}>{error}</StrataAlert>}
+
+      <div className="st-pipeline-intro">
+        <span className="st-pipeline-intro-icon"><GitBranch size={15} /></span>
+        <div>
+          <div className="st-section-title">{t('ctx.pipeline.title')} <InfoTip text={t('ctx.pipeline.idle')} /></div>
+          <p className="st-section-hint">{t('ctx.pipeline.idle')}</p>
+        </div>
+      </div>
+
+      <div className="st-flow">
+        <Stage
+          number="01"
+          icon={Search}
+          color="var(--gold)"
+          name={t('ctx.stage.query.name')}
+          description={t('ctx.stage.query.desc')}
+          ready={Boolean(context || query.trim())}
+        >
+          <div className="st-stage-question">{context?.query || query.trim() || t('ctx.empty.desc')}</div>
+        </Stage>
+
+        <Stage number="02" icon={Target} color="var(--periwinkle)" name={t('ctx.stage.intent.name')} description={t('ctx.stage.intent.desc')} ready={Boolean(context)} running={isLoading}>
+          {context ? (
+            <div className="st-intent-grid">
+              <div className="st-value-card"><div className="st-value-label">{t('ctx.intent.type')}</div><div className="st-value-main" style={{ color: 'var(--gold)' }}>{context.intentType}</div><div className="st-value-note">{t('ctx.intent.type.note')}</div></div>
+              <div className="st-value-card"><div className="st-value-label">{t('ctx.intent.confidence')}</div><div className="st-value-main" style={{ color: 'var(--periwinkle)' }}>{Math.round(context.confidence * 100)}%</div><div className="st-value-note">{t('ctx.intent.confidence.note')}</div></div>
+            </div>
+          ) : <StagePlaceholder />}
+        </Stage>
+
+        <Stage number="03" icon={Network} color="var(--cyan)" name={t('ctx.stage.gather.name')} description={t('ctx.stage.gather.desc')} ready={Boolean(context)} running={isLoading}>
+          {context ? (
+            <div className="st-source-grid">
+              <SourceCard icon={Network} label={t('ctx.gather.entities')} value={context.entities.length} note={t('ctx.source.entities.note')} color="var(--cyan)" />
+              <SourceCard icon={Brain} label={t('ctx.gather.memories')} value={context.memoryRecords.length} note={t('ctx.source.memories.note')} color="var(--tangerine)" />
+              <SourceCard icon={Link2} label={t('ctx.gather.links')} value={context.relationships.length} note={t('ctx.source.links.note')} color="var(--periwinkle)" />
+            </div>
+          ) : <StagePlaceholder />}
+        </Stage>
+
+        <Stage number="04" icon={Hash} color="var(--steel)" name={t('ctx.stage.rank.name')} description={t('ctx.stage.rank.desc')} ready={Boolean(context)}>
+          {context ? <TraceRows traces={included} /> : <StagePlaceholder />}
+        </Stage>
+
+        <Stage number="05" icon={XCircle} color="var(--rose)" name={t('ctx.stage.prune.name')} description={t('ctx.stage.prune.desc')} ready={Boolean(context)}>
+          {context ? <TraceRows traces={dropped} dropped /> : <StagePlaceholder />}
+        </Stage>
+
+        <Stage number="06" icon={Archive} color="var(--mint)" name={t('ctx.stage.pack.name')} description={t('ctx.stage.pack.desc')} ready={Boolean(context)}>
+          {context ? (
+            <div className="st-budget">
+              <div className="st-budget-total"><div className="st-budget-value">{compact(context.tokenCount, locale)}</div><div className="st-budget-label">{t('ctx.pack.tokens')}</div></div>
+              <div>
+                <div className="st-budget-bar">
+                  <span className="st-budget-part" style={{ '--part': `${Math.max(keptShare, .12) * 100}%`, '--part-color': 'var(--mint)' } as CSSProperties} />
+                  <span className="st-budget-part" style={{ '--part': `${Math.max(1 - keptShare, .04) * 100}%`, '--part-color': 'var(--raised-2)' } as CSSProperties} />
+                </div>
+                <div className="st-budget-legend"><span><i style={{ '--part-color': 'var(--mint)' } as CSSProperties} /> {t('ctx.kept')}: {included.length}</span><span><i style={{ '--part-color': 'var(--raised-2)' } as CSSProperties} /> {t('ctx.dropped')}: {dropped.length}</span></div>
+              </div>
+            </div>
+          ) : <StagePlaceholder />}
+        </Stage>
+
+        <Stage number="07" icon={Download} color="var(--gold)" name={t('ctx.stage.export.name')} description={t('ctx.stage.export.desc')} ready={Boolean(context)}>
+          {context ? <ExportStage /> : <StagePlaceholder />}
+        </Stage>
+      </div>
+
+      {context ? (
+        <button type="button" className="st-expand" style={{ marginTop: 13 }} onClick={clearContext}><ArrowRight size={11} /> {t('ctx.clear')}</button>
+      ) : !isLoading && !error ? (
+        <StrataVoid icon={Layers} title={t('ctx.empty.title')} accent="var(--gold)">{t('ctx.empty.desc')}</StrataVoid>
+      ) : null}
+    </div>
+  );
+}
+
+function StagePlaceholder() {
+  const { t } = useLocale();
+  return <div style={{ color: 'var(--muted-2)', fontSize: 10, lineHeight: 1.5 }}>{t('ctx.stage.placeholder')}</div>;
 }

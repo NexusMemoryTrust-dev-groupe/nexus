@@ -640,8 +640,28 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
   };
 
   const saveEdit = async (id: string) => {
-    await updateMemory(id, editTitle, editContent);
-    setEditingId(null);
+    try {
+      await updateMemory(id, editTitle, editContent);
+      setEditingId(null);
+    } catch (e) {
+      console.error('Save memory edit failed:', e);
+    }
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    try {
+      await deleteMemory(id);
+    } catch (e) {
+      console.error('Delete memory failed:', e);
+    }
+  };
+
+  const handleDeleteRelationship = async (id: string) => {
+    try {
+      await deleteRelationship(id);
+    } catch (e) {
+      console.error('Unlink entity failed:', e);
+    }
   };
 
   return (
@@ -887,7 +907,7 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
                         style={{ color: 'var(--muted-2)' }}>
                         <Edit3 size={13} />
                       </button>
-                      <button className="btn-icon" onClick={() => deleteMemory(mem.id)}
+                      <button className="btn-icon" onClick={() => handleDeleteMemory(mem.id)}
                         style={{ color: 'var(--rose)' }}>
                         <Trash2 size={13} />
                       </button>
@@ -972,7 +992,7 @@ const initializedProjectsRef = useRef<Set<string>>(new Set());
                     {linkingEdge && (
                       <button
                         className="btn-icon entity-actions"
-                        onClick={() => deleteRelationship(linkingEdge.id)}
+                        onClick={() => handleDeleteRelationship(linkingEdge.id)}
                         style={{ color: 'var(--muted-2)', flexShrink: 0, position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}
                         title={t('projects.unlink')}
                       >

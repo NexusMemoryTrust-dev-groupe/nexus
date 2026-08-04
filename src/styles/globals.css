@@ -39,6 +39,7 @@
   --brand: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--sans);
   --mono: "IBM Plex Mono", "IBM Plex Mono Variable", monospace;
   --text: 14px;
+  --text-sm: 13px;
   --text-xs: 11px;
   --text-2xs: 10px;
 
@@ -148,15 +149,20 @@ body {
   position: relative;
 }
 
+/* Ambient aurora. Animating `background-position` here repainted the whole
+ * gradient layer every frame, and the sidebar is visible on every screen — so
+ * that repaint ran non-stop and was a major source of the lag. The layer is now
+ * oversized and drifts via `transform`, which the compositor handles without a
+ * per-frame repaint. The look is the same slow wander. */
 .sidebar::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -25%;
   background:
     radial-gradient(ellipse 120% 80% at 10% 20%, rgba(255, 138, 91, 0.12) 0%, transparent 50%),
     radial-gradient(ellipse 100% 100% at 90% 80%, rgba(221, 187, 101, 0.08) 0%, transparent 50%),
     radial-gradient(ellipse 80% 60% at 50% 50%, rgba(169, 156, 248, 0.06) 0%, transparent 50%);
-  background-size: 200% 200%;
+  will-change: transform;
   animation: sidebar-aurora 25s ease-in-out infinite;
   pointer-events: none;
   z-index: 0;
@@ -168,18 +174,8 @@ body {
 }
 
 @keyframes sidebar-aurora {
-  0%, 100% {
-    background-position: 0% 0%, 100% 100%, 50% 50%;
-  }
-  25% {
-    background-position: 50% 30%, 50% 50%, 20% 80%;
-  }
-  50% {
-    background-position: 100% 60%, 0% 0%, 80% 20%;
-  }
-  75% {
-    background-position: 30% 100%, 80% 30%, 50% 60%;
-  }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(4%, -3%, 0) scale(1.12); }
 }
 
 .sidebar-header {
@@ -474,15 +470,20 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Same fix as the sidebar, and more urgent here: the topbar carries a
+ * `backdrop-filter: blur()`, and a blur over a layer whose background-position
+ * moves every frame forces the blur to recompute every frame too. Driving the
+ * drift with `transform` keeps the wash moving without repainting under the
+ * blur. */
 .topbar::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -25%;
   background:
     radial-gradient(ellipse 80% 100% at 20% 50%, rgba(255, 138, 91, 0.08) 0%, transparent 50%),
     radial-gradient(ellipse 60% 100% at 80% 50%, rgba(221, 187, 101, 0.06) 0%, transparent 50%),
     radial-gradient(ellipse 100% 60% at 50% 100%, rgba(169, 156, 248, 0.04) 0%, transparent 50%);
-  background-size: 200% 200%;
+  will-change: transform;
   animation: topbar-aurora 25s ease-in-out infinite;
   animation-delay: -8s;
   pointer-events: none;
@@ -495,18 +496,8 @@ body {
 }
 
 @keyframes topbar-aurora {
-  0%, 100% {
-    background-position: 0% 50%, 100% 50%, 50% 100%;
-  }
-  25% {
-    background-position: 30% 20%, 70% 80%, 20% 50%;
-  }
-  50% {
-    background-position: 60% 80%, 40% 20%, 80% 0%;
-  }
-  75% {
-    background-position: 80% 40%, 20% 60%, 40% 80%;
-  }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-4%, 2%, 0) scale(1.12); }
 }
 
 .topbar::after {
@@ -834,7 +825,9 @@ body {
     var(--tangerine) 100%
   );
   background-size: 300% 300%;
-  animation: border-rotate 6s linear infinite;
+  /* Animation runs only on hover. Left infinite, it repainted a masked gradient
+   * on every card in the grid non-stop, even at opacity:0 — invisible cost with
+   * nothing on screen to show for it. */
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -846,6 +839,7 @@ body {
 
 .memory-card:hover::before {
   opacity: 1;
+  animation: border-rotate 6s linear infinite;
 }
 
 @keyframes border-rotate {
@@ -1500,10 +1494,26 @@ body {
   flex-shrink: 0;
 }
 
+/* Busy spinner.
+ *
+ * This class marks "work in progress" — a Loader2 next to a running export, a
+ * RefreshCw while models load. It previously borrowed `spin-once`, so every
+ * loader turned exactly once and then froze mid-task while the work continued.
+ * A loader has to keep moving for as long as the state it reports, hence
+ * `infinite`, and it must move at a constant rate: an eased spin repeatedly
+ * stalls at the seam between iterations, which reads as jank rather than
+ * progress. */
 .spinning {
-  animation: spin-once 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation: st-spin 0.75s linear infinite;
+  transform-origin: 50% 50%;
 }
 
+@keyframes st-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* One-shot rotation for a completed action (settings refresh press). Distinct
+ * from `.spinning`: this reports "done", not "working". */
 @keyframes spin-once {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

@@ -1,95 +1,121 @@
 import { useCallback } from 'react';
+import type { CSSProperties } from 'react';
+import { ArrowUpRight, Paperclip } from 'lucide-react';
 import type { Memory } from '../../types';
 import { useMemoryStore } from '../../stores/memoryStore';
-import { FileText } from 'lucide-react';
+import { useLocale } from '../../stores/localeStore';
+import { ago, freshness } from '../../lib/format';
+import { layerVars } from '../../lib/layers';
+import {
+  FreshPulse,
+  ImpactBlocks,
+  LayerGlyph,
+  SemanticLayerTag,
+  SignalRing,
+} from '../ui/Instruments';
 
-const layerConfig: Record<string, { className: string; glow: string }> = {
-  Raw:      { className: 'badge blue',     glow: 'rgba(120, 169, 255, 0.3)' },
-  Knowledge:{ className: 'badge cyan',     glow: 'rgba(99, 216, 210, 0.3)' },
-  Decision: { className: 'badge periwinkle',glow: 'rgba(169, 156, 248, 0.3)' },
-  Wisdom:   { className: 'badge gold',     glow: 'rgba(221, 187, 101, 0.3)' },
-};
+export type MemoryLayout = 'bento' | 'list';
 
 interface MemoryCardProps {
   memory: Memory;
+  layout?: MemoryLayout;
+  index?: number;
 }
 
-export function MemoryCard({ memory }: MemoryCardProps) {
-  const { selectMemory } = useMemoryStore();
-  const layer = layerConfig[memory.layer] || layerConfig.Raw;
+type TileSize = 'small' | 'medium' | 'large' | 'hero';
 
-  // Track mouse position for radial glow effect
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    e.currentTarget.style.setProperty('--mouse-x', `${x}%`);
-    e.currentTarget.style.setProperty('--mouse-y', `${y}%`);
+/**
+ * Importance controls geometry, not colour or decoration.
+ *
+ * A user can read the wall before reading a title: large surfaces are the
+ * records the system considers consequential. Index is only a tie-breaker for
+ * the top band so a wall of 0.9 memories does not become a monotonous grid of
+ * hero tiles.
+ */
+function tileSize(importance: number, index: number): TileSize {
+  if (importance >= .86 && index < 2) return 'hero';
+  if (importance >= .68) return 'large';
+  if (importance >= .36) return 'medium';
+  return 'small';
+}
+
+export function MemoryCard({ memory, layout = 'bento', index = 0 }: MemoryCardProps) {
+  const { selectMemory } = useMemoryStore();
+  const { locale, t } = useLocale();
+  const fresh = freshness(memory.createdAt);
+  const files = memory.attachedFiles?.length ?? 0;
+  const size = layout === 'list' ? 'medium' : tileSize(memory.importanceScore, index);
+
+  // Cursor wash stays outside React state: this is visual feedback at pointer
+  // frequency, not application data. Re-rendering a tile on every mouse move
+  // would turn the effect itself into the performance problem.
+  const onMove = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    event.currentTarget.style.setProperty('--mx', `${((event.clientX - rect.left) / rect.width) * 100}%`);
+    event.currentTarget.style.setProperty('--my', `${((event.clientY - rect.top) / rect.height) * 100}%`);
   }, []);
 
+  const freshLabel = fresh === 'fresh'
+    ? t('mem.fresh')
+    : fresh === 'recent'
+      ? t('mem.recent')
+      : t('mem.settled');
+
   return (
-    <div
-      className="memory-card"
+    <button
+      type="button"
+      className={`st-memory-tile st-rise${layout === 'list' ? ' st-memory-row' : ''}`}
+      data-size={size}
+      style={{ ...layerVars(memory.layer), '--st-i': index } as CSSProperties}
       onClick={() => selectMemory(memory)}
-      onMouseMove={handleMouseMove}
+      onMouseMove={onMove}
+      aria-label={`${memory.title}, ${memory.layer}`}
     >
-      {/* Layer badge with glow */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <span
-          className={layer.className}
-          style={{ boxShadow: `0 0 12px ${layer.glow}` }}
-        >
-          {memory.layer}
+      <span className="st-tile-sheen" aria-hidden="true" />
+
+      <div className="st-tile-top">
+        <LayerGlyph layer={memory.layer} size={layout === 'list' ? 30 : 34} />
+        <SemanticLayerTag layer={memory.layer} />
+        <span className="st-tile-fresh">
+          <FreshPulse
+            state={fresh}
+            label={freshLabel}
+            hint={fresh === 'fresh' ? t('mem.pulse.hint') : undefined}
+          />
         </span>
-        {memory.attachedFiles && memory.attachedFiles.length > 0 && (
-          <span style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            fontSize: 'var(--text-2xs)', color: 'var(--muted-2)',
-          }}>
-            <FileText size={11} />
-            {memory.attachedFiles.length}
+      </div>
+
+      <div style={{ minWidth: 0 }}>
+        <h3 className="st-tile-title">{memory.title}</h3>
+        <p className="st-tile-summary">{memory.summary || memory.content}</p>
+      </div>
+
+      <div className="st-tile-bottom">
+        <div className="st-tile-signals">
+          <SignalRing
+            value={memory.confidenceScore}
+            label={t('inst.trust')}
+            size={layout === 'list' ? 43 : size === 'hero' ? 66 : 54}
+          />
+          <div className="st-tile-impact">
+            <span className="st-tile-signal-label">{t('inst.impact')}</span>
+            <ImpactBlocks value={memory.importanceScore} label={t('inst.impact')} />
+          </div>
+        </div>
+
+        <div className="st-tile-meta">
+          {files > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Paperclip size={9} /> {files}
+            </span>
+          )}
+          <div className="st-tile-source">{memory.source}</div>
+          <span className="st-tile-time">{ago(memory.createdAt, locale)}</span>
+          <span className="st-tile-open">
+            {t('mem.open')} <ArrowUpRight size={10} />
           </span>
-        )}
-      </div>
-
-      {/* Title */}
-      <div className="memory-card-title">{memory.title}</div>
-
-      {/* Summary */}
-      {memory.summary && (
-        <div className="memory-card-summary">{memory.summary}</div>
-      )}
-
-      {/* Source */}
-      <div className="memory-card-meta">
-        <span style={{ fontSize: 'var(--text-2xs)', color: 'var(--muted-2)' }}>
-          {memory.source}
-        </span>
-      </div>
-
-      {/* Score bars */}
-      <div className="memory-card-scores">
-        <div className="memory-card-score">
-          <span>Confidence</span>
-          <div className="memory-card-score-bar">
-            <div
-              className="memory-card-score-fill confidence"
-              style={{ width: `${memory.confidenceScore * 100}%` }}
-            />
-          </div>
-          <span>{(memory.confidenceScore * 100).toFixed(0)}%</span>
-        </div>
-        <div className="memory-card-score">
-          <span>Importance</span>
-          <div className="memory-card-score-bar">
-            <div
-              className="memory-card-score-fill importance"
-              style={{ width: `${memory.importanceScore * 100}%` }}
-            />
-          </div>
-          <span>{(memory.importanceScore * 100).toFixed(0)}%</span>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
