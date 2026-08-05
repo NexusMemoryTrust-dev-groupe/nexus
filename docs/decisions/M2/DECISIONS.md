@@ -33,7 +33,7 @@
 ## D022: InMemoryRecallService (Not Vector Search)
 - Date: 2026-07-23
 - Decision: RecallService на базе FTS5 + confidence ranking, без vector embeddings
-- Reason: M2 — базовая реализация. Vector search (hnsw-rs / lancedb) будет в M4+ когда появятся AI embeddings. FTS5 для M2 sufficient.
+- Reason: M2 — базовая реализация. Расширение: векторный поиск добавлен позже как отдельный модуль (`semantic_search.rs` + `indexer.rs`, таблица `memory_semantic_fingerprints` V9), а не замена FTS5 — оба поиска сосуществуют как расширения одного `MemoryRecallService`.
 
 ## D023: MemoryLayer Promotion
 - Date: 2026-07-23
@@ -43,7 +43,7 @@
 ## D024: MemoryCompressionService as Trait
 - Date: 2026-07-23
 - Decision: MemoryCompressionService — async trait с compress/decompress
-- Reason: SimpleCompressionService — заглушка для M2. Полная реализация (с AI summary) будет позже. Trait позволяет подмену без изменения business logic.
+- Reason: Trait позволяет подмену реализации без изменения business logic. SimpleCompressionService — базовая реализация; AI-summary — расширение того же трейта.
 
 ## D025: SQLite Schema Idempotent Migrations
 - Date: 2026-07-23

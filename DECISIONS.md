@@ -22,13 +22,13 @@
 
 ---
 
-### 3. Context building done in command layer (not full ContextService)
+### 3. Context building through ContextService (расширенный пайплайн)
 
-**Decision**: `commands/context.rs` builds context directly by calling memory search + graph search, skipping the full `ContextService` pipeline (intent detection, ranker, compressor).
+**Decision**: `commands/context.rs` вызывает `ContextService::build_context()` → `ContextBuilderImpl` (полный пайплайн: intent → seed → expand → inject → compress → rank). Пакет дополнен провенансом (`provenance.rs`) и baseline-токенами (`tokenizer.rs`).
 
-**Why**: MVP simplicity. The full pipeline requires wiring `IntentDetector`, `Ranker`, `Compressor`, `ContextCache` — which is overkill for a first integration pass. The command does a simplified version: search memories by query, search graph by query, merge results.
+**Why**: MVP-фаза начиналась с упрощённой версии в command-слое (поиск памяти + поиск графа). Расширение: когда все зависимости (IntentDetector, Ranker, Compressor, ContextCache, MemoryInjector) стали стабильны, команда переключена на полный `ContextService` — тот же command-слой, расширенная внутренняя реализация.
 
-**Future**: Replace with `ContextService::build_context()` once all dependencies are stable.
+**Future**: Новые шаги пайплайна (семантический intent, гибридный recall) — расширения существующих шагов, а не замена command-слоя.
 
 ---
 

@@ -106,23 +106,24 @@ src-tauri/src/
 - [x] File size limits enforced
 - [x] GitTool validates sandbox before command execution
 - [x] ExecutionLog provides audit trail
-- [ ] Rate limiting on tools — deferred to M12 (Security)
-- [ ] Tool permission system — deferred to M12
+- [ ] Rate limiting on tools — расширение: ограничитель в `commands/ai.rs` и MCP-обёртке
+- [ ] Tool permission system — расширение: permission-map в `ToolRouter` через `RequestContext`
 
 ---
 
 ## Known Limitations
 
-1. **SimplePlanner is keyword-based** — No AI/ML planning. AI-powered planning deferred.
-2. **No LLM/Browser tools** — Not implemented. Only File and Git tools are implemented.
-3. **No persistence for execution state** — InMemoryStateTracker only. SQLite persistence deferred to M28+ (versioning).
-4. **No rate limiting** — Deferred to M12 (Security).
-5. **No tool permission system** — All tools are equally trusted. Fine-grained permissions deferred to M12.
+1. **SimplePlanner на ключевых словах** — работает. Расширение: AI-планирование через копилот (`ai/copilot.rs` + `ai_chat_stream`) — копилот уже использует M5-инструменты через MCP; замена планировщика внутри того же трейта `Planner`.
+2. **LLM/Browser-инструменты — РЕАЛИЗОВАНЫ через копилот и MCP** — `ai/mcp_server.rs` отдаёт 66 инструментов любому ИИ (memory, graph, context, files, workspace, savings); `commands/ai.rs` стримит ответы через opencode CLI. Browser-инструмент — расширение `tools/` той же регистрацией в `ToolRouter`.
+3. **Нет persistence для состояния исполнения** — InMemoryStateTracker работает. Расширение: SQLite-бэкенд по образцу `versioning_repository.rs` (таблица execution_logs), тот же trait.
+4. **Нет rate limiting** — расширение: ограничитель в `commands/ai.rs` / MCP-обёртке, не новый слой.
+5. **Нет системы прав инструментов** — расширение: permission-map в `ToolRouter` (какой инструмент доступен какому контексту), используя `RequestContext`.
 
 ---
 
-## Next Steps
+## Next Steps (все — расширения существующего M5)
 
-1. **M12** — Security (rate limiting, tool permissions, sandbox hardening)
-2. **M28+** — SQLite persistence for execution state
-3. **M6** — Decision Engine (uses M5 execution to implement decisions)
+1. **Песочница работает в проде** — `core/sandbox.rs` (whitelist + canonicalization + symlink-защита) применяется ко всем 13 файловым MCP-инструментам и `commands/files.rs`. Расширение — новые типы доступа и политики.
+2. **Интерпретаторы файлов** — `core/interpreter/` уже парсит code/config/markdown/image; расширение — новые языки в `code_parser.rs` и подключение в индексатор.
+3. **AI-планирование** — расширение `SimplePlanner` через копилот (уже подключён к графу/файлам).
+4. **Persistence** — SQLite для `ExecutionStateTracker`.

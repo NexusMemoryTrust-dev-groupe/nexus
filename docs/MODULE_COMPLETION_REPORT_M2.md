@@ -68,10 +68,10 @@ src-tauri/src/
 |--------|-------------|--------|----------------|
 | PERF-003 | Search < 500ms on 100k entities | ✅ | FTS5 index with automatic triggers |
 | SCALE-002 | Up to 1M objects | ✅ | SQLite handles millions; pagination via limit/offset |
-| SEC-001 | Encryption at-rest | ⏳ | Deferred to M3 (SQLCipher / field-level AES-256-GCM) |
+| SEC-001 | Encryption at-rest | ⏳ | Расширение `SqliteMemoryRepository::save_record()`: полевое шифрование выбранных полей (AES-256-GCM) перед INSERT |
 | REL-001 | No data loss on error | ✅ | SQLite transactions + WAL |
 | REL-002 | Transactional operations | ✅ | rusqlite transactions |
-| REL-003 | Every change has history | ⏳ | Versioning deferred to M28-core |
+| REL-003 | Every change has history | ✅ | versioning_listener автоматически коммитит изменения в M28 (automatic_commits) |
 | REL-004 | WAL mode | ✅ | PRAGMA journal_mode=WAL |
 | QA-001 | Module has tests | ✅ | 50 M2 tests |
 | QA-002 | Coverage ≥ 90% | ✅ | All public methods tested |
@@ -100,24 +100,24 @@ src-tauri/src/
 - [x] All SQL queries parameterized (params![])
 - [x] Title/content validation (non-empty, trimmed)
 - [x] Score validation (0.0–1.0 range)
-- [ ] Field-level encryption — deferred to M3
-- [ ] Audit logging — deferred to M3
-- [ ] Owner/Editors/Readers — deferred to M3
+- [ ] Field-level encryption — расширение `SqliteMemoryRepository::save_record()` (шифрование выбранных полей перед INSERT)
+- [ ] Audit logging — расширение: `versioning_listener` уже пишет историю; отдельный audit-log — расширение того же listener
+- [ ] Owner/Editors/Readers — расширение: проверка прав в `commands/memory.rs` через `RequestContext`
 
 ---
 
 ## Known Limitations
 
-1. **No field-level encryption** — SEC-001 deferred to M3 (SQLCipher / AES-256-GCM)
-2. **No audit logging** — CRUD audit deferred to M3
-3. **No versioning** — Immutable history deferred to M28-core
-4. **SimpleCompressionService** — Placeholder; AI-powered compression in future module
-5. **Recall is FTS-only** — Vector/embedding search deferred to M4+
+1. **Нет шифрования полей** — расширение: полевая шифровка — надстройка над существующим `SqliteMemoryRepository` (V2+ колонки), не новый слой.
+2. **Нет отдельного audit-журнала** — расширение: `ExecutionStateTracker.log_event()` из M5 + `versioning_listener` уже фиксируют историю изменений.
+3. **SimpleCompressionService — базовая реализация** — сжатие работает (compress/decompress). Расширение: AI-summary поверх существующего трейта `MemoryCompressionService` без изменения бизнес-логики.
+4. **Recall: FTS + семантика** — FTS5 работает; векторный поиск уже добавлен как расширение (`semantic_search.rs` + `indexer.rs`, таблица `memory_semantic_fingerprints` V9). Recall можно расширять гибридным поиском (FTS + вектора).
 
 ---
 
-## Next Steps
+## Next Steps (все — расширения существующего M2)
 
-1. **M28 Core Services** — versioning integration for MemoryRecord
-2. **M3** — security (encryption, audit, access control)
-3. **M4** — AI embeddings + vector search for advanced recall
+1. **Версионирование** — уже работает: `versioning_listener.rs` автоматически коммитит изменения MemoryRecord в M28.
+2. **Семантический поиск** — уже работает: `nexus_search_semantic` + фоновый `indexer::spawn_backfill()` при старте.
+3. **Связи память ↔ сущность** — уже работают: `memory_entity_links_repository.rs` + MCP-инструменты `nexus_link_memory_entity` / `nexus_get_memory_links` / `nexus_get_entity_memory_links`.
+4. **Шифрование полей** — расширение `SqliteMemoryRepository::save_record()`: шифровать выбранные поля перед INSERT.

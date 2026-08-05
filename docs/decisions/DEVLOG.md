@@ -220,3 +220,33 @@
 - `cargo build` ✅ — zero errors
 - `cargo clippy` ✅ — zero warnings
 - `cargo test` ✅ — 270/270 tests pass (M1: 55 + M2: 50 + M28: 25 + M3: 54 + M4: 44 + M5: 42)
+
+---
+
+## 2026-07-23 MVP Integration — расширения существующего ядра
+
+### Files Created (расширения поверх M1–M5/M28)
+- `core/tokenizer.rs` — реальный BPE-токенизатор (exact/estimated), расширение эвристики D040
+- `core/context/semantic_search.rs` — векторный поиск (fastembed + ONNX, 384-мерные), расширение Recall
+- `core/context/indexer.rs` — фоновый backfill семантических отпечатков при старте
+- `core/context/provenance.rs` — трассировка причин включения/отбрасывания контекста
+- `core/context/auto_graph_builder.rs` — автопостроение графа из текста
+- `core/context/export.rs` — экспорт контекста (Markdown/JSON/plain)
+- `core/sandbox.rs` — песочница файловых операций (whitelist + canonicalization)
+- `core/mcp_register.rs` — авторегистрация MCP в opencode-конфиг
+- `core/interpreter/` — code/config/markdown/image парсеры для индексации
+- `ai/copilot.rs` — slash-команды копилота поверх ядра (memories, savings, stats, files, workspace)
+- `ai/mcp_server.rs` — MCP stdio-сервер, 66 инструментов
+- `commands/{ai,ai_prompt,copilot,files,workspace,savings,setup,config}.rs` — Tauri-команды к существующим модулям
+- `storage/sqlite/memory_entity_links_repository.rs` — связи память ↔ сущность (V8)
+- `storage/sqlite/versioning_repository.rs` — SQLite-реализация CommitService (M28 → prod)
+- `core/versioning/versioning_listener.rs` — M2→M28 мост через EventBus
+
+### Verified (итог)
+- `cargo build` ✅ — zero errors
+- `cargo clippy --all-targets -- -D warnings` ✅ — zero warnings
+- `cargo test` ✅ — 452 unit + 7 integration
+- `npx tsc --noEmit` ✅ — zero errors
+- `npx vite build` ✅ — ~6s
+- `npx vitest run` ✅ — 32/32
+- `npx playwright test` ✅ — 10/10 (smoke + strata-visual)

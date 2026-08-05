@@ -91,14 +91,12 @@ src-tauri/src/
 
 ## Known Limitations
 
-1. **InMemory only** — all implementations are in-memory. Persistent storage (M2) comes next.
-2. **No Figma mockups** — blocks M9 (UI) development.
-3. **Frontend not buildable** — pnpm not installed, no node_modules.
-4. **Broadcast "no subscribers"** — fixed to be non-error (logged, not panicked).
+1. **InMemoryConfig для конфигурации** — InMemory реализация для dev/тестов. Расширение: SQLite-бэкенд `configuration_kv` уже работает через `commands/config.rs`; дальнейшее расширение — шифрование чувствительных ключей.
+2. **EventBus без persistence** — события не переживают перезапуск. Расширение: версионирование (M28) уже слушает события через `versioning_listener.rs`; durable event log — расширение той же шины.
+3. **Frontend не buildable** — снято: `npx vite build` собирается, `npx tsc --noEmit` чист (см. M9).
 
----
+## Next Steps (все — расширения существующего слоя M1)
 
-## Next Steps
-
-1. **M2 Memory Engine** — SQLite storage, entity CRUD, event persistence
-2. **M28 Core Services** — search, context management, AI integration foundation
+1. **Конфигурация → Settings UI** — расширение `commands/config.rs` (get/set/get_all/delete уже работают) экраном настроек `SettingsView`.
+2. **Security-расширения** — `RequestContext` уже несёт user/session/device/correlation; добавить валидацию прав в команды — расширение того же трейта.
+3. **M2+** — построено поверх M1: event_bus, module_registry, config — уже используются репозиториями SQLite.

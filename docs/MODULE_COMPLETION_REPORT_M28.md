@@ -99,24 +99,24 @@ src-tauri/src/
 - [x] All SQL queries parameterized (params![])
 - [x] Commit hash validation (non-empty, computed via DefaultHasher)
 - [x] Version number validation (> 0, monotonically incrementing)
-- [ ] Encryption at-rest — deferred to M3
-- [ ] Audit logging — deferred to M3
-- [ ] Access control — deferred to M3
+- [ ] Encryption at-rest — расширение `SqliteVersioningRepository` (шифрование содержимого коммитов)
+- [ ] Audit logging — расширение `versioning_listener` (дополнительные типы событий)
+- [ ] Access control — расширение: проверка прав при чтении истории в `commands/` через `RequestContext`
 
 ---
 
 ## Known Limitations
 
-1. **No field-level encryption** — SEC-001 deferred to M3
-2. **No vector search for versioning** — Diff-based only, no semantic diff in M28-core
-3. **SimpleDiffCalculator** — Line-based text diff, not LCS-based; JSON diff is key-level only
-4. **InMemory implementations** — SnapshotService, CausalityChain, VersionGraph have no SQLite impl yet (trait-only for M28-core)
-5. **No automatic causality recording** — CausalityChain.record_causality is async trait; automatic cross-module wiring deferred
+1. **Нет шифрования** — расширение: полевое шифрование — надстройка над существующим `SqliteVersioningRepository`, не новый слой.
+2. **Диффы текстовые, не LCS** — `SimpleDiffCalculator` строчный. Расширение: LCS/семантический дифф — замена impl внутри того же трейта `DiffCalculator`.
+3. **SnapshotService / CausalityChain / VersionGraph — trait-only** — CommitService уже реализован на SQLite и работает в проде через `versioning_listener`. Расширение: SQLite-impl для трёх оставшихся трейтов по той же схеме (`Mutex<Connection>` + параметризованные запросы).
+4. **Автоматическая каузальность не записывается** — событие фиксирует только trigger. Расширение: `record_causality` вызывать в том же `versioning_listener` при связке memory→entity.
 
 ---
 
-## Next Steps
+## Next Steps (все — расширения существующего M28)
 
-1. **M3** — Security (encryption, audit, access control)
-2. **M4** — AI embeddings + vector search
-3. **M28 remaining** — SQLite impl for SnapshotService, CausalityChain, VersionGraph
+1. **Версионирование работает в проде** — `versioning_listener.rs` подписан на события M2; версии пишутся в `automatic_commits` автоматически. Откат к версии — расширение `create_commit` + `get_entity_history`.
+2. **SQLite для SnapshotService** — расширение `versioning_repository.rs` (методы capture/store/get по образцу CommitService).
+3. **SQLite для CausalityChain/VersionGraph** — расширение тех же таблиц `causality_records` + `version_edges` (схема уже есть в V4).
+4. **UI версий** — расширение `TimelineView`/`MemoryDetail` командами чтения истории.

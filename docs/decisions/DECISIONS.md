@@ -156,10 +156,10 @@
 - Decision: ContextCache — InMemory HashMap с TTL-based expiration, Mutex для thread safety
 - Reason: Local-first desktop app: Redis/NATS не применимы. TTL предотвращает устаревшие контексты. Mutex acceptable для single-writer desktop.
 
-## D040: Token Count as Rough Estimate
-- Date: 2026-07-23
-- Decision: calculate_token_count() использует len()/4 как грубую оценку токенов
-- Reason: Точный подсчёт требует tiktoken-rs (Python binding) или аналога. Для M4 грубой оценки достаточно для NFR-CTX-003 (70-90% экономия). Точный токенизатор отложен.
+## D040: Token Count as Rough Estimate → РЕАЛИЗОВАН ТОЧНЫЙ
+- Date: 2026-07-23 (обновлено)
+- Decision: Изначально `calculate_token_count()` использовал len()/4. Позже реализован `core/tokenizer.rs` — настоящий BPE-токенизатор из embedding-модели (метод `exact`/`estimated` честно отдаётся в UI).
+- Reason: Расширение, а не замена: эвристика осталась как fallback при недоступности файла модели; точный подсчёт — обёртка над `tokenizers::Tokenizer`.
 
 ## D041: SQLite for Context Snapshots
 - Date: 2026-07-23
@@ -183,7 +183,7 @@
 ## D044: SimplePlanner — Keyword-Based (без LLM)
 - Date: 2026-07-23
 - Decision: SimplePlanner разбивает intent по ";" на отдельные шаги, первое слово = action, остальное = target.
-- Reason: M5 не зависит от внешних AI-вызовов. Keyword-based подход sufficient для базовых workflow. AI-powered планирование отложено.
+- Reason: M5 — базовая реализация. Расширение: AI-планирование через копилот (`ai/copilot.rs`, `ai_chat_stream`) — подстановка другого impl того же трейта `Planner`, без изменения executor'а.
 
 ## D045: Sandbox for Path/Command Validation
 - Date: 2026-07-23
@@ -204,3 +204,62 @@
 - Date: 2026-07-23
 - Decision: Добавлен `AppError::Security(String)` в result.rs для sandbox violations.
 - Reason: Безопасностные ошибки отделены от Validation (невалидные данные) и Internal (баги). Это позволяет differentiated error handling — security errors могут логироваться по-другому.
+
+---
+
+# Фактическая реализация MVP — решения расширения (обновлено)
+
+## D049: Реальный BPE-токенизатор как расширение эвристики
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/tokenizer.rs` — настоящий BPE-токенизатор из embedding-модели (`tokenizers::Tokenizer`, файл `tokenizer.json`), методы `exact`/`estimated`, метод `Method::as_str()` честно отдаётся в UI.
+- Reason: Эвристика `len()/4` катастрофически врёт на кириллице (до 200%) и коде. Расширение, а не замена: эвристика остаётся fallback'ом при недоступности файла модели.
+
+## D050: Векторный поиск как расширение Recall
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/context/semantic_search.rs` — fastembed + ONNX (all-MiniLM-L6-v2, 384-мерные), LRU-кэш эмбеддингов (1024), rate-limit 50ms, лимит 8KB текста. Таблица `memory_semantic_fingerprints` (V9).
+- Reason: FTS5 остаётся для keyword-поиска; семантика — параллельный поиск через тот же `MemoryRecallService`. Не замена, а расширение recall-подсистемы.
+
+## D051: Фоновый индексатор (backfill) для семантики
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/context/indexer.rs` — фоновый backfill при старте (`spawn_backfill`), индексация при создании/изменении/удалении записей (fire-and-forget, никогда не блокирует запись), батчами по 32, guard-флаг от повторного запуска.
+- Reason: Раньше эмбеддинги писались только при ручном вызове MCP-инструмента — индекс был пуст. Расширение фиксирует семантический поиск как всегда актуальный.
+
+## D052: Песочница файловых операций (canonicalization)
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/sandbox.rs` — whitelist корней (рабочие области + `sandbox.extra_roots` + data-dir), canonicalization перед проверкой, компонентное сравнение (не строковый префикс), защита от `..`/symlink/junction.
+- Reason: MCP-инструменты (`nexus_write_file` и др.) принимают произвольные пути — hallucinated аргумент мог перезаписать что угодно. Расширение `tools/` из M5 применено к продакшен-MCP.
+
+## D053: MCP-сервер как расширение копилота
+- Date: 2026-07-23 (обновлено)
+- Decision: `ai/mcp_server.rs` — MCP stdio-сервер, 66 инструментов (memory, graph, context, files, workspace, savings, system), авторегистрация в opencode-конфиг (`mcp_register.rs`). Режим запуска `--mcp`.
+- Reason: Копилот уже умеет вызывать инструменты; MCP расширяет ту же функциональность на любые внешние ИИ (OpenCode, Claude Desktop, Cursor, Continue) без изменения ядра.
+
+## D054: Копилот со стримингом через opencode CLI
+- Date: 2026-07-23 (обновлено)
+- Decision: `commands/ai.rs` — `ai_chat_stream` стримит ответы через opencode CLI (EventEmitter: `ai-thinking-chunk`, `ai-text-chunk`, `ai-stream-finish`), `ai_list_models` перечисляет модели включая бесплатные, `resolve_to_exe()` обходит CVE-2024-24576 (batch-аргументы).
+- Reason: Расширение AI-слоя: один и тот же `DEFAULT_MODEL` (`opencode/deepseek-v4-flash-free`) с подменой через конфиг.
+
+## D055: Slash-команды копилота поверх ядра
+- Date: 2026-07-23 (обновлено)
+- Decision: `ai/copilot.rs` — `CopilotResponse`, `parse_command()`, команды `/memories`, `/savings`, `/stats`, `/health`, `/workspace`, `/config-set`, `/entity-meta`, `/file-*` и др. — исполняются через реальные репозитории (graph/memory/savings).
+- Reason: Расширение M5-исполнителя: копилот-команды — это инструменты, вызванные из чата, а не новая подсистема.
+
+## D056: Автоматическое построение графа из текста
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/context/auto_graph_builder.rs` — извлекает сущности/связи из markdown/текста, дедупликация по title, запись в `GraphStore`.
+- Reason: Расширение M3: граф заполняется автоматически из индексируемых файлов, а не только вручную.
+
+## D057: Провенанс контекста как расширение пайплайна
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/context/provenance.rs` — трассировка причин включения (QueryMatch, KeywordMatch, GraphExpansion, MemorySearch, RecentActivity, HighImportance) и отбрасывания (BelowRelevance, TokenBudget, EntityCap).
+- Reason: Расширение M4-пайплайна: каждый элемент пакета объясняет, почему он попал или не попал в контекст.
+
+## D058: Экспорт контекста
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/context/export.rs` + команда `export_context` — Markdown/JSON/plain text одной кнопкой.
+- Reason: Расширение M4: пакет контекста не только отдаётся в UI, но и сериализуется для внешних инструментов.
+
+## D059: Интерпретаторы файлов
+- Date: 2026-07-23 (обновлено)
+- Decision: `core/interpreter/` — code_parser (JS/TS и др.), config_parser, file_interpreter, image_interpreter, markdown_parser.
+- Reason: Расширение индексатора: файлы рабочей области превращаются в сущности/память автоматически.

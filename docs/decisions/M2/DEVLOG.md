@@ -30,10 +30,15 @@
 - `memory_record.rs` validate(): Added title/content emptiness check (was only checking score ranges). Test `create_empty_title_fails` was failing because `validate()` didn't enforce non-empty title/content after manual mutation.
 
 ### Architecture Decisions
-- FTS5 for full-text search (not vector embeddings — those come in M4+)
-- Mutex<Connection> for thread safety (rusqlite Connection is !Send)
-- IF NOT EXISTS for idempotent migrations
-- Confidence/Importance scores: f64 in [0.0, 1.0] with explicit validation
+- FTS5 для full-text search; векторные эмбеддинги добавлены позже как расширение (`semantic_search.rs` + `indexer.rs`, таблица V9) — оба поиска сосуществуют
+- Mutex<Connection> для thread safety (rusqlite Connection is !Send)
+- IF NOT EXISTS для идемпотентных миграций
+- Confidence/Importance scores: f64 in [0.0, 1.0] с явной валидацией
+
+### Расширения (реализовано позже, тем же слоем)
+- Семантический поиск: `core/context/semantic_search.rs` + `core/context/indexer.rs` (фоновый backfill)
+- Связи память ↔ сущность: `storage/sqlite/memory_entity_links_repository.rs` + MCP-инструменты
+- Версионирование: `versioning_listener.rs` автоматически коммитит изменения MemoryRecord в M28
 
 ### Verified
 - `cargo build` ✅ — zero errors

@@ -76,7 +76,7 @@ src-tauri/src/
 | SCALE-003 | Graph up to 5M relationships | ✅ | Indexes on source_entity_id, target_entity_id, relationship_type |
 | REL-001 | No data loss on error | ✅ | SQLite transactions + WAL |
 | REL-002 | Transactional operations | ✅ | rusqlite transactions |
-| REL-003 | Every change has history | ⏳ | Versioning integration deferred to M28 integration |
+| REL-003 | Every change has history | ✅ | entity_snapshots (V5) + versioning_listener; автоматический коммит изменений Entity/Relationship — расширение того же listener |
 | QA-001 | Module has tests | ✅ | 54 M3 tests |
 | QA-002 | Coverage ≥ 90% | ✅ | All public methods tested |
 
@@ -106,25 +106,26 @@ src-tauri/src/
 - [x] Entity title validation (non-empty, trimmed)
 - [x] Relationship weight validation (0.0–1.0)
 - [x] Source != target validation
-- [ ] Access control on entity — deferred to M3 security layer
-- [ ] Audit logging — deferred to M3 security layer
-- [ ] Field-level encryption — deferred to M3
+- [ ] Access control on entity — расширение: проверка прав в `commands/graph.rs` через `RequestContext`
+- [ ] Audit logging — расширение `versioning_listener` на события графа
+- [ ] Field-level encryption — расширение `SqliteGraphRepository` (шифрование metadata)
 
 ---
 
 ## Known Limitations
 
-1. **No petgraph** — BFS implemented manually on SQLite queries. petgraph can be added as optimization layer if performance is insufficient.
-2. **No FTS on graph entities** — Using LIKE for search, not FTS5. FTS5 can be added later.
-3. **No automatic versioning** — Entity/relationship changes are not automatically versioned. M28 integration deferred.
-4. **No access control** — CRUD operations are unrestricted. Security layer deferred.
-5. **No circular dependency detection** — find_path uses BFS without cycle detection for self-loops (source != target prevents 2-cycles).
+1. **BFS на SQL, без petgraph** — работает и укладывается в NFR-PERF-005. Расширение: petgraph как optimization layer поверх того же `GraphTraversal` без изменения API.
+2. **Поиск сущностей через LIKE, не FTS5** — расширение: FTS5-индекс на `graph_entities.title` (по образцу `memory_fts`), тот же `search_entities`.
+3. **Версионирование графа** — уже частично работает: `entity_snapshots` (V5) + `versioning_listener`; автоматический коммит изменений Entity/Relationship — расширение того же listener.
+4. **Нет access control** — расширение: проверка прав в `commands/graph.rs` перед CRUD, используя `RequestContext`.
+5. **Нет детекции циклов** — source != target предотвращает 2-циклы. Расширение: cycle detection в `find_path` — расширение BFS-логики `graph_traversal.rs`.
 
 ---
 
-## Next Steps
+## Next Steps (все — расширения существующего M3)
 
-1. **M4** — AI embeddings + vector search
-2. **M3 security** — Access control, audit logging, encryption
-3. **M28 integration** — Automatic versioning for entity/relationship changes
-4. **FTS5 for graph entities** — Full-text search on title/description
+1. **Связи память ↔ сущность** — уже работают: `memory_entity_links_repository.rs` + MCP-инструменты `nexus_link_memory_entity` / `nexus_get_memory_links` / `nexus_get_entity_memory_links`.
+2. **Автоматическое построение графа из текста** — уже работает: `auto_graph_builder.rs` извлекает сущности/связи из markdown/текста; расширение — подключать его в `indexer` при индексации файлов.
+3. **FTS5 для сущностей** — расширение `SqliteGraphRepository::search_entities`.
+4. **Версионирование изменений графа** — расширение `versioning_listener` на события `EntityCreated`/`RelationshipCreated`.
+5. **Семантические связи** — расширение `semantic_search.rs`: эмбеддинги сущностей для кластеризации дублей перед `merge_entities`.

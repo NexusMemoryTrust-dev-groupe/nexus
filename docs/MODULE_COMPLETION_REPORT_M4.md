@@ -107,23 +107,25 @@ src-tauri/src/
 - [x] Request validation (max_tokens, max_entities, max_depth, min_relevance)
 - [x] ContextPackage validation (non-empty query, confidence range)
 - [ ] No secrets in context — verified by design (only entities/records)
-- [ ] Audit log for context building — deferred to M12 (Security)
-- [ ] Snapshot PII protection — deferred to M12
+- [ ] Audit log for context building — расширение `provenance.rs` (уже трассирует причины включения/отбрасывания)
+- [ ] Snapshot PII protection — расширение `SqliteContextRepository` (шифрование поля package_json)
 
 ---
 
 ## Known Limitations
 
-1. **Keyword-based intent detection** — No AI/ML classification. AI-based detection deferred.
-2. **Rough token estimation** — len()/4, not tiktoken. Accurate tokenization deferred.
-3. **InMemory cache only** — No Redis/distributed cache. Acceptable for local-first desktop.
-4. **No vector search for context** — GraphSeeder uses LIKE, not embeddings. Vector search deferred to M4+ with hnsw-rs.
-5. **ContextBuilder is trait-only** — Full pipeline (all 6 steps wired) requires ContextService integration with concrete GraphStore/MemoryRepository. Currently trait-only for composability.
+1. **IntentDetector на ключевых словах** — работает (ru/en, confidence). Расширение: семантический интент через уже реализованный `semantic_search.rs` — расширение того же трейта `IntentDetector`, не замена.
+2. **Точный токенизатор — РЕАЛИЗОВАН** — `core/tokenizer.rs`: BPE-токенизатор из embedding-модели, метод `exact`/`estimated` честно отдаётся в UI. Расширение: переиспользование в `Compressor.calculate_token_count()` вместо эвристики (обёртка над готовым модулем).
+3. **Кэш InMemory** — работает с TTL. Расширение: SQLite-бэкенд для `ContextCache` по образцу `context_snapshots` — тот же trait.
+4. **Векторный поиск — РЕАЛИЗОВАН** — `semantic_search.rs` (fastembed + ONNX, 384-мерные) + `indexer.rs` (фоновый backfill) + таблица `memory_semantic_fingerprints` (V9). GraphSeeder может расширяться семантическим seeding через те же эмбеддинги.
+5. **ContextBuilder работает с интеграцией** — `ContextBuilderImpl` собран с `ContextService` и подключён через `commands/context.rs` (`build_context`, `build_context_for_entity`, `export_context`). Расширение — провенанс (`provenance.rs`) и экспорт (`export.rs`) уже работают поверх пайплайна.
 
 ---
 
-## Next Steps
+## Next Steps (все — расширения существующего M4)
 
-1. **M5** — Execution Layer (actions, workflows)
-2. **M4+ integration** — Wire ContextBuilder pipeline with concrete M2+M3 implementations
-3. **Vector search** — Add hnsw-rs for semantic context matching
+1. **Провенанс уже работает** — `provenance.rs` трассирует причины включения/отбрасывания каждого элемента пакета; расширение — новые причины и UI-разбивка скора.
+2. **Семантический интент** — расширение `IntentDetector` вызовом `SemanticSearch` при низком keyword-confidence.
+3. **Экспорт контекста** — уже работает (`export_context` в Markdown/JSON/plain text); расширение — форматы и шаблоны.
+4. **Гибридный recall** — расширение `MemoryInjector`: FTS5 + векторный поиск + ранжирование `ranker.rs`.
+5. **Точный токен-подсчёт в сжатии** — подключить `tokenizer.rs` в `Compressor` (обёртка, без изменения пайплайна).
