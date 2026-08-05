@@ -160,7 +160,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'ai.res.entity': 'Entity: {title} ({type})',
     'ai.res.context': 'Context built: {tokens} tokens, {entities} entities, {memories} memories',
     'ai.res.stats': 'Database stats loaded',
-    'ai.res.health': 'AI Gateway: {status}',
+    'ai.res.health': 'AI: {status}',
     'ai.res.error': 'Error: {message}',
     'ai.res.opened': 'Opened {view}',
     // AI Settings
@@ -340,7 +340,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'ai.res.entity': 'Сущность: {title} ({type})',
     'ai.res.context': 'Контекст построен: {tokens} токенов, {entities} сущностей, {memories} воспоминаний',
     'ai.res.stats': 'Статистика загружена',
-    'ai.res.health': 'AI Gateway: {status}',
+    'ai.res.health': 'AI: {status}',
     'ai.res.error': 'Ошибка: {message}',
     'ai.res.opened': 'Открыто {view}',
     // AI Settings
