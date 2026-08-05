@@ -114,8 +114,8 @@ src-tauri/src/
 
 ## Known Limitations
 
-1. **Keyword-based intent detection** — No AI/ML classification. AI-based detection deferred to M7 (AI Gateway).
-2. **Rough token estimation** — len()/4, not tiktoken. Accurate tokenization deferred to M7.
+1. **Keyword-based intent detection** — No AI/ML classification. AI-based detection deferred.
+2. **Rough token estimation** — len()/4, not tiktoken. Accurate tokenization deferred.
 3. **InMemory cache only** — No Redis/distributed cache. Acceptable for local-first desktop.
 4. **No vector search for context** — GraphSeeder uses LIKE, not embeddings. Vector search deferred to M4+ with hnsw-rs.
 5. **ContextBuilder is trait-only** — Full pipeline (all 6 steps wired) requires ContextService integration with concrete GraphStore/MemoryRepository. Currently trait-only for composability.
@@ -125,6 +125,5 @@ src-tauri/src/
 ## Next Steps
 
 1. **M5** — Execution Layer (actions, workflows)
-2. **M7** — AI Gateway (embeddings, vector search, AI intent detection)
-3. **M4+ integration** — Wire ContextBuilder pipeline with concrete M2+M3 implementations
-4. **Vector search** — Add hnsw-rs for semantic context matching
+2. **M4+ integration** — Wire ContextBuilder pipeline with concrete M2+M3 implementations
+3. **Vector search** — Add hnsw-rs for semantic context matching

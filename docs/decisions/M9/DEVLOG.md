@@ -36,7 +36,7 @@
 - `TimelineView.tsx` — Vertical timeline sorted by date, each entry shows title, date, layer
 
 **src/components/ai/**
-- `AiCoPilot.tsx` — Chat panel with input, message list, placeholder for M7 integration
+- `AiCoPilot.tsx` — Chat panel with input, message list, placeholder responses
 
 **src/hooks/**
 - `useTauri.ts` — Wrapper around invoke with error handling

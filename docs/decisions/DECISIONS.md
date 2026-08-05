@@ -149,7 +149,7 @@
 ## D038: Keyword-Based Intent Detection
 - Date: 2026-07-23
 - Decision: IntentDetector классифицирует запрос по ключевым словам (рус/англ), confidence — эвристика по длине
-- Reason: M4 — базовая реализация. AI-based intent detection будет в M7 (AI Gateway). Keyword approach sufficient для MVP и не требует внешних вызовов.
+- Reason: M4 — базовая реализация. AI-based intent detection отложено. Keyword approach sufficient для MVP и не требует внешних вызовов.
 
 ## D039: InMemory Context Cache with TTL
 - Date: 2026-07-23
@@ -159,7 +159,7 @@
 ## D040: Token Count as Rough Estimate
 - Date: 2026-07-23
 - Decision: calculate_token_count() использует len()/4 как грубую оценку токенов
-- Reason: Точный подсчёт требует tiktoken-rs (Python binding) или аналога. Для M4 грубой оценки достаточно для NFR-CTX-003 (70-90% экономия). Точный токенизатор добавится в M7.
+- Reason: Точный подсчёт требует tiktoken-rs (Python binding) или аналога. Для M4 грубой оценки достаточно для NFR-CTX-003 (70-90% экономия). Точный токенизатор отложен.
 
 ## D041: SQLite for Context Snapshots
 - Date: 2026-07-23
@@ -183,7 +183,7 @@
 ## D044: SimplePlanner — Keyword-Based (без LLM)
 - Date: 2026-07-23
 - Decision: SimplePlanner разбивает intent по ";" на отдельные шаги, первое слово = action, остальное = target.
-- Reason: M5 не зависит от M7 (AI Gateway). Keyword-based подход sufficient для базовых workflow. AI-powered планирование будет добавлено в M7.
+- Reason: M5 не зависит от внешних AI-вызовов. Keyword-based подход sufficient для базовых workflow. AI-powered планирование отложено.
 
 ## D045: Sandbox for Path/Command Validation
 - Date: 2026-07-23

@@ -19,7 +19,7 @@
 | 5 | CommandBar | ✅ | Modal overlay, Ctrl+K shortcut, Escape to close |
 | 6 | Dual Mode (Explorer/Operator) | ✅ | Toggle in TopBar, persisted in uiStore |
 | 7 | TimelineView | ✅ | Vertical timeline sorted by date |
-| 8 | AiCoPilot | ✅ | Chat panel with input; AI response deferred to M7 |
+| 8 | AiCoPilot | ✅ | Chat panel with input; AI response deferred |
 | 9 | Zustand stores | ✅ | memoryStore, graphStore, uiStore |
 | 10 | Hooks | ✅ | useTauri, useMemory |
 | 11 | Tauri IPC commands | ✅ | memory.rs, graph.rs, ai.rs (placeholder implementations) |
@@ -109,7 +109,7 @@ index.html                          # Vite entry point
 ## Known Limitations
 
 1. **GraphView placeholder** — @antv/g6 not initialized; full visualization deferred to MVP Integration
-2. **AiCoPilot placeholder** — AI responses deferred to M7 (AI Gateway)
+2. **AiCoPilot placeholder** — AI responses deferred
 3. **Tauri commands are stubs** — Return empty data; wiring to M2/M3 storage deferred to MVP Integration
 4. **No UI tests** — Playwright/vitest UI tests deferred to integration phase
 5. **Settings page** — Not implemented; placeholder nav link only
@@ -119,5 +119,4 @@ index.html                          # Vite entry point
 ## Next Steps
 
 1. **MVP Integration** — Wire Tauri commands to M2/M3 storage, initialize @antv/g6
-2. **M7 AI Gateway** — Connect AiCoPilot to actual LLM providers
-3. **UI tests** — Add Playwright tests for critical paths
+2. **UI tests** — Add Playwright tests for critical paths

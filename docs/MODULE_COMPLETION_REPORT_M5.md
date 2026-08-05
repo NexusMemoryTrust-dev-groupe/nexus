@@ -113,8 +113,8 @@ src-tauri/src/
 
 ## Known Limitations
 
-1. **SimplePlanner is keyword-based** — No AI/ML planning. AI-powered planning will be added in M7 (AI Gateway).
-2. **No LLM/Browser tools** — These require M7 (AI Gateway). Only File and Git tools are implemented.
+1. **SimplePlanner is keyword-based** — No AI/ML planning. AI-powered planning deferred.
+2. **No LLM/Browser tools** — Not implemented. Only File and Git tools are implemented.
 3. **No persistence for execution state** — InMemoryStateTracker only. SQLite persistence deferred to M28+ (versioning).
 4. **No rate limiting** — Deferred to M12 (Security).
 5. **No tool permission system** — All tools are equally trusted. Fine-grained permissions deferred to M12.
@@ -123,7 +123,6 @@ src-tauri/src/
 
 ## Next Steps
 
-1. **M7** — AI Gateway (LLM tools, Browser tool, embeddings)
-2. **M12** — Security (rate limiting, tool permissions, sandbox hardening)
-3. **M28+** — SQLite persistence for execution state
-4. **M6** — Decision Engine (uses M5 execution to implement decisions)
+1. **M12** — Security (rate limiting, tool permissions, sandbox hardening)
+2. **M28+** — SQLite persistence for execution state
+3. **M6** — Decision Engine (uses M5 execution to implement decisions)
