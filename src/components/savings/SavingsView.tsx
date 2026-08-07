@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   TrendingDown, Coins, Zap, Clock, Calendar, BarChart3,
-  ArrowUpRight, Sparkles, RefreshCw,
+  ArrowUpRight, Sparkles, RefreshCw, Gauge, Target, Filter,
+  Archive, Wrench, Repeat2, Timer,
 } from 'lucide-react';
 import { useLocale } from '../../stores/localeStore';
 
@@ -46,6 +47,32 @@ interface InteractionRecord {
   memories_count: number;
   query_preview: string;
   created_at: string;
+}
+
+// ── Product metrics — aggregated from measured per-interaction rows ────────
+// Mirrors `commands::savings::ProductMetrics` on the backend.
+interface ProductMetrics {
+  total_interactions: number;
+  /** Share (0..=1) of interactions where the user did NOT add context manually. */
+  auto_context_share: number;
+  /** Average precision of collected context (included / considered). */
+  avg_precision: number;
+  total_used_fragments: number;
+  /** Share (0..=1) of used fragments out of all considered fragments. */
+  used_fragment_share: number;
+  total_irrelevant_fragments: number;
+  total_tokens_saved: number;
+  total_baseline_tokens: number;
+  /** Average context build latency in milliseconds. */
+  avg_latency_ms: number;
+  /** Memories currently marked superseded, conflicted, or expired. */
+  stale_memories: number;
+  /** Memory fixes by the user: irrelevant + wrong feedback marks. */
+  memory_fixes: number;
+  /** Distinct memories delivered in more than one interaction. */
+  reused_memories: number;
+  /** Distinct memories ever delivered. */
+  total_memories_delivered: number;
 }
 
 // ── Animated counter hook ──
@@ -278,6 +305,155 @@ function LiveFeed({ interactions }: { interactions: InteractionRecord[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Product metrics section ──
+// Six honest figures about how the context engine actually performs, each one
+// aggregated on the backend from measured per-interaction rows.
+function MetricTile({
+  icon: Icon, label, sub, display, color, delay = 0,
+}: {
+  icon: typeof Gauge;
+  label: string;
+  sub: string;
+  display: string;
+  color: string;
+  delay?: number;
+}) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--line)',
+      borderRadius: 'var(--radius-sm)', padding: '16px 18px',
+      opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)',
+      transition: 'opacity 0.5s ease, transform 0.5s ease',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+        <div style={{
+          width: '28px', height: '28px', borderRadius: 'var(--radius-xs)',
+          background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={14} style={{ color }} />
+        </div>
+        <span style={{
+          fontSize: '11px', color: 'var(--muted-2)', textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+        }}>
+          {label}
+        </span>
+      </div>
+      <div style={{
+        fontSize: '24px', fontWeight: 700, color: 'var(--bone)',
+        fontFamily: 'var(--brand)', letterSpacing: '-0.02em',
+      }}>
+        {display}
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', lineHeight: 1.45 }}>
+        {sub}
+      </div>
+    </div>
+  );
+}
+
+function ProductMetricsSection({ metrics }: { metrics: ProductMetrics | null }) {
+  const { t } = useLocale();
+  if (!metrics) return null;
+  const pct = (share: number) => `${Math.round(share * 100)}%`;
+
+  return (
+    <div style={{ marginBottom: '28px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px',
+      }}>
+        <div style={{
+          width: '36px', height: '36px', borderRadius: 'var(--radius-xs)',
+          background: 'var(--periwinkle-soft)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Target size={16} style={{ color: 'var(--periwinkle)' }} />
+        </div>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--bone)' }}>
+            {t('savings.metrics.title')}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+            {t('savings.metrics.subtitle')}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+        <MetricTile
+          icon={Gauge}
+          label={t('savings.metrics.autoContext')}
+          sub={t('savings.metrics.autoContextSub')}
+          display={pct(metrics.auto_context_share)}
+          color="var(--periwinkle)"
+          delay={0}
+        />
+        <MetricTile
+          icon={Target}
+          label={t('savings.metrics.precision')}
+          sub={t('savings.metrics.precisionSub')}
+          display={pct(metrics.avg_precision)}
+          color="var(--mint)"
+          delay={80}
+        />
+        <MetricTile
+          icon={Filter}
+          label={t('savings.metrics.usedFragments')}
+          sub={t('savings.metrics.usedFragmentsSub')}
+          display={pct(metrics.used_fragment_share)}
+          color="var(--cyan)"
+          delay={160}
+        />
+        <MetricTile
+          icon={Timer}
+          label={t('savings.metrics.latency')}
+          sub={t('savings.metrics.latencySub')}
+          display={`${Math.round(metrics.avg_latency_ms)} ms`}
+          color="var(--gold)"
+          delay={240}
+        />
+        <MetricTile
+          icon={Archive}
+          label={t('savings.metrics.stale')}
+          sub={t('savings.metrics.staleSub')}
+          display={String(metrics.stale_memories)}
+          color="var(--tangerine)"
+          delay={320}
+        />
+        <MetricTile
+          icon={Wrench}
+          label={t('savings.metrics.fixes')}
+          sub={t('savings.metrics.fixesSub')}
+          display={String(metrics.memory_fixes)}
+          color="var(--rose)"
+          delay={400}
+        />
+        <MetricTile
+          icon={Repeat2}
+          label={t('savings.metrics.reuse')}
+          sub={t('savings.metrics.reuseSub')}
+          display={String(metrics.reused_memories)}
+          color="var(--steel)"
+          delay={480}
+        />
+      </div>
+
+      <div style={{
+        marginTop: '10px', fontSize: '11px', color: 'var(--muted-2)',
+        fontFamily: 'var(--mono)',
+      }}>
+        {metrics.total_interactions} {t('savings.metrics.interactions')} · {formatTokens(metrics.total_tokens_saved)} {t('savings.tokens')} · {formatTokens(metrics.total_baseline_tokens)} baseline
+      </div>
     </div>
   );
 }
@@ -561,13 +737,18 @@ function PriceTable({ totalTokensSaved }: { totalTokensSaved: number }) {
 export function SavingsView() {
   const { t } = useLocale();
   const [stats, setStats] = useState<SavingsStats | null>(null);
+  const [metrics, setMetrics] = useState<ProductMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
-      const result = await invoke<SavingsStats>('get_savings_stats');
+      const [result, product] = await Promise.all([
+        invoke<SavingsStats>('get_savings_stats'),
+        invoke<ProductMetrics>('get_product_metrics'),
+      ]);
       setStats(result);
+      setMetrics(product);
       setError(null);
     } catch (err) {
       setError(String(err));
@@ -773,6 +954,9 @@ export function SavingsView() {
           </div>
         </div>
       </div>
+
+      {/* Product metrics — how Nexus actually performs */}
+      <ProductMetricsSection metrics={metrics} />
 
       {/* Recent interactions */}
       <div style={{

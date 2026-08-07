@@ -682,7 +682,7 @@ function Scene({
 // MAIN EXPORT
 // ═══════════════════════════════════════════════════════════════
 export function CosmicGraphView() {
-  const { nodes, edges, fetchGraph, isLoading } = useGraphStore();
+  const { nodes, edges, fetchGraph, isLoading, focusRequest, clearFocus } = useGraphStore();
   const { selectMemory, memories, fetchMemories } = useMemoryStore();
   const { copilotOpen, toggleCopilot, setActiveView } = useUiStore();
   const { t } = useLocale();
@@ -751,6 +751,35 @@ export function CosmicGraphView() {
     if (filteredIds) filteredIds.forEach(id => pinned.add(id));
     pinnedIdsRef.current = pinned;
   }, [selectedNode, hoveredNode, filteredIds]);
+
+  // One-shot focus request from outside (ContextView's "Show in graph"):
+  // highlight the requested entities, select the first one, and clear the
+  // request so it never re-applies on an unrelated re-render.
+  useEffect(() => {
+    if (!focusRequest || focusRequest.length === 0) return;
+    const targets = allNodes.filter(n => focusRequest.includes(n.id));
+    if (targets.length === 0) return;
+    // Un-hide requested nodes that were manually hidden.
+    setHiddenIds(prev => {
+      const hidden = focusRequest.filter(id => prev.has(id));
+      if (hidden.length === 0) return prev;
+      const next = new Set(prev);
+      hidden.forEach(id => next.delete(id));
+      return next;
+    });
+    // Highlight the requested node plus its direct neighbours, mirroring the
+    // search-bar highlight so the context package reads as one connected piece.
+    const ids = new Set<string>(focusRequest);
+    uniqueEdges.forEach(e => {
+      if (focusRequest.includes(e.source)) ids.add(e.target);
+      if (focusRequest.includes(e.target)) ids.add(e.source);
+    });
+    highlightedIdsRef.current = ids;
+    highlightedRef.current = targets[0].id;
+    setSelectedNode(targets[0]);
+    clearFocus();
+    setTimeout(() => { highlightedIdsRef.current = new Set(); highlightedRef.current = null; }, 4000);
+  }, [focusRequest, allNodes, uniqueEdges, clearFocus]);
 
   const memoryCountMap = useMemo(() => {
     const m = new Map<string, number>();

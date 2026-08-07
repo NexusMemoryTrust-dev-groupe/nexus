@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
-use crate::core::memory::types::MemorySource;
+use crate::core::memory::types::{MemoryFeedback, MemorySource};
 
 /// Serializable memory record for Tauri IPC.
 #[derive(Serialize, Deserialize)]
@@ -27,6 +27,14 @@ pub struct MemoryDto {
     pub status: String,
     pub layer: String,
     pub attached_files: Vec<AttachedFileDto>,
+    // Memory Trust lifecycle (V12)
+    pub memory_state: String,
+    pub supersedes_id: Option<String>,
+    pub superseded_by_id: Option<String>,
+    pub confirmed_at: Option<String>,
+    pub confirmed_by: Option<String>,
+    pub expires_at: Option<String>,
+    pub feedback: MemoryFeedback,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,6 +89,13 @@ impl From<MemoryRecord> for MemoryDto {
                     mime_type: f.mime_type,
                 })
                 .collect(),
+            memory_state: r.memory_state.as_str().to_string(),
+            supersedes_id: r.supersedes_id,
+            superseded_by_id: r.superseded_by_id,
+            confirmed_at: r.confirmed_at.map(|dt| dt.to_rfc3339()),
+            confirmed_by: r.confirmed_by,
+            expires_at: r.expires_at.map(|dt| dt.to_rfc3339()),
+            feedback: r.feedback,
         }
     }
 }
@@ -126,15 +141,32 @@ pub async fn create_memory(
     )
     .map_err(|e| e.to_string())?;
     let _id = repo.save(&record).await.map_err(|e| e.to_string())?;
+
+    // Memory Trust: check the new memory against the existing pool. If it says
+    // something different about the same topic, both sides are flagged
+    // Conflicted and the trust UI can ask the user to decide.
+    crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // The conflict detector may have demoted this record to Conflicted in the
+    // database. Re-read it so the returned DTO reflects the persisted state
+    // instead of the pre-check struct (which would claim Current wrongly).
+    let saved = repo
+        .get_by_id(&record.id)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or(record);
+
     // Index for semantic search off-thread: fingerprints used to be written only
     // when someone called the MCP tool by hand, so semantic search stayed empty.
     crate::core::context::indexer::spawn_index_memory(
-        &record.id,
-        &record.title,
-        &record.summary,
-        &record.content,
+        &saved.id,
+        &saved.title,
+        &saved.summary,
+        &saved.content,
     );
-    Ok(MemoryDto::from(record))
+    Ok(MemoryDto::from(saved))
 }
 
 /// Search memory records by query string.
@@ -216,6 +248,12 @@ pub async fn update_memory(
     // Must be update(), not save(): save() issues an INSERT and fails with a
     // UNIQUE constraint violation on the existing primary key.
     repo.update(&record).await.map_err(|e| e.to_string())?;
+
+    // Memory Trust: an edited memory may now contradict something else in the
+    // pool — re-run the conflict check.
+    crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Re-index: the stored embedding describes the *old* text, so leaving it in
     // place makes semantic search return this memory for queries that no longer

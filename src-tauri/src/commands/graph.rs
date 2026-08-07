@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::entity_id::EntityId;
 use crate::core::graph::entity::Entity;
+use crate::core::graph::entity_identity::EntityIdentityService;
 use crate::core::graph::entity_types::EntityType;
 use crate::core::graph::graph_store::GraphStore;
 use crate::core::graph::relationship::Relationship;
@@ -316,4 +317,41 @@ pub async fn delete_entity(id: String) -> Result<(), String> {
     repo.delete_entity(&entity_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Scan the graph for duplicate entities (exact + normalized + fuzzy name match).
+///
+/// Returns groups of 2+ entities that look like the same thing. `bestId` in
+/// each group is the entity with the most specific name — the natural merge
+/// target.
+#[tauri::command]
+pub async fn find_duplicate_entities(
+    min_score: Option<f64>,
+) -> Result<Vec<crate::core::graph::resolution::DuplicateGroup>, String> {
+    let repo = open_repo()?;
+    let threshold = min_score.unwrap_or(crate::core::graph::resolution::DUPLICATE_DICE);
+    crate::core::graph::resolution::find_duplicates(&repo, threshold)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Merge duplicate entities into a single canonical node.
+///
+/// `primary` is kept; every id in `duplicates` is merged into it:
+/// metadata is combined, relationships are redirected, duplicates are marked
+/// Merged with canonical_id pointing at the primary. Idempotent.
+#[tauri::command]
+pub async fn merge_entities(primary: String, duplicates: Vec<String>) -> Result<GraphNode, String> {
+    let repo = open_repo()?;
+    let primary_id = EntityId::parse(&primary).map_err(|e| e.to_string())?;
+    let dup_ids: Vec<EntityId> = duplicates
+        .iter()
+        .filter_map(|d| EntityId::parse(d).ok())
+        .collect();
+
+    let merged = repo
+        .merge_entities(&primary_id, &dup_ids)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(GraphNode::from(merged))
 }

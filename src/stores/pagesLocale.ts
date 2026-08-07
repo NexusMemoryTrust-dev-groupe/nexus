@@ -101,6 +101,39 @@ export const pagesEn = {
   'sheet.linked': 'Linked entities',
   'sheet.provenance': 'Where this came from',
 
+  // ── Memory trust lifecycle ─────────────────────────────────────────────────
+  'sheet.lifecycle': 'Trust',
+  'sheet.lifecycle.hint':
+    'How trustworthy this record is right now. Nexus starts everything at Inferred; your Confirm is what promotes a record to a fact you can build on.',
+  'sheet.state.current': 'Current',
+  'sheet.state.inferred': 'Inferred',
+  'sheet.state.conflicted': 'Conflicted',
+  'sheet.state.superseded': 'Superseded',
+  'sheet.state.userConfirmed': 'User confirmed',
+  'sheet.state.hint.current': 'Taken as correct until something contradicts it.',
+  'sheet.state.hint.inferred': 'Derived by the model, not yet verified by a human.',
+  'sheet.state.hint.conflicted': 'Contradicts other memories — needs a decision.',
+  'sheet.state.hint.superseded': 'Replaced by a newer record. Kept for history.',
+  'sheet.state.hint.userConfirmed': 'You explicitly verified this record.',
+  'sheet.confirm': 'Confirm',
+  'sheet.confirm.done': 'Confirmed',
+  'sheet.confirm.hint': 'Mark this memory as verified. Confirmed records are treated as facts by the copilot.',
+  'sheet.confirmed.by': 'Confirmed by',
+  'sheet.supersedes': 'Supersedes',
+  'sheet.superseded.by': 'Superseded by',
+  'sheet.feedback.title': 'Was it useful?',
+  'sheet.feedback.hint': 'Each vote feeds the memory-quality metrics. Marking a record Wrong flags it as conflicted. Click a verdict, explain why, then confirm — the explanation is stored on the memory and used by the copilot.',
+  'sheet.feedback.useful': 'Useful',
+  'sheet.feedback.irrelevant': 'Irrelevant',
+  'sheet.feedback.wrong': 'Wrong',
+  'sheet.feedback.note.title': 'Tell the copilot why',
+  'sheet.feedback.note.hint': 'Your explanation is stored on the memory and used by the copilot and semantic search to understand what is right, missing, or misleading.',
+  'sheet.feedback.note.placeholder': "What's right, what's missing, what should change?",
+  'sheet.feedback.note.send': 'Send',
+  'sheet.feedback.note.sent': 'Saved',
+  'sheet.feedback.note.saved': 'Explanation saved',
+  'sheet.feedback.note.close': 'Close',
+
   // ── Timeline ──────────────────────────────────────────────────────────────
   'tl.hero.sub':
     'Capture history. The strip below is your last three months at a glance; each day opens into a 24-hour track where a memory sits at the hour it arrived.',
@@ -206,6 +239,16 @@ export const pagesEn = {
   'ctx.drop.budget': 'token budget',
   'ctx.drop.cap': 'entity cap',
   'ctx.drop.relevance': 'below relevance',
+
+  // ── Score arithmetic — the copilot's formula ──────────────────────────────
+  'ctx.score.titleMatch': 'Title match',
+  'ctx.score.keywordMatch': 'Keyword match',
+  'ctx.score.contentMatch': 'Content match',
+  'ctx.score.importance': 'Importance',
+  'ctx.score.recency': 'Recency',
+  'ctx.score.confidence': 'Confidence',
+  'ctx.score.base': 'Base',
+  'ctx.showInGraph': 'Show in graph',
 } as const;
 
 export type PagesKey = keyof typeof pagesEn;
@@ -293,6 +336,39 @@ export const pagesRu: Record<PagesKey, string> = {
   'sheet.status': 'Статус',
   'sheet.linked': 'Связанные сущности',
   'sheet.provenance': 'Откуда это взялось',
+
+  // ── Жизненный цикл доверия ─────────────────────────────────────────────────
+  'sheet.lifecycle': 'Доверие',
+  'sheet.lifecycle.hint':
+    'Насколько этой записи можно верить прямо сейчас. Nexus начинает всё со статуса «Выведено»; ваше подтверждение переводит запись в факт, на который можно опираться.',
+  'sheet.state.current': 'Актуально',
+  'sheet.state.inferred': 'Выведено',
+  'sheet.state.conflicted': 'Противоречит',
+  'sheet.state.superseded': 'Заменено',
+  'sheet.state.userConfirmed': 'Подтверждено',
+  'sheet.state.hint.current': 'Считается верным, пока ничто не противоречит.',
+  'sheet.state.hint.inferred': 'Получено моделью, человеком пока не проверено.',
+  'sheet.state.hint.conflicted': 'Противоречит другим записям — нужно решение.',
+  'sheet.state.hint.superseded': 'Заменено более новой записью. Хранится для истории.',
+  'sheet.state.hint.userConfirmed': 'Вы явно проверили эту запись.',
+  'sheet.confirm': 'Подтвердить',
+  'sheet.confirm.done': 'Подтверждено',
+  'sheet.confirm.hint': 'Пометить запись как проверенную. Подтверждённые записи копилот считает фактами.',
+  'sheet.confirmed.by': 'Подтвердил',
+  'sheet.supersedes': 'Заменяет',
+  'sheet.superseded.by': 'Заменено на',
+  'sheet.feedback.title': 'Было полезно?',
+  'sheet.feedback.hint': 'Каждый голос идёт в метрики качества памяти. Пометка «Неверно» переводит запись в конфликт. Нажмите на оценку, объясните, почему, и подтвердите — объяснение сохранится в записи и будет использовано копилотом.',
+  'sheet.feedback.useful': 'Полезно',
+  'sheet.feedback.irrelevant': 'Неактуально',
+  'sheet.feedback.wrong': 'Неверно',
+  'sheet.feedback.note.title': 'Объясни копилоту, почему',
+  'sheet.feedback.note.hint': 'Ваше объяснение хранится на записи и используется копилотом и семантическим поиском, чтобы понимать, что верно, чего не хватает и что вводит в заблуждение.',
+  'sheet.feedback.note.placeholder': 'Что верно, чего не хватает, что стоит изменить?',
+  'sheet.feedback.note.send': 'Отправить',
+  'sheet.feedback.note.sent': 'Сохранено',
+  'sheet.feedback.note.saved': 'Объяснение сохранено',
+  'sheet.feedback.note.close': 'Закрыть',
 
   // ── Хронология ────────────────────────────────────────────────────────────
   'tl.hero.sub':
@@ -399,4 +475,14 @@ export const pagesRu: Record<PagesKey, string> = {
   'ctx.drop.budget': 'бюджет токенов',
   'ctx.drop.cap': 'лимит сущностей',
   'ctx.drop.relevance': 'ниже порога',
+
+  // ── Арифметика балла — формула копилота ───────────────────────────────────
+  'ctx.score.titleMatch': 'Совпадение заголовка',
+  'ctx.score.keywordMatch': 'Совпадение ключевых слов',
+  'ctx.score.contentMatch': 'Совпадение содержимого',
+  'ctx.score.importance': 'Важность',
+  'ctx.score.recency': 'Свежесть',
+  'ctx.score.confidence': 'Уверенность',
+  'ctx.score.base': 'Базовая оценка',
+  'ctx.showInGraph': 'Показать в графе',
 };

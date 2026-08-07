@@ -156,6 +156,14 @@ jobs:
     name: Build ${{ matrix.arch }}
     needs: verify
     runs-on: windows-latest
+    # The updater needs every installer signed. Tauri signs automatically when
+    # the private key is present; without it the build produces no `.sig` and
+    # the publish job fails loudly rather than shipping an app that cannot
+    # update itself. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` stays empty for a
+    # password-less key (generated with `tauri signer generate --ci`).
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -200,7 +208,7 @@ jobs:
           New-Item -ItemType Directory -Path $out -Force | Out-Null
 
           $found = @()
-          foreach ($pattern in @("$bundle/nsis/*-setup.exe", "$bundle/msi/*.msi")) {
+          foreach ($pattern in @("$bundle/nsis/*-setup.exe", "$bundle/nsis/*-setup.exe.sig", "$bundle/msi/*.msi")) {
             Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue | ForEach-Object {
               Copy-Item $_.FullName -Destination $out
               $found += $_.Name
@@ -218,6 +226,13 @@ jobs:
             throw "Installer '$setup' does not contain '${{ matrix.arch }}' — the download scripts will not find it"
           }
           Write-Host "  asset name check passed: $setup"
+
+          # The updater needs the signature next to the installer. A missing
+          # `.sig` means the key was absent from the environment, and the app
+          # would be released without the ability to update itself.
+          $sig = $found | Where-Object { $_ -like '*.sig' }
+          if (-not $sig) { throw "No .sig signature produced for ${{ matrix.arch }} — set TAURI_SIGNING_PRIVATE_KEY" }
+          Write-Host "  signature present: $sig"
 
       - uses: actions/upload-artifact@v5
         with:
@@ -271,6 +286,47 @@ jobs:
             echo "  $arch installer present"
           done
 
+      - name: Generate updater manifest (latest.json)
+        run: |
+          cd staging
+          VERSION="${TAG#v}"
+          # The app's updater endpoint is
+          # `.../releases/latest/download/latest.json`, so this manifest must be
+          # attached to every release or the installed app cannot find updates.
+          x64_setup=$(ls | grep -i "x64.*setup.*\.exe$" | head -1)
+          arm64_setup=$(ls | grep -i "arm64.*setup.*\.exe$" | head -1)
+          x64_sig=$(ls | grep -i "x64.*setup.*\.exe\.sig$" | head -1)
+          arm64_sig=$(ls | grep -i "arm64.*setup.*\.exe\.sig$" | head -1)
+
+          if [ -z "$x64_setup" ] || [ -z "$arm64_setup" ]; then
+            echo "Missing installers for the updater manifest"; ls; exit 1
+          fi
+          if [ -z "$x64_sig" ] || [ -z "$arm64_sig" ]; then
+            echo "Missing signatures for the updater manifest"; ls; exit 1
+          fi
+
+          BASE="https://github.com/NexusMemoryTrust-dev-groupe/nexus/releases/download/${TAG}"
+
+          cat > latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "notes": "Nexus Memory Trust $TAG — auto-update release.",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$(cat "$x64_sig")",
+                "url": "$BASE/$x64_setup"
+              },
+              "windows-aarch64": {
+                "signature": "$(cat "$arm64_sig")",
+                "url": "$BASE/$arm64_setup"
+              }
+            }
+          }
+          EOF
+          echo "--- latest.json ---"
+          cat latest.json
+
       - name: Create or update release
         uses: softprops/action-gh-release@v2
         with:
@@ -306,6 +362,13 @@ jobs:
             ```
 
             `.msi` builds are also attached for managed deployments.
+
+            ### Auto-updates
+
+            Installed apps check GitHub Releases for updates and silently
+            install new versions in the background. `latest.json` (signed with
+            the project's updater key) points the app at the newest installer
+            for your architecture.
 
             ### First run
 

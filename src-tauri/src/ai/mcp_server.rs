@@ -759,7 +759,12 @@ fn tool_definitions() -> Vec<ToolDefinition> {
                     "candidate_entities": { "type": "integer", "description": "Candidate entities filtered", "default": 0 },
                     "candidate_memories": { "type": "integer", "description": "Candidate memories filtered", "default": 0 },
                     "query": { "type": "string", "description": "Query text", "default": "" },
-                    "intent_type": { "type": "string", "description": "Detected intent type", "default": "unknown" }
+                    "intent_type": { "type": "string", "description": "Detected intent type", "default": "unknown" },
+                    "latency_ms": { "type": "integer", "description": "Context build latency in milliseconds", "default": 0 },
+                    "precision": { "type": "number", "description": "Precision of collected context (included/considered), 0..1", "default": 0 },
+                    "used_fragments": { "type": "integer", "description": "Fragments actually used in the final answer", "default": 0 },
+                    "irrelevant_fragments": { "type": "integer", "description": "Fragments dropped as below the relevance floor", "default": 0 },
+                    "manual_context": { "type": "integer", "description": "1 if the user added context manually this round", "default": 0 }
                 },
                 "required": ["baseline_tokens", "context_tokens"]
             }),
@@ -803,6 +808,331 @@ fn tool_definitions() -> Vec<ToolDefinition> {
                     "value": { "type": "string", "description": "Config value" }
                 },
                 "required": ["key", "value"]
+            }),
+        },
+        // ── Memory Lifecycle Tools ──
+        ToolDefinition {
+            name: "nexus_memory_set_state".to_string(),
+            description: "Set the trust state of a memory explicitly: Current, Inferred, Superseded, or Conflicted. Use this to mark a memory as outdated, disputed, or re-verified.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Memory UUID" },
+                    "state": { "type": "string", "description": "New state: Current | Inferred | Superseded | Conflicted", "enum": ["Current", "Inferred", "Superseded", "Conflicted"] }
+                },
+                "required": ["id", "state"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_memory_confirm".to_string(),
+            description: "Mark a memory as explicitly confirmed by a human. The memory state becomes UserConfirmed with a timestamp. Use this to lock in a verified fact.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Memory UUID" },
+                    "by": { "type": "string", "description": "Who confirmed it (optional)" }
+                },
+                "required": ["id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_memory_feedback".to_string(),
+            description: "Record user feedback on a memory: useful, irrelevant, or wrong. One vote per memory — voting the same kind again removes the vote, a different kind switches it. Optionally explain why in 'note'; the explanation is kept and used by the copilot to understand what is right or wrong about the memory. A 'wrong' verdict also marks the memory Conflicted so it stops being trusted as-is.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Memory UUID" },
+                    "kind": { "type": "string", "description": "Feedback kind", "enum": ["useful", "irrelevant", "wrong"] },
+                    "note": { "type": "string", "description": "Optional explanation of why this feedback was given" }
+                },
+                "required": ["id", "kind"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_memory_supersede".to_string(),
+            description: "Replace an outdated memory with a newer one. The old memory is marked Superseded (never deleted), and a new Current record is created with the new title/content.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "old_id": { "type": "string", "description": "UUID of the memory to replace" },
+                    "new_title": { "type": "string", "description": "Title of the new memory" },
+                    "new_content": { "type": "string", "description": "Content of the new memory" },
+                    "author": { "type": "string", "description": "Author of the new memory (optional)" }
+                },
+                "required": ["old_id", "new_title", "new_content"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_lifecycle_overview".to_string(),
+            description: "Get the memory trust lifecycle overview: how many memories are Current, UserConfirmed, Inferred, Superseded, and Conflicted. Use this for a memory-health dashboard.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        // ── Entity Resolution Tools ──
+        ToolDefinition {
+            name: "nexus_find_duplicates".to_string(),
+            description: "Scan the knowledge graph for duplicate entities (exact + normalized + fuzzy name match). Returns groups of 2+ entities that look like the same thing, with a bestId merge target per group. Use this before merging to review what would be combined.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "min_score": { "type": "number", "description": "Minimum Dice similarity (default 0.78). Lower finds more (noisier) groups, higher finds only strong matches.", "default": 0.78 }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_merge_entities".to_string(),
+            description: "Merge duplicate entities into one canonical node. The primary is kept; every id in duplicates is merged into it (metadata combined, relationships redirected, duplicates marked Merged). Idempotent.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "primary": { "type": "string", "description": "UUID of the entity to keep (use bestId from nexus_find_duplicates)" },
+                    "duplicates": { "type": "array", "items": { "type": "string" }, "description": "UUIDs of the entities to merge into primary" }
+                },
+                "required": ["primary", "duplicates"]
+            }),
+        },
+        // ── Product Metrics Tools ──
+        ToolDefinition {
+            name: "nexus_product_metrics".to_string(),
+            description: "Get product metrics that prove Nexus' value: share of queries without manual context, average context precision, used/irrelevant fragments, token savings vs baseline, average build latency, stale memories, memory fixes, and cross-session memory reuse. Use this to answer 'does Nexus actually help?' with measured data.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        // ── Project Knowledge Base Tools (RAG / AGENTS.md / skills) ──
+        ToolDefinition {
+            name: "nexus_docs_import".to_string(),
+            description: "Import all .md/.markdown/.txt files from a folder into the project knowledge base (RAG corpus). Idempotent: unchanged files are skipped, changed files are re-indexed, files removed from disk are pruned. Use this to make a project's documentation searchable by the AI.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "folder_path": { "type": "string", "description": "Absolute path of the folder to import" }
+                },
+                "required": ["folder_path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_docs_list".to_string(),
+            description: "List imported project documents (RAG corpus), newest first. Use this to see what documentation is already indexed before searching.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "limit": { "type": "integer", "description": "Max results (default 100)" }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_docs_search".to_string(),
+            description: "Search the imported project documentation (RAG corpus) by a query. Combines keyword overlap with semantic similarity (ONNX embeddings when available). Returns matching documents with relevance scores so the AI can answer questions about the project's own docs.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "Search query" },
+                    "limit": { "type": "integer", "description": "Max results (default 10)" }
+                },
+                "required": ["query"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_agents_read".to_string(),
+            description: "Read the project's AGENTS.md instruction file (or another agents file by name). The content is already injected into context packages automatically, but use this to see the exact rules the AI is expected to follow.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Agents file name (default: AGENTS.md)" }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_agents_generate".to_string(),
+            description: "Generate an AGENTS.md from live Nexus data (modules, commands, knowledge base state) and store it as the active instruction file. The 'documentation skill': use this to create or refresh project instructions without writing them by hand.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_skills_list".to_string(),
+            description: "List all registered skills (runnable commands like JS scripts) with their descriptions. Skills are the lightweight alternative to MCP tools — an agent reads the list, picks the relevant one, and runs only it instead of carrying every tool in context.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_skills_run".to_string(),
+            description: "Run a registered skill by name with optional arguments. Captures stdout/stderr with a 30-second timeout. Use this to execute a project script or automation without loading the full MCP tool surface.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Skill name" },
+                    "args": { "type": "array", "items": { "type": "string" }, "description": "Arguments passed to the skill" }
+                },
+                "required": ["name"]
+            }),
+        },
+        // ── Code Graph Tools (structure over source files) ──
+        ToolDefinition {
+            name: "nexus_code_import".to_string(),
+            description: "Index a folder of source files into the code graph. Symbols (classes, functions, structs, traits) are extracted with the built-in language parsers, and dependency edges (import / require / use / #include / mod) are recorded. Use this to let the AI answer structural questions about a codebase: what depends on what, where a symbol is defined.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "folder_path": { "type": "string", "description": "Absolute path of the folder to index" }
+                },
+                "required": ["folder_path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_code_list".to_string(),
+            description: "List indexed source files in the code graph, newest first. Use this to see what code has been indexed before searching symbols.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "limit": { "type": "integer", "description": "Max results (default 100)" }
+                },
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_code_search".to_string(),
+            description: "Search symbols (classes, functions, structs, traits, interfaces) by name across all indexed source files. Returns the defining file and language. Use this to locate where something is defined in the project.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string", "description": "Symbol name or substring" },
+                    "limit": { "type": "integer", "description": "Max results (default 20)" }
+                },
+                "required": ["query"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_code_deps".to_string(),
+            description: "Return the dependencies of one indexed source file (by path): what it imports, requires, includes or uses, with internal/external classification. Use this to understand a file's connections in the code graph.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Path of the indexed file" }
+                },
+                "required": ["path"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_code_dependents".to_string(),
+            description: "Return the files in the code graph that depend on the given target (reverse edges, internal only). Use this to answer 'what would be affected by changing X?'".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "target": { "type": "string", "description": "Dependency target (module or file)" }
+                },
+                "required": ["target"]
+            }),
+        },
+        // ── Memory Radar Tools (proactive recall) ──
+        ToolDefinition {
+            name: "nexus_radar_snapshot".to_string(),
+            description: "Proactive memory radar: scans the whole memory pool and returns what needs attention right now — unresolved conflicts, memories expiring soon, inferred memories never confirmed by a human, and important memories created or changed since the last radar scan. Use this at the start of a session (or when opening a project) to see what the user should review, instead of waiting for a query. Optionally pass markSeen=true to advance the radar checkpoint to now so the next scan only reports what changed afterwards.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "markSeen": { "type": "boolean", "description": "Advance the scan checkpoint to now after building the snapshot (default false)" }
+                },
+            }),
+        },
+        // ── Team Memory Tools (shared trusted layer) ──
+        ToolDefinition {
+            name: "nexus_team_add_member".to_string(),
+            description: "Add a new member to the team roster. The team roster powers the trusted decision layer (who confirmed what, what went stale, what is in conflict). Role is one of admin, member, viewer (default member).".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Member name (must be unique)" },
+                    "role": { "type": "string", "description": "admin | member | viewer (default member)" }
+                },
+                "required": ["name"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_team_list_members".to_string(),
+            description: "List all members of the team roster with their roles and active flags.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_team_update_member".to_string(),
+            description: "Update a team member's role and/or active flag by id.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Member id" },
+                    "role": { "type": "string", "description": "admin | member | viewer" },
+                    "active": { "type": "boolean", "description": "Whether the member is active" }
+                },
+                "required": ["id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_team_remove_member".to_string(),
+            description: "Remove a team member from the roster by id.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Member id" }
+                },
+                "required": ["id"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_team_overview".to_string(),
+            description: "The trusted decision layer of the team: who confirmed which decision, what went stale (superseded), what is in conflict, and per-member activity (authored/confirmed/updated counts). This is the answer to 'what does the team actually know and agree on' — teams cannot get this from chat history.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {},
+            }),
+        },
+        // ── Audit Memory Tools (decision chain / compliance) ──
+        ToolDefinition {
+            name: "nexus_audit_trail".to_string(),
+            description: "Reconstruct the full decision chain for one memory — the answer to 'why did we decide this?'. Returns the decision context (reason), the alternatives that were considered and rejected, who confirmed the decision and when, which memory it superseded and which replaced it, and the full version history (who changed what, with diff reasons). Use this for compliance questions like 'why did we choose PostgreSQL in March?' — prove the team knew and why it decided so.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "memoryId": { "type": "string", "description": "Memory id to reconstruct the audit trail for" }
+                },
+                "required": ["memoryId"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_audit_add_event".to_string(),
+            description: "Append a raw event to a memory's decision journal: Created, Confirmed, Superseded or Note. Every auditable action on a memory gets one row so the full chain 'why did we decide this' can be reconstructed. actor is who performed the action (member / user / system). For Superseded events pass relatedMemoryId pointing at the memory that replaced it.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "memoryId": { "type": "string", "description": "Memory id the event belongs to" },
+                    "eventType": { "type": "string", "description": "Created | Confirmed | Superseded | Note" },
+                    "actor": { "type": "string", "description": "Who performed the action" },
+                    "detail": { "type": "string", "description": "Optional free text" },
+                    "relatedMemoryId": { "type": "string", "description": "For Superseded: the memory that replaced this one" }
+                },
+                "required": ["memoryId", "eventType", "actor"]
+            }),
+        },
+        ToolDefinition {
+            name: "nexus_audit_alternative".to_string(),
+            description: "Record that an alternative was considered for a decision (and rejected). Appends an Alternative event with { title, reason } to the memory's decision journal, so the compliance chain shows which options were weighed and why they lost.".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "memoryId": { "type": "string", "description": "Memory id the decision belongs to" },
+                    "title": { "type": "string", "description": "The alternative that was considered (e.g. MySQL)" },
+                    "reason": { "type": "string", "description": "Why it was not chosen (e.g. license costs)" },
+                    "actor": { "type": "string", "description": "Who considered it" }
+                },
+                "required": ["memoryId", "title", "reason", "actor"]
             }),
         },
     ]
@@ -1577,6 +1907,23 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown")
                 .to_string();
+            let latency_ms = args
+                .get("latency_ms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32);
+            let precision = args.get("precision").and_then(|v| v.as_f64());
+            let used_fragments = args
+                .get("used_fragments")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32);
+            let irrelevant_fragments = args
+                .get("irrelevant_fragments")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32);
+            let manual_context = args
+                .get("manual_context")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32);
             match crate::commands::savings::record_savings_event(
                 baseline,
                 context,
@@ -1587,6 +1934,11 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                 cand_memories,
                 query,
                 intent,
+                latency_ms,
+                precision,
+                used_fragments,
+                irrelevant_fragments,
+                manual_context,
             ) {
                 Ok(()) => CopilotResponse::ok(
                     format!(
@@ -1908,6 +2260,780 @@ async fn dispatch_tool(name: &str, args: &serde_json::Value) -> CopilotResponse 
                 Err(e) => CopilotResponse::err(e),
             }
         }
+        // ── Memory Lifecycle Tools ──
+        "nexus_memory_set_state" => {
+            let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let state = args.get("state").and_then(|v| v.as_str()).unwrap_or("");
+            if id.is_empty() || state.is_empty() {
+                return CopilotResponse::err("Missing required parameters 'id' and 'state'");
+            }
+            match crate::commands::lifecycle::memory_set_state(id.to_string(), state.to_string())
+                .await
+            {
+                Ok(m) => {
+                    let msg = format!("Memory {} is now {}. {}", id, m.memory_state, m.title);
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&m).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("State error: {}", e)),
+            }
+        }
+        "nexus_memory_confirm" => {
+            let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let by = args
+                .get("by")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            if id.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'id'");
+            }
+            match crate::commands::lifecycle::memory_confirm(id.to_string(), by).await {
+                Ok(m) => {
+                    let msg = format!(
+                        "Memory {} confirmed by {}: {}",
+                        id,
+                        m.confirmed_by.as_deref().unwrap_or("user"),
+                        m.title
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&m).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Confirm error: {}", e)),
+            }
+        }
+        "nexus_memory_feedback" => {
+            let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let kind = args.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+            if id.is_empty() || kind.is_empty() {
+                return CopilotResponse::err("Missing required parameters 'id' and 'kind'");
+            }
+            let note = args
+                .get("note")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            match crate::commands::lifecycle::memory_feedback(
+                id.to_string(),
+                kind.to_string(),
+                note,
+            )
+            .await
+            {
+                Ok(m) => {
+                    let msg = format!(
+                        "Feedback '{}' recorded on memory {}. Useful: {}, irrelevant: {}, wrong: {}.{}",
+                        kind,
+                        id,
+                        m.feedback.useful,
+                        m.feedback.irrelevant,
+                        m.feedback.wrong,
+                        m.feedback
+                            .note
+                            .as_deref()
+                            .map(|n| format!(" Note: {}", n))
+                            .unwrap_or_default()
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&m).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Feedback error: {}", e)),
+            }
+        }
+        "nexus_memory_supersede" => {
+            let old_id = args.get("old_id").and_then(|v| v.as_str()).unwrap_or("");
+            let new_title = args.get("new_title").and_then(|v| v.as_str()).unwrap_or("");
+            let new_content = args
+                .get("new_content")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let author = args
+                .get("author")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            if old_id.is_empty() || new_title.is_empty() || new_content.is_empty() {
+                return CopilotResponse::err(
+                    "Missing required parameters 'old_id', 'new_title', 'new_content'",
+                );
+            }
+            match crate::commands::lifecycle::memory_supersede(
+                old_id.to_string(),
+                new_title.to_string(),
+                new_content.to_string(),
+                author,
+            )
+            .await
+            {
+                Ok(m) => {
+                    let msg = format!(
+                        "Memory {} superseded by {} (state: {}).",
+                        old_id, m.id, m.memory_state
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&m).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Supersede error: {}", e)),
+            }
+        }
+        "nexus_lifecycle_overview" => {
+            match crate::commands::lifecycle::get_lifecycle_overview().await {
+                Ok(o) => {
+                    let msg = format!(
+                        "Memory lifecycle: {} current, {} user-confirmed, {} inferred, {} superseded, {} conflicted (total {}).",
+                        o.current,
+                        o.user_confirmed,
+                        o.inferred,
+                        o.superseded,
+                        o.conflicted,
+                        o.total
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&o).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Lifecycle error: {}", e)),
+            }
+        }
+        // ── Entity Resolution Tools ──
+        "nexus_find_duplicates" => {
+            let min_score = args.get("min_score").and_then(|v| v.as_f64());
+            match crate::commands::graph::find_duplicate_entities(min_score).await {
+                Ok(groups) => {
+                    let count: usize = groups
+                        .iter()
+                        .map(|g| g.entities.len().saturating_sub(1))
+                        .sum();
+                    let msg = format!(
+                        "Found {} duplicate groups ({} entities that could be merged).",
+                        groups.len(),
+                        count
+                    );
+                    CopilotResponse::ok(
+                        msg,
+                        Some(serde_json::to_value(&groups).unwrap_or_default()),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Duplicate scan error: {}", e)),
+            }
+        }
+        "nexus_merge_entities" => {
+            let primary = args.get("primary").and_then(|v| v.as_str()).unwrap_or("");
+            let duplicates = args
+                .get("duplicates")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if primary.is_empty() || duplicates.is_empty() {
+                return CopilotResponse::err(
+                    "Missing required parameters 'primary' and 'duplicates'",
+                );
+            }
+            match crate::commands::graph::merge_entities(primary.to_string(), duplicates.clone())
+                .await
+            {
+                Ok(node) => {
+                    let msg = format!(
+                        "Merged {} entities into '{}' (type: {}).",
+                        duplicates.len() + 1,
+                        node.title,
+                        node.entity_type
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&node).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Merge error: {}", e)),
+            }
+        }
+        // ── Product Metrics Tools ──
+        "nexus_product_metrics" => match crate::commands::savings::get_product_metrics().await {
+            Ok(m) => {
+                let msg = format!(
+                    "Product metrics: {} interactions. No-manual-context share: {:.0}%. Avg precision: {:.2}. Used fragments: {} ({}% of considered). Irrelevant fragments: {}. Tokens saved: {} (baseline {}). Avg latency: {:.0} ms. Stale memories: {}. Memory fixes: {}. Memories reused across sessions: {} of {}.",
+                    m.total_interactions,
+                    m.auto_context_share * 100.0,
+                    m.avg_precision,
+                    m.total_used_fragments,
+                    m.used_fragment_share * 100.0,
+                    m.total_irrelevant_fragments,
+                    m.total_tokens_saved,
+                    m.total_baseline_tokens,
+                    m.avg_latency_ms,
+                    m.stale_memories,
+                    m.memory_fixes,
+                    m.reused_memories,
+                    m.total_memories_delivered,
+                );
+                CopilotResponse::ok(msg, Some(serde_json::to_value(&m).unwrap_or_default()))
+            }
+            Err(e) => CopilotResponse::err(format!("Product metrics error: {}", e)),
+        },
+        // ── Project Knowledge Base Tools (RAG / AGENTS.md / skills) ──
+        "nexus_docs_import" => {
+            let folder = args
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if folder.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'folder_path'");
+            }
+            let repo = match crate::core::knowledge::documents::ProjectDocumentRepository::open() {
+                Ok(r) => r,
+                Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+            };
+            let dir = std::path::PathBuf::from(folder);
+            match crate::core::knowledge::documents::import_directory(&repo, &dir) {
+                Ok(report) => {
+                    let msg = format!(
+                        "Docs import: scanned {}, imported/updated {}, unchanged {}, pruned {}, failed {}.",
+                        report.scanned,
+                        report.imported,
+                        report.unchanged,
+                        report.updated,
+                        report.failed
+                    );
+                    CopilotResponse::ok(
+                        msg,
+                        Some(serde_json::to_value(&report).unwrap_or_default()),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Import error: {}", e)),
+            }
+        }
+        "nexus_docs_list" => {
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
+            match crate::commands::knowledge::list_docs(Some(limit)).await {
+                Ok(docs) => {
+                    let msg = format!("{} project documents indexed.", docs.len());
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&docs).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("List error: {}", e)),
+            }
+        }
+        "nexus_docs_search" => {
+            let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as u32;
+            if query.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'query'");
+            }
+            match crate::core::knowledge::documents::search_docs(query, limit) {
+                Ok(hits) => {
+                    let msg = format!("{} document(s) match '{}'.", hits.len(), query);
+                    let json: serde_json::Value = hits
+                        .iter()
+                        .map(|h| {
+                            serde_json::json!({
+                                "path": h.document.path,
+                                "title": h.document.title,
+                                "score": h.score,
+                                "doc_type": h.document.doc_type,
+                                "updated_at": h.document.updated_at,
+                                "content": h.document.content,
+                            })
+                        })
+                        .collect();
+                    CopilotResponse::ok(msg, Some(json))
+                }
+                Err(e) => CopilotResponse::err(format!("Search error: {}", e)),
+            }
+        }
+        "nexus_agents_read" => {
+            let name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("AGENTS.md");
+            match crate::commands::knowledge::agents_read(Some(name.to_string())).await {
+                Ok(Some(file)) => CopilotResponse::ok(
+                    format!("Agents file '{}' ({} chars)", file.name, file.content.len()),
+                    Some(serde_json::json!({
+                        "name": file.name,
+                        "content": file.content,
+                        "path": file.path,
+                        "updated_at": file.updated_at,
+                    })),
+                ),
+                Ok(None) => CopilotResponse::err(format!(
+                    "Agents file '{}' not found. Generate one with nexus_agents_generate.",
+                    name
+                )),
+                Err(e) => CopilotResponse::err(format!("Read error: {}", e)),
+            }
+        }
+        "nexus_agents_generate" => match crate::commands::knowledge::agents_generate().await {
+            Ok(file) => CopilotResponse::ok(
+                format!(
+                    "AGENTS.md generated from live system data ({} chars) and stored as the active instruction file.",
+                    file.content.len()
+                ),
+                Some(serde_json::json!({
+                    "name": file.name,
+                    "content": file.content,
+                    "path": file.path,
+                })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Generate error: {}", e)),
+        },
+        "nexus_skills_list" => match crate::commands::knowledge::skills_list().await {
+            Ok(skills) => {
+                let msg = format!("{} skills registered.", skills.len());
+                let json: serde_json::Value = skills
+                    .iter()
+                    .map(|s| {
+                        serde_json::json!({
+                            "name": s.name,
+                            "description": s.description,
+                            "command": s.command,
+                            "script_path": s.script_path,
+                            "enabled": s.enabled,
+                        })
+                    })
+                    .collect();
+                CopilotResponse::ok(msg, Some(json))
+            }
+            Err(e) => CopilotResponse::err(format!("List error: {}", e)),
+        },
+        "nexus_skills_run" => {
+            let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let argv = args
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            if name.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'name'");
+            }
+            match crate::core::knowledge::skills::SkillRunner::run(name, &argv) {
+                Ok(out) => {
+                    let status = if out.success { "ok" } else { "failed" };
+                    let msg = format!(
+                        "Skill '{}' {} ({} ms, exit {:?}).\n\nstdout:\n{}\n\nstderr:\n{}",
+                        name, status, out.duration_ms, out.exit_code, out.stdout, out.stderr
+                    );
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&out).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Run error: {}", e)),
+            }
+        }
+        // ── Code Graph Tools ──
+        "nexus_code_import" => {
+            let folder = args
+                .get("folder_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if folder.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'folder_path'");
+            }
+            let repo = match crate::core::knowledge::code_graph::CodeGraphRepository::open() {
+                Ok(r) => r,
+                Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+            };
+            let dir = std::path::PathBuf::from(folder);
+            match crate::core::knowledge::code_graph::import_code_directory(&repo, &dir) {
+                Ok(report) => {
+                    let msg = format!(
+                        "Code import: scanned {}, indexed/updated {}, unchanged {}, symbols {}, dependencies {}, pruned {}, failed {}.",
+                        report.scanned,
+                        report.indexed,
+                        report.unchanged,
+                        report.symbols,
+                        report.dependencies,
+                        report.pruned,
+                        report.failed
+                    );
+                    CopilotResponse::ok(
+                        msg,
+                        Some(serde_json::to_value(&report).unwrap_or_default()),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Import error: {}", e)),
+            }
+        }
+        "nexus_code_list" => {
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as u32;
+            match crate::commands::knowledge::code_list(Some(limit)).await {
+                Ok(files) => {
+                    let msg = format!("{} source files indexed.", files.len());
+                    CopilotResponse::ok(msg, Some(serde_json::to_value(&files).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("List error: {}", e)),
+            }
+        }
+        "nexus_code_search" => {
+            let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
+            if query.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'query'");
+            }
+            match crate::commands::knowledge::code_search(query.to_string(), Some(limit)).await {
+                Ok(hits) => {
+                    let msg = format!("{} symbol(s) match '{}'.", hits.len(), query);
+                    let json: serde_json::Value = hits
+                        .iter()
+                        .map(|h| {
+                            serde_json::json!({
+                                "name": h.symbol.name,
+                                "kind": h.symbol.kind,
+                                "signature": h.symbol.signature,
+                                "file": h.file_path,
+                                "language": h.file_language,
+                            })
+                        })
+                        .collect();
+                    CopilotResponse::ok(msg, Some(json))
+                }
+                Err(e) => CopilotResponse::err(format!("Search error: {}", e)),
+            }
+        }
+        "nexus_code_deps" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'path'");
+            }
+            match crate::commands::knowledge::code_deps(path.to_string()).await {
+                Ok(deps) => {
+                    let msg = format!("{} dependencies for '{}'.", deps.len(), path);
+                    let json: serde_json::Value = deps
+                        .iter()
+                        .map(|d| {
+                            serde_json::json!({
+                                "target": d.target,
+                                "kind": d.kind,
+                                "is_external": d.is_external,
+                            })
+                        })
+                        .collect();
+                    CopilotResponse::ok(msg, Some(json))
+                }
+                Err(e) => CopilotResponse::err(format!("Deps error: {}", e)),
+            }
+        }
+        "nexus_code_dependents" => {
+            let target = args.get("target").and_then(|v| v.as_str()).unwrap_or("");
+            if target.is_empty() {
+                return CopilotResponse::err("Missing required parameter 'target'");
+            }
+            match crate::commands::knowledge::code_dependents(target.to_string()).await {
+                Ok(hits) => {
+                    let msg = format!("{} file(s) depend on '{}'.", hits.len(), target);
+                    let json: serde_json::Value = hits
+                        .iter()
+                        .map(|h| {
+                            serde_json::json!({
+                                "file": h.file_path,
+                                "kind": h.kind,
+                            })
+                        })
+                        .collect();
+                    CopilotResponse::ok(msg, Some(json))
+                }
+                Err(e) => CopilotResponse::err(format!("Dependents error: {}", e)),
+            }
+        }
+        "nexus_radar_snapshot" => {
+            let mark_seen = args
+                .get("markSeen")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let snapshot = if mark_seen {
+                crate::commands::radar::radar_scan_and_seen().await
+            } else {
+                crate::commands::radar::get_radar_snapshot().await
+            };
+            match snapshot {
+                Ok(s) => {
+                    let items: Vec<serde_json::Value> = s
+                        .items
+                        .iter()
+                        .map(|i| {
+                            serde_json::json!({
+                                "id": i.id,
+                                "title": i.title,
+                                "action": i.action,
+                                "importance": i.importance,
+                                "confidence": i.confidence,
+                                "memory_state": i.memory_state,
+                                "reason": i.reason,
+                                "expires_at": i.expires_at,
+                            })
+                        })
+                        .collect();
+                    let msg = format!(
+                        "Radar snapshot: {} item(s) need attention (attention score {}). Conflicts: {}, expiring: {}, inferred: {}, new since last scan: {}.",
+                        s.items.len(),
+                        s.attention_score,
+                        s.counts.conflicted,
+                        s.counts.expiring,
+                        s.counts.inferred,
+                        s.counts.new_since_last_scan,
+                    );
+                    CopilotResponse::ok(
+                        msg,
+                        Some(serde_json::json!({
+                            "generated_at": s.generated_at,
+                            "since": s.since,
+                            "attention_score": s.attention_score,
+                            "counts": s.counts,
+                            "items": items,
+                        })),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Radar error: {}", e)),
+            }
+        }
+        "nexus_team_add_member" => {
+            let name = args
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let role = args
+                .get("role")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            if name.trim().is_empty() {
+                return CopilotResponse::err("Team add member error: name is required");
+            }
+            match crate::commands::team::team_add_member(name, role).await {
+                Ok(m) => CopilotResponse::ok(
+                    format!("Team member '{}' added with role {}.", m.name, m.role),
+                    Some(
+                        serde_json::json!({ "id": m.id, "name": m.name, "role": m.role, "active": m.active }),
+                    ),
+                ),
+                Err(e) => CopilotResponse::err(format!("Team add member error: {}", e)),
+            }
+        }
+        "nexus_team_list_members" => match crate::commands::team::team_list_members().await {
+            Ok(members) => {
+                let items: Vec<serde_json::Value> = members
+                    .iter()
+                    .map(|m| {
+                        serde_json::json!({
+                            "id": m.id,
+                            "name": m.name,
+                            "role": m.role,
+                            "active": m.active,
+                        })
+                    })
+                    .collect();
+                CopilotResponse::ok(
+                    format!("Team roster: {} member(s).", members.len()),
+                    Some(serde_json::json!({ "members": items })),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Team list members error: {}", e)),
+        },
+        "nexus_team_update_member" => {
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let role = args
+                .get("role")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let active = args.get("active").and_then(|v| v.as_bool());
+            match crate::commands::team::team_update_member(id, role, active).await {
+                Ok(m) => CopilotResponse::ok(
+                    format!(
+                        "Team member '{}' updated: role {}, active {}.",
+                        m.name, m.role, m.active
+                    ),
+                    Some(
+                        serde_json::json!({ "id": m.id, "name": m.name, "role": m.role, "active": m.active }),
+                    ),
+                ),
+                Err(e) => CopilotResponse::err(format!("Team update member error: {}", e)),
+            }
+        }
+        "nexus_team_remove_member" => {
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            match crate::commands::team::team_remove_member(id).await {
+                Ok(()) => CopilotResponse::ok("Team member removed.".to_string(), None),
+                Err(e) => CopilotResponse::err(format!("Team remove member error: {}", e)),
+            }
+        }
+        "nexus_team_overview" => match crate::commands::team::get_team_overview().await {
+            Ok(o) => {
+                let confirmed: Vec<serde_json::Value> = o
+                    .confirmed_decisions
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "memory_id": d.memory_id,
+                            "title": d.title,
+                            "by": d.by,
+                            "at": d.at,
+                        })
+                    })
+                    .collect();
+                let superseded: Vec<serde_json::Value> = o
+                    .superseded_decisions
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "memory_id": d.memory_id,
+                            "title": d.title,
+                            "by": d.by,
+                            "detail": d.detail,
+                        })
+                    })
+                    .collect();
+                let conflicted: Vec<serde_json::Value> = o
+                    .conflicted
+                    .iter()
+                    .map(|d| {
+                        serde_json::json!({
+                            "memory_id": d.memory_id,
+                            "title": d.title,
+                            "by": d.by,
+                        })
+                    })
+                    .collect();
+                CopilotResponse::ok(
+                    format!(
+                        "Team overview: {} member(s), {} confirmed decision(s), {} superseded, {} in conflict.",
+                        o.totals.members,
+                        o.totals.confirmed,
+                        o.totals.superseded,
+                        o.totals.conflicted,
+                    ),
+                    Some(serde_json::json!({
+                        "totals": o.totals,
+                        "members": o.members,
+                        "confirmed_decisions": confirmed,
+                        "superseded_decisions": superseded,
+                        "conflicted": conflicted,
+                    })),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Team overview error: {}", e)),
+        },
+        "nexus_audit_trail" => {
+            let memory_id = args
+                .get("memoryId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if memory_id.trim().is_empty() {
+                return CopilotResponse::err("Audit trail error: memoryId is required");
+            }
+            match crate::commands::audit::get_audit_trail(memory_id).await {
+                Ok(t) => {
+                    let summary = format!(
+                        "Audit trail for '{}' ({}): {} alternative(s) considered, {} event(s), {} version(s). Confirmed by {}{}.",
+                        t.title,
+                        t.state,
+                        t.alternatives.len(),
+                        t.events.len(),
+                        t.versions.len(),
+                        t.confirmed_by
+                            .clone()
+                            .unwrap_or_else(|| "nobody".to_string()),
+                        match &t.superseded_by {
+                            Some(s) => format!("; superseded by {}", s),
+                            None => String::new(),
+                        },
+                    );
+                    CopilotResponse::ok(summary, Some(serde_json::to_value(&t).unwrap_or_default()))
+                }
+                Err(e) => CopilotResponse::err(format!("Audit trail error: {}", e)),
+            }
+        }
+        "nexus_audit_add_event" => {
+            let memory_id = args
+                .get("memoryId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let event_type = args
+                .get("eventType")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let actor = args
+                .get("actor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let detail = args
+                .get("detail")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let related_memory_id = args
+                .get("relatedMemoryId")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            if memory_id.trim().is_empty() || event_type.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Audit add event error: memoryId and eventType are required",
+                );
+            }
+            match crate::commands::audit::audit_add_event(
+                memory_id,
+                event_type,
+                actor,
+                detail,
+                related_memory_id,
+            )
+            .await
+            {
+                Ok(e) => CopilotResponse::ok(
+                    format!(
+                        "{} event recorded for memory {}.",
+                        e.event_type, e.memory_id
+                    ),
+                    Some(
+                        serde_json::json!({ "id": e.id, "event_type": e.event_type, "created_at": e.created_at }),
+                    ),
+                ),
+                Err(e) => CopilotResponse::err(format!("Audit add event error: {}", e)),
+            }
+        }
+        "nexus_audit_alternative" => {
+            let memory_id = args
+                .get("memoryId")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let reason = args
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let actor = args
+                .get("actor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if memory_id.trim().is_empty() || title.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Audit alternative error: memoryId and title are required",
+                );
+            }
+            match crate::commands::audit::audit_alternative(memory_id, title, reason, actor).await {
+                Ok(e) => CopilotResponse::ok(
+                    format!(
+                        "Alternative considered and recorded for memory {}.",
+                        e.memory_id
+                    ),
+                    Some(
+                        serde_json::json!({ "id": e.id, "event_type": e.event_type, "created_at": e.created_at }),
+                    ),
+                ),
+                Err(e) => CopilotResponse::err(format!("Audit alternative error: {}", e)),
+            }
+        }
         other => CopilotResponse::err(format!("Unknown tool: {}", other)),
     }
 }
@@ -2174,7 +3300,7 @@ mod tests {
     fn tool_definitions_not_empty() {
         let tools = tool_definitions();
         assert!(!tools.is_empty());
-        assert_eq!(tools.len(), 66);
+        assert_eq!(tools.len(), 95);
     }
 
     #[test]
@@ -2332,7 +3458,7 @@ mod tests {
         let resp = handle_request(req).await.unwrap();
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 66);
+        assert_eq!(tools.len(), 95);
     }
 
     #[tokio::test]

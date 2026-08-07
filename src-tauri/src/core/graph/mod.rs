@@ -7,6 +7,7 @@ pub mod graph_store;
 pub mod graph_traversal;
 pub mod relationship;
 pub mod relationship_types;
+pub mod resolution;
 
 pub use entity::{Entity, EntityStatus};
 pub use entity_identity::EntityIdentityService;

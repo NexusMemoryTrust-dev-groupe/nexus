@@ -306,6 +306,115 @@ pub fn spawn_forget_memory(memory_id: &EntityId) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Project document indexing (RAG corpus)
+// ═══════════════════════════════════════════════════════════════
+
+/// Index (or re-index) a project document's fingerprint. Synchronous.
+///
+/// Documents live in `document_fingerprints` (separate from memory
+/// fingerprints), so an imported `.md` file becomes semantically searchable
+/// without polluting the memory index.
+pub fn index_document(document_id: &EntityId, content: &str) -> Result<()> {
+    let text = index_text(
+        document_id.as_str(),
+        "",
+        crate::core::text::truncate_chars(content, MAX_INDEX_TEXT),
+    );
+    if text.is_empty() {
+        return Ok(());
+    }
+    open_search()?.store_document_fingerprint(document_id, &text)
+}
+
+/// Index a project document on a worker thread, ignoring failures.
+pub fn spawn_index_document(document_id: &EntityId, content: &str) {
+    let id = document_id.clone();
+    let text = index_text(
+        document_id.as_str(),
+        "",
+        crate::core::text::truncate_chars(content, MAX_INDEX_TEXT),
+    );
+    if text.is_empty() {
+        return;
+    }
+
+    let spawned = std::thread::Builder::new()
+        .name("nexus-doc-index".into())
+        .spawn(move || match open_search() {
+            Ok(search) => {
+                if let Err(e) = search.store_document_fingerprint(&id, &text) {
+                    tracing::warn!(
+                        "Semantic index: document store failed for {}: {e}",
+                        id.as_str()
+                    );
+                }
+            }
+            Err(e) => tracing::warn!("Semantic index: unavailable ({e})"),
+        });
+
+    if let Err(e) = spawned {
+        tracing::warn!("Semantic index: cannot spawn document indexer: {e}");
+    }
+}
+
+/// Resolve a document's EntityId from its stored path (canonical query), then
+/// index it on a worker thread. Fire-and-forget.
+///
+/// Used by the importer: it has the file path on disk, but fingerprints are
+/// keyed by the document's row id.
+pub fn spawn_index_document_by_path(path: &str, content: &str) {
+    let path = path.to_string();
+    let content = content.to_string();
+    let spawned = std::thread::Builder::new()
+        .name("nexus-doc-index-path".into())
+        .spawn(move || {
+            let Ok(conn) = crate::db::open_connection() else {
+                return;
+            };
+            let id_str: Option<String> = conn
+                .query_row(
+                    "SELECT id FROM project_documents WHERE path = ?1",
+                    rusqlite::params![path],
+                    |row| row.get(0),
+                )
+                .ok();
+            let Some(id_str) = id_str else {
+                return;
+            };
+            let Ok(id) = EntityId::parse(&id_str) else {
+                return;
+            };
+            spawn_index_document(&id, &content);
+        });
+    if let Err(e) = spawned {
+        tracing::warn!("Semantic index: cannot spawn path indexer: {e}");
+    }
+}
+
+/// Drop a project document's fingerprint. Synchronous; safe when none exists.
+pub fn forget_document(document_id: &EntityId) -> Result<()> {
+    open_search()?.delete_document_fingerprint(document_id)
+}
+
+/// Drop a project document's fingerprint on a worker thread.
+pub fn spawn_forget_document(document_id: &EntityId) {
+    let id = document_id.clone();
+    let spawned = std::thread::Builder::new()
+        .name("nexus-doc-forget".into())
+        .spawn(move || {
+            if let Err(e) = forget_document(&id) {
+                tracing::warn!(
+                    "Semantic index: document delete failed for {}: {e}",
+                    id.as_str()
+                );
+            }
+        });
+    if let Err(e) = spawned {
+        tracing::warn!("Semantic index: cannot spawn document remover: {e}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

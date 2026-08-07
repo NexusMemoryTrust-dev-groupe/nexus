@@ -84,6 +84,27 @@ export function useGlobalShortcuts() {
         return;
       }
 
+      // Ctrl+7 — Memory Radar
+      if (e.ctrlKey && e.key === '7') {
+        e.preventDefault();
+        setActiveView('radar');
+        return;
+      }
+
+      // Ctrl+8 — Team Memory
+      if (e.ctrlKey && e.key === '8') {
+        e.preventDefault();
+        setActiveView('team');
+        return;
+      }
+
+      // Ctrl+9 — Audit Memory
+      if (e.ctrlKey && e.key === '9') {
+        e.preventDefault();
+        setActiveView('audit');
+        return;
+      }
+
       // Ctrl+, (comma) — Settings. e.key === ',' is layout-stable.
       if (e.ctrlKey && e.key === ',') {
         e.preventDefault();

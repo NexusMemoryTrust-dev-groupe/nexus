@@ -215,11 +215,17 @@
 .st-section-title svg { color: var(--section-color, var(--muted)); }
 
 .st-section-hint {
-  margin: 5px 0 0;
+  margin: 6px 0 16px;
   color: var(--muted-2);
   font-size: 12.5px;
   line-height: 1.55;
 }
+
+/* A framed cluster or empty-state that directly follows a section heading
+ * (no hint text in between) still needs breathing room, so the bordered box
+ * never sticks to the heading. */
+.st-section-title + .st-panel,
+.st-section-title + .st-void { margin-top: 16px; }
 
 /* Info trigger. The mark is a bare `?` centred by grid — HelpCircle draws its
  * own ring, which nested inside this bordered circle and pushed the glyph off
@@ -264,17 +270,22 @@
   outline: none;
 }
 
-/* Tooltip bubble. Fixed-positioned because the ancestors that host these
- * triggers (.st-ask, .st-day, .st-hero) all need overflow:hidden for their
- * rounded corners — and an ancestor's overflow clips a descendant regardless
- * of z-index. JS writes --tip-x / --tip-y in viewport coordinates and flips
- * data-flip when there is no room below. */
+/* Tooltip bubble. Rendered through a React portal directly into
+ * `document.body`, so no ancestor transform, filter or overflow can ever clip
+ * it or become its containing block (every card/hero on the Radar/Team pages
+ * animates, which would otherwise break `position: fixed`). The trigger writes
+ * `left`/`top` inline in *viewport* coordinates (measured in useLayoutEffect
+ * before paint, so the bubble never flashes at a wrong spot) and flips
+ * `data-flip` when there is no room below. Visibility is JS-driven via
+ * .is-open: pure CSS hover would show the bubble with the default coordinates
+ * first and make it jump. z-index sits above every overlay (context menus,
+ * command bar) so a tooltip is never buried. */
 .st-tip {
   position: fixed;
-  left: var(--tip-x, 50%);
-  top: var(--tip-y, 100%);
-  z-index: 200;
-  width: 264px;
+  left: 0;
+  top: 0;
+  z-index: 4000;
+  width: 280px;
   padding: 11px 13px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -294,7 +305,24 @@
     visibility var(--st-dur);
 }
 
-.st-info:hover .st-tip, .st-info:focus-visible .st-tip {
+/* Pointer arrow. Tracks the trigger horizontally (--tip-arrow is written by
+ * the same measure pass) so the bubble never points at empty space. */
+.st-tip::after {
+  content: '';
+  position: absolute;
+  left: calc(50% + var(--tip-arrow, 0px));
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--line);
+  background: rgba(13, 16, 20, .98);
+  transform: translateX(-50%) rotate(45deg);
+  pointer-events: none;
+}
+
+.st-tip[data-flip='below']::after { top: -5px; border-right: 0; border-bottom: 0; }
+.st-tip[data-flip='above']::after { bottom: -5px; border-left: 0; border-top: 0; }
+
+.st-tip.is-open {
   opacity: 1;
   visibility: visible;
   transform: translate(-50%, 0);
@@ -780,6 +808,89 @@
 .st-expand:hover { color: var(--bone); border-color: var(--muted-2); background: var(--raised); transform: translate3d(0, -2px, 0); }
 .st-expand:active { transform: translate3d(0, 0, 0) scale(.98); transition-duration: var(--st-dur-press); }
 
+/* Page action buttons (Radar refresh / mark-seen, Team refresh). Same motion
+ * language as Settings' `.settings-action-btn` — ripple wash, lift on hover,
+ * press on click — but tinted by the page accent (--st-accent) instead of a
+ * fixed tangerine, so each page's controls echo its own palette. */
+.st-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--raised);
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  white-space: nowrap;
+  transition:
+    background var(--st-dur) var(--st-ease),
+    border-color var(--st-dur) var(--st-ease),
+    color var(--st-dur) var(--st-ease),
+    transform var(--st-dur) var(--st-ease),
+    box-shadow var(--st-dur) var(--st-ease);
+}
+.st-action-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--st-accent, var(--tangerine)) 20%, transparent) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width .5s ease, height .5s ease, opacity .5s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.st-action-btn:hover {
+  background: var(--raised-2);
+  border-color: color-mix(in srgb, var(--st-accent, var(--tangerine)) 62%, transparent);
+  color: var(--bone);
+  transform: translate3d(0, -2px, 0);
+  box-shadow:
+    0 4px 14px color-mix(in srgb, var(--st-accent, var(--tangerine)) 16%, transparent),
+    0 1px 3px rgba(0, 0, 0, .12);
+}
+.st-action-btn:hover::before { width: 220px; height: 220px; opacity: 1; }
+.st-action-btn:hover svg { transform: scale(1.1); transition: transform .35s cubic-bezier(.25, .46, .45, .94); }
+.st-action-btn:active {
+  background: color-mix(in srgb, var(--st-accent, var(--tangerine)) 88%, transparent);
+  border-color: var(--st-accent, var(--tangerine));
+  color: var(--carbon);
+  transform: translate3d(0, 1px, 0) scale(.96);
+  transition-duration: var(--st-dur-press);
+}
+.st-action-btn:active svg { animation: spin-once .8s cubic-bezier(.25, .46, .45, .94); }
+.st-action-btn:disabled { opacity: .55; cursor: default; pointer-events: none; }
+.st-action-btn svg { flex: none; transition: transform .35s cubic-bezier(.25, .46, .45, .94); }
+
+/* Framed cluster for dense lists (roster, decisions, journal, radar rows): a
+ * bordered surface with breathing padding so a group of rows reads as one
+ * deliberate block instead of floating fragments. */
+.st-panel {
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 55%, transparent), var(--surface-2));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bone) 4%, transparent);
+}
+.st-panel > .st-team-roster,
+.st-panel > .st-team-decisions,
+.st-panel > .st-radar-list,
+.st-panel > .st-audit-alternatives,
+.st-panel > .st-audit-journal,
+.st-panel > .st-audit-versions { margin: 0; }
+
 .st-files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .st-file { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
 .st-file:hover { border-color: color-mix(in srgb, var(--layer-color) 36%, transparent); transform: translate3d(0, -4px, 0); background: var(--surface-2); box-shadow: 0 10px 26px rgba(0,0,0,.22); }
@@ -791,6 +902,60 @@
 .st-sheet-footer { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-top: 21px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
 .st-sheet-footer span { display: inline-flex; align-items: center; gap: 5px; }
 .st-sheet-footer .id { margin-left: auto; opacity: .55; }
+
+/* Memory trust lifecycle ------------------------------------------------ */
+
+.st-lifecycle { display: flex; flex-direction: column; gap: 13px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--carbon); }
+.st-lifecycle-state { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.st-state-badge { --st-color: var(--muted); display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid color-mix(in srgb, var(--st-color) 40%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--st-color) 10%, var(--carbon)); color: color-mix(in srgb, var(--st-color) 82%, var(--bone)); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.st-state-badge svg { width: 12px; height: 12px; color: var(--st-color); }
+.st-state-badge--current { --st-color: var(--mint); }
+.st-state-badge--inferred { --st-color: var(--periwinkle); }
+.st-state-badge--conflicted { --st-color: var(--tangerine); }
+.st-state-badge--superseded { --st-color: var(--steel); }
+.st-state-badge--userConfirmed { --st-color: var(--gold); }
+.st-lifecycle-hint { color: var(--muted); font-size: 11.5px; line-height: 1.55; }
+.st-lifecycle-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-lifecycle-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.st-lifecycle-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding-top: 11px; border-top: 1px solid var(--line); }
+.st-lifecycle-confirm { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 1px solid color-mix(in srgb, var(--mint) 45%, var(--line)); border-radius: 9px; background: color-mix(in srgb, var(--mint) 10%, var(--carbon)); color: var(--mint); font-family: var(--sans); font-size: 11px; font-weight: 700; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-lifecycle-confirm:hover { border-color: color-mix(in srgb, var(--mint) 68%, transparent); background: color-mix(in srgb, var(--mint) 16%, var(--carbon)); box-shadow: 0 4px 14px color-mix(in srgb, var(--mint) 14%, transparent); transform: translate3d(0, -2px, 0); }
+.st-lifecycle-confirm:active { transform: translate3d(0, 0, 0) scale(.97); transition-duration: var(--st-dur-press); }
+.st-lifecycle-confirm:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+.st-lifecycle-feedback { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.st-feedback-label { margin-right: 3px; color: var(--muted-2); font-size: 10px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.st-feedback-btn { --fb-color: var(--muted); display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--fb-color) 30%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--fb-color) 7%, var(--carbon)); color: color-mix(in srgb, var(--fb-color) 80%, var(--bone)); font-family: var(--sans); font-size: 10.5px; font-weight: 650; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-feedback-btn svg { width: 11px; height: 11px; }
+.st-feedback-btn:hover { transform: translate3d(0, -2px, 0); }
+.st-feedback-btn:active { transform: translate3d(0, 0, 0) scale(.94); transition-duration: var(--st-dur-press); }
+.st-feedback-btn--useful { --fb-color: var(--mint); }
+.st-feedback-btn--irrelevant { --fb-color: var(--steel); }
+.st-feedback-btn--wrong { --fb-color: var(--tangerine); }
+/* Pending "?" state: the panel is open but the vote is not confirmed yet. */
+.st-feedback-btn.is-pending { border-color: color-mix(in srgb, var(--fb-color) 55%, transparent); background: color-mix(in srgb, var(--fb-color) 12%, var(--carbon)); color: var(--fb-color); }
+.st-feedback-btn.is-pending svg { animation: st-q-pulse 1.5s var(--st-ease) infinite; }
+@keyframes st-q-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(.85); } }
+/* Active verdict: filled tint + glow, so the user sees the standing vote. */
+.st-feedback-btn.is-voted { border-color: color-mix(in srgb, var(--fb-color) 72%, transparent); background: color-mix(in srgb, var(--fb-color) 20%, var(--carbon)); color: var(--fb-color); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fb-color) 22%, transparent), 0 4px 16px color-mix(in srgb, var(--fb-color) 16%, transparent); }
+.st-feedback-btn.is-voted:hover { transform: translate3d(0, -1px, 0); }
+
+/* "Why" panel: appears under the verdict buttons after a vote is cast. */
+.st-feedback-note { display: flex; flex-direction: column; gap: 9px; margin-top: 2px; padding: 12px 13px 13px; border: 1px solid color-mix(in srgb, var(--st-accent, var(--mint)) 26%, var(--line)); border-radius: 11px; background: color-mix(in srgb, var(--st-accent, var(--mint)) 5%, var(--surface)); animation: st-note-in var(--st-dur) var(--st-ease); }
+@keyframes st-note-in { from { opacity: 0; transform: translate3d(0, -6px, 0); } to { opacity: 1; transform: none; } }
+.st-feedback-note-head { display: flex; align-items: center; gap: 7px; }
+.st-feedback-note-close { margin-left: auto; display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted-2); cursor: pointer; transition: color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-feedback-note-close:hover { color: var(--bone); border-color: var(--line); background: var(--raised); }
+.st-feedback-note-close:active { transform: scale(.9); transition-duration: var(--st-dur-press); }
+.st-feedback-note-title { color: var(--bone); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.st-feedback-note-input { width: 100%; min-height: 64px; padding: 9px 11px; resize: vertical; border: 1px solid var(--line); border-radius: 8px; background: var(--carbon); color: var(--bone); font-family: var(--sans); font-size: 12px; line-height: 1.55; outline: none; transition: border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-feedback-note-input::placeholder { color: var(--muted-2); }
+.st-feedback-note-input:focus { border-color: color-mix(in srgb, var(--st-accent, var(--mint)) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-accent, var(--mint)) 12%, transparent); }
+.st-feedback-note-actions { display: flex; align-items: center; gap: 10px; }
+.st-feedback-note-send { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 13px; border: 1px solid color-mix(in srgb, var(--st-accent, var(--mint)) 50%, var(--line)); border-radius: 9px; background: color-mix(in srgb, var(--st-accent, var(--mint)) 14%, var(--carbon)); color: var(--st-accent, var(--mint)); font-family: var(--sans); font-size: 11px; font-weight: 700; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-feedback-note-send:hover:not(:disabled) { border-color: color-mix(in srgb, var(--st-accent, var(--mint)) 75%, transparent); background: color-mix(in srgb, var(--st-accent, var(--mint)) 22%, var(--carbon)); box-shadow: 0 4px 14px color-mix(in srgb, var(--st-accent, var(--mint)) 16%, transparent); transform: translate3d(0, -1px, 0); }
+.st-feedback-note-send:active:not(:disabled) { transform: translate3d(0, 0, 0) scale(.97); transition-duration: var(--st-dur-press); }
+.st-feedback-note-send:disabled { opacity: .5; cursor: default; }
+.st-feedback-note-saved { color: var(--muted-2); font-size: 10px; }
 
 /* Timeline heat map + 24-hour tracks -------------------------------------- */
 
@@ -906,6 +1071,10 @@
 .st-source-value { margin-top: 7px; color: var(--bone); font-family: var(--mono); font-size: 23px; font-weight: 650; transition: transform var(--st-dur) var(--st-ease); }
 .st-source:hover .st-source-value { transform: translate3d(0, 1px, 0); }
 .st-source-note { margin-top: 4px; color: var(--muted-2); font-size: 10.5px; line-height: 1.35; }
+/* "Show in graph" sits under the three source cards, spanning the full row. */
+.st-show-in-graph { display: inline-flex; align-items: center; justify-content: center; gap: 7px; grid-column: 1 / -1; padding: 9px; border: 1px dashed color-mix(in srgb, var(--cyan) 34%, var(--line)); border-radius: 9px; background: color-mix(in srgb, var(--cyan) 6%, var(--carbon)); color: color-mix(in srgb, var(--cyan) 78%, var(--bone)); font-family: var(--sans); font-size: 11px; font-weight: 700; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-show-in-graph:hover { border-color: color-mix(in srgb, var(--cyan) 62%, transparent); background: color-mix(in srgb, var(--cyan) 11%, var(--carbon)); box-shadow: 0 6px 18px color-mix(in srgb, var(--cyan) 12%, transparent); transform: translate3d(0, -2px, 0); }
+.st-show-in-graph:active { transform: translate3d(0, 0, 0) scale(.98); transition-duration: var(--st-dur-press); }
 
 .st-rank-list { display: flex; flex-direction: column; gap: 5px; }
 /* Rank rows are read-only, so they lift without a press state — nothing here is
@@ -923,6 +1092,17 @@
 .st-score-value { color: var(--row-color); font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
 .st-token-cost { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
 .st-rank-row.is-dropped { opacity: .55; }
+
+/* Score arithmetic — the copilot's formula, expanded per row. */
+.st-rank-arithmetic { margin-top: 6px; }
+.st-rank-arithmetic-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 3px 0; border: 0; background: none; color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; font-weight: 650; letter-spacing: .04em; cursor: pointer; transition: color var(--st-dur) var(--st-ease); }
+.st-rank-arithmetic-toggle:hover { color: var(--row-color); }
+.st-rank-parts { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--row-color) 16%, var(--line)); border-radius: 8px; background: var(--surface-2); }
+.st-rank-part { display: grid; grid-template-columns: minmax(0, 1fr) 70px 38px; gap: 8px; align-items: center; }
+.st-rank-part-name { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-rank-part-bar { height: 4px; overflow: hidden; border-radius: 2px; background: var(--raised); }
+.st-rank-part-fill { display: block; height: 100%; border-radius: 2px; background: var(--row-color); transform: scaleX(var(--fill, 0)); transform-origin: left; transition: transform .6s var(--st-ease); }
+.st-rank-part-points { color: var(--row-color); font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: right; }
 
 .st-prune-summary { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 8px; background: var(--carbon); color: var(--muted); font-size: 11.5px; }
 .st-prune-summary.good { color: var(--mint); }
@@ -950,10 +1130,11 @@
 
 .st-alert { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; margin-bottom: 12px; border: 1px solid color-mix(in srgb, var(--rose) 28%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--rose) 7%, transparent); color: var(--rose); font-size: 12px; line-height: 1.5; }
 .st-void { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 310px; padding: 45px 22px; text-align: center; }
-.st-void-icon { position: relative; display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 17px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--st-accent, var(--tangerine)); transition: transform var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
-.st-void-icon::after { content: ''; position: absolute; inset: -12px; border-radius: 25px; background: radial-gradient(circle, color-mix(in srgb, var(--st-accent, var(--tangerine)) 13%, transparent), transparent 70%); transition: opacity var(--st-dur) var(--st-ease); }
-.st-void:hover .st-void-icon { transform: translate3d(0, -5px, 0) scale(1.04); border-color: color-mix(in srgb, var(--st-accent, var(--tangerine)) 34%, transparent); box-shadow: 0 14px 34px color-mix(in srgb, var(--st-accent, var(--tangerine)) 10%, transparent); }
-.st-void:hover .st-void-icon::after { opacity: .8; }
+/* The empty-state glyph is deliberately static: no hover lift, no scale. An
+ * animated icon invites interaction where there is none — these surfaces tell
+ * the user what to do next, and the instruction should sit still. */
+.st-void-icon { position: relative; display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 17px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--st-accent, var(--tangerine)); }
+.st-void-icon::after { content: ''; position: absolute; inset: -12px; border-radius: 25px; background: radial-gradient(circle, color-mix(in srgb, var(--st-accent, var(--tangerine)) 13%, transparent), transparent 70%); }
 .st-void-title { color: var(--bone); font-family: var(--brand); font-size: 18px; font-weight: 730; }
 .st-void-copy { max-width: 52ch; margin-top: 7px; color: var(--muted); font-size: 13px; line-height: 1.58; }
 .st-void-copy kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted); font-family: var(--mono); font-size: 10px; }
@@ -965,6 +1146,123 @@
 .st-skeleton-bar { height: 8px; margin-bottom: 9px; border-radius: 4px; background: linear-gradient(90deg, var(--raised), var(--raised-2), var(--raised)); background-size: 220% 100%; animation: st-shimmer 1.5s ease-in-out infinite; }
 
 .st-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Memory Radar -------------------------------------------------------------- */
+
+.st-radar-actions { display: flex; gap: 8px; margin: 0 0 18px; }
+.st-radar-actions .st-action-btn { min-height: 34px; }
+
+.st-radar-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.st-radar-tile { padding: 14px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-radar-tile:hover { transform: translate3d(0, -2px, 0); border-color: color-mix(in srgb, var(--tile-color) 34%, transparent); box-shadow: 0 10px 24px color-mix(in srgb, var(--tile-color) 8%, transparent); }
+.st-radar-tile-head { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; }
+.st-radar-tile-icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: color-mix(in srgb, var(--tile-color) 14%, transparent); color: var(--tile-color); }
+.st-radar-tile-label { color: var(--muted-2); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.st-radar-tile .st-info { margin-left: auto; }
+.st-radar-tile-value { color: var(--bone); font-family: var(--brand); font-size: 26px; font-weight: 750; line-height: 1; letter-spacing: -.02em; }
+
+.st-radar-list { display: grid; gap: 6px; }
+/* Radar rows are buttons that open the underlying memory: pointer cursor,
+ * and a hover that reads as "press me" — lift, accent glow, no border flash. */
+.st-radar-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; align-items: center; width: 100%; text-align: left; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-radar-row:hover { border-color: color-mix(in srgb, var(--row-color) 36%, transparent); background: var(--surface-2); transform: translate3d(0, -2px, 0); box-shadow: 0 10px 26px color-mix(in srgb, var(--row-color) 10%, transparent), 0 2px 6px rgba(0, 0, 0, .14); }
+.st-radar-row:active { transform: translate3d(0, 0, 0) scale(.99); transition-duration: var(--st-dur-press); }
+.st-radar-row:focus-visible { outline: 2px solid var(--row-color); outline-offset: 2px; }
+.st-radar-row:hover .st-radar-row-icon { transform: scale(1.07); transition: transform var(--st-dur) var(--st-ease); }
+.st-radar-row-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; }
+.st-radar-row-title { display: block; color: var(--bone); font-size: 13px; font-weight: 650; line-height: 1.35; }
+.st-radar-row-reason { display: block; margin-top: 2px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.st-radar-row-meta { display: block; margin-top: 5px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-radar-row-impact { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.st-radar-row-import { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+
+/* Team Memory --------------------------------------------------------------- */
+
+.st-team-roster { display: grid; gap: 6px; margin: 0 0 22px; }
+.st-team-roster-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-team-roster-row:hover { border-color: color-mix(in srgb, var(--row-color) 30%, transparent); background: var(--surface-2); transform: translate3d(0, -1px, 0); }
+.st-team-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; font-family: var(--brand); font-size: 14px; font-weight: 750; }
+.st-team-roster-name { display: block; color: var(--bone); font-size: 13px; font-weight: 650; line-height: 1.35; }
+.st-team-roster-meta { display: block; margin-top: 3px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-team-inactive { color: var(--muted-2); font-weight: 500; }
+.st-team-role { padding: 3px 9px; border: 1px solid; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+
+.st-team-decisions { display: grid; gap: 6px; }
+/* Decision rows are buttons that open the memory whose chain they record:
+ * pointer cursor and a lift-with-glow hover instead of a bare border flash. */
+.st-team-decision { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 11px; align-items: center; width: 100%; text-align: left; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: inherit; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-team-decision:hover { border-color: color-mix(in srgb, var(--row-color) 36%, transparent); background: var(--surface-2); transform: translate3d(0, -2px, 0); box-shadow: 0 10px 26px color-mix(in srgb, var(--row-color) 10%, transparent), 0 2px 6px rgba(0, 0, 0, .14); }
+.st-team-decision:active { transform: translate3d(0, 0, 0) scale(.99); transition-duration: var(--st-dur-press); }
+.st-team-decision:focus-visible { outline: 2px solid var(--row-color); outline-offset: 2px; }
+.st-team-decision:hover .st-team-decision-icon { transform: scale(1.07); transition: transform var(--st-dur) var(--st-ease); }
+.st-team-decision-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; }
+.st-team-decision-title { display: block; color: var(--bone); font-size: 13px; font-weight: 650; line-height: 1.35; }
+.st-team-decision-meta { display: block; margin-top: 4px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+
+/* Audit Memory (decision chain / compliance) -------------------------------- */
+
+.st-audit-picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.st-audit-picker .st-section-hint { margin: 0; }
+
+/* Vertical rhythm between the audit sections: the picker, the decision
+ * headline and the alternatives/journal/versions blocks must not stick
+ * together. Scoped to the audit page so Radar/Team section spacing is
+ * untouched. */
+.st-audit-headline { padding: 14px 0 2px; }
+.st-audit-headline + section,
+.st-audit-headline ~ section + section { margin-top: 26px; }
+.st-audit-search { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-audit-search:focus-within { border-color: color-mix(in srgb, var(--st-accent) 40%, transparent); background: var(--surface-2); }
+.st-audit-search-icon { flex: none; color: var(--muted-2); }
+.st-audit-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--bone); font-family: var(--mono); font-size: 12px; padding: 7px 0; }
+.st-audit-search input::placeholder { color: var(--muted-2); }
+
+.st-audit-search-spinner { flex: none; width: 12px; height: 12px; border: 2px solid color-mix(in srgb, var(--st-accent) 25%, transparent); border-top-color: var(--st-accent); border-radius: 50%; animation: st-spin .7s linear infinite; }
+
+.st-audit-dropdown { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30; max-height: 300px; overflow-y: auto; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: rgba(13, 16, 20, .98); box-shadow: 0 16px 46px rgba(0, 0, 0, .52); }
+.st-audit-dropdown-empty { padding: 14px 12px; color: var(--muted-2); font-size: 12px; text-align: center; }
+.st-audit-dropdown-item { display: block; width: 100%; text-align: left; padding: 9px 11px; border: 0; border-radius: 8px; background: transparent; color: var(--bone); cursor: pointer; transition: background var(--st-dur) var(--st-ease); }
+.st-audit-dropdown-item:hover, .st-audit-dropdown-item:focus-visible { background: color-mix(in srgb, var(--st-accent) 12%, transparent); outline: none; }
+.st-audit-dropdown-item-title { display: block; font-size: 12.5px; font-weight: 650; line-height: 1.35; }
+.st-audit-dropdown-item-meta { display: block; margin-top: 3px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+
+.st-audit-selected { margin-top: 9px; color: var(--muted-2); font-size: 11px; }
+.st-audit-selected code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-family: var(--mono); font-size: 10px; color: var(--bone); }
+
+.st-audit-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.st-audit-reason { margin-top: 10px; padding: 10px 12px; border-left: 3px solid color-mix(in srgb, var(--st-accent) 55%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--st-accent) 8%, transparent); color: var(--bone); font-size: 12.5px; line-height: 1.5; }
+.st-audit-reason-label { display: block; margin-bottom: 3px; color: var(--st-accent); font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.st-audit-facts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.st-audit-fact { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 650; }
+
+.st-audit-alternatives { display: grid; gap: 6px; }
+.st-audit-alternative { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-audit-alternative:hover { border-color: color-mix(in srgb, var(--rose) 30%, transparent); background: var(--surface-2); transform: translate3d(0, -1px, 0); }
+.st-audit-alt-title { color: var(--bone); font-size: 13px; font-weight: 650; line-height: 1.35; }
+.st-audit-alt-reason { color: var(--muted-2); font-size: 11.5px; line-height: 1.45; }
+.st-audit-alt-reason::before { content: '✕ '; color: var(--rose); font-weight: 700; }
+
+.st-audit-journal { display: grid; gap: 6px; }
+.st-audit-event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 11px; align-items: center; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-audit-event:hover { border-color: color-mix(in srgb, var(--row-color, var(--st-accent)) 30%, transparent); background: var(--surface-2); }
+.st-audit-event-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.st-audit-event-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.st-audit-event-type { color: var(--bone); font-size: 12.5px; font-weight: 700; }
+.st-audit-event-meta { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-audit-event-detail { display: block; margin-top: 3px; color: var(--muted-1); font-size: 11.5px; line-height: 1.45; }
+.st-audit-event-related { display: inline-block; margin-top: 5px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+
+.st-audit-versions { display: grid; gap: 6px; }
+.st-audit-version { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 11px; align-items: center; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-audit-version:hover { border-color: color-mix(in srgb, var(--cyan) 30%, transparent); background: var(--surface-2); }
+.st-audit-version-badge { padding: 3px 8px; border: 1px solid; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 700; flex: none; }
 
 /* Responsive --------------------------------------------------------------- */
 
@@ -1005,6 +1303,15 @@
   .st-ask-field { flex-wrap: wrap; }
   .st-ask-field input { flex-basis: calc(100% - 30px); }
   .st-run { margin-left: auto; }
+  .st-radar-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st-radar-row { grid-template-columns: auto minmax(0, 1fr); }
+  .st-radar-row-impact { display: none; }
+  .st-team-roster-row { grid-template-columns: auto minmax(0, 1fr); }
+  .st-team-role { display: none; }
+  .st-team-decision { grid-template-columns: auto minmax(0, 1fr); }
+  .st-audit-alternative { grid-template-columns: 1fr; gap: 3px; }
+  .st-audit-search input { font-size: 11px; }
+  .st-audit-dropdown { max-height: 240px; }
 }
 
 /* Reduced motion.
@@ -1070,7 +1377,12 @@
   .st-icon-button:hover,
   .st-icon-button:active,
   .st-heat-cell:hover,
-  .st-heat-cell:active {
+  .st-heat-cell:active,
+  .st-radar-tile:hover,
+  .st-radar-row:hover,
+  .st-team-roster-row:hover,
+  .st-team-decision:hover,
+  .st-audit-alternative:hover {
     transform: none !important;
   }
 

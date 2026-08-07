@@ -23,6 +23,12 @@ fn main() {
             let conn =
                 Connection::open(&db_path).expect("Failed to open DB connection for migrations");
             storage::sqlite::schema::apply_migrations(&conn).expect("Failed to apply migrations");
+            drop(conn);
+        }
+        // Seed default skills (upsert) so MCP clients can use them from a fresh
+        // database too, not only after the GUI has started once.
+        if let Err(e) = crate::core::knowledge::skills::seed_default_skills() {
+            eprintln!("[nexus] Failed to seed default skills: {}", e);
         }
         // Run MCP server on stdio (blocking)
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
@@ -61,6 +67,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(event_bus)
         .setup(move |app| {
             // Subscribe versioning listener to memory events inside Tauri runtime
@@ -79,6 +86,13 @@ fn main() {
             // has caught up, and it never blocks the window from opening.
             crate::core::context::indexer::spawn_backfill();
 
+            // Seed the default skills (upsert) so agents can use them through
+            // both MCP and Copilot right after first launch, without manual
+            // registration. No-op friendly: existing rows are refreshed only.
+            if let Err(e) = crate::core::knowledge::skills::seed_default_skills() {
+                tracing::warn!("Failed to seed default skills: {}", e);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -90,6 +104,23 @@ fn main() {
             commands::memory::create_project_memory,
             commands::memory::update_memory,
             commands::memory::delete_memory,
+            commands::lifecycle::memory_set_state,
+            commands::lifecycle::memory_confirm,
+            commands::lifecycle::memory_feedback,
+            commands::lifecycle::memory_supersede,
+            commands::lifecycle::get_lifecycle_overview,
+            commands::lifecycle::get_feedback_summary,
+            commands::radar::get_radar_snapshot,
+            commands::radar::radar_mark_seen,
+            commands::radar::radar_scan_and_seen,
+            commands::team::team_add_member,
+            commands::team::team_list_members,
+            commands::team::team_update_member,
+            commands::team::team_remove_member,
+            commands::team::get_team_overview,
+            commands::audit::get_audit_trail,
+            commands::audit::audit_add_event,
+            commands::audit::audit_alternative,
             commands::graph::get_graph,
             commands::graph::get_entity,
             commands::graph::create_entity,
@@ -100,6 +131,8 @@ fn main() {
             commands::graph::update_entity,
             commands::graph::get_entity_metadata,
             commands::graph::delete_entity,
+            commands::graph::find_duplicate_entities,
+            commands::graph::merge_entities,
             commands::context::build_context,
             commands::context::build_context_for_entity,
             commands::context::export_context,
@@ -142,6 +175,20 @@ fn main() {
             commands::savings::record_savings_event,
             commands::savings::get_savings_report,
             commands::savings::get_model_savings,
+            commands::savings::get_product_metrics,
+            commands::knowledge::import_docs,
+            commands::knowledge::list_docs,
+            commands::knowledge::search_docs,
+            commands::knowledge::knowledge_stats,
+            commands::knowledge::agents_read,
+            commands::knowledge::agents_list,
+            commands::knowledge::agents_save,
+            commands::knowledge::agents_delete,
+            commands::knowledge::agents_generate,
+            commands::knowledge::skills_list,
+            commands::knowledge::skills_register,
+            commands::knowledge::skills_delete,
+            commands::knowledge::skills_run,
             commands::setup::setup_status,
             commands::setup::setup_needed,
             commands::setup::install_opencode,

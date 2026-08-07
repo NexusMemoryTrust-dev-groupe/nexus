@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::entity_id::EntityId;
 use crate::core::memory::types::{
-    MemoryCaptureMode, MemoryLayer, MemorySource, MemoryStatus, MemoryVisibility,
+    MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState, MemoryStatus,
+    MemoryVisibility,
 };
 use crate::core::result::{AppError, Result};
 
@@ -34,6 +35,14 @@ pub struct MemoryRecord {
     pub reason: Option<String>,    // Why this memory exists
     pub version: u32,              // Version number (starts at 1)
     pub updated_by: Option<String>, // Who last updated this memory
+    // Memory Trust lifecycle fields (V12)
+    pub memory_state: MemoryState, // Current / Superseded / Conflicted / UserConfirmed / Inferred
+    pub supersedes_id: Option<String>, // Id of the memory this one replaced
+    pub superseded_by_id: Option<String>, // Id of the memory that replaced this one
+    pub confirmed_at: Option<DateTime<Utc>>, // When a human confirmed this memory
+    pub confirmed_by: Option<String>, // Who confirmed it
+    pub expires_at: Option<DateTime<Utc>>, // When this memory should be re-checked
+    pub feedback: MemoryFeedback,  // useful / irrelevant / wrong counters
 }
 
 /// A file attached to a memory record.
@@ -86,6 +95,14 @@ impl MemoryRecord {
             reason: None,
             version: 1,
             updated_by: None,
+            // Lifecycle defaults
+            memory_state: MemoryState::Current,
+            supersedes_id: None,
+            superseded_by_id: None,
+            confirmed_at: None,
+            confirmed_by: None,
+            expires_at: None,
+            feedback: MemoryFeedback::default(),
         })
     }
 

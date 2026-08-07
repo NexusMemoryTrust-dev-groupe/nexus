@@ -373,7 +373,10 @@ pub async fn select_model(model: String) -> Result<(), String> {
     if model.is_empty() {
         return Err("No model selected.".to_string());
     }
-    crate::commands::config::set_config("ai.model".to_string(), model).await
+    crate::commands::config::set_config("ai.model".to_string(), model.clone()).await?;
+    // The tokenizer must count with the newly selected model's vocabulary.
+    crate::core::tokenizer::set_active_model(&model);
+    Ok(())
 }
 
 /// Mark the wizard as finished so it does not reappear on every launch.

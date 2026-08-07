@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { CSSProperties, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { LAYER_LIST, layerKey, layerVars, layerVisual } from '../../lib/layers';
@@ -34,29 +35,45 @@ import { useLocale } from '../../stores/localeStore';
  * question mark inherited the icon's internal padding — reading as off-centre no
  * matter what the flex box did. A bare `?` centred by grid is exactly centred.
  *
- * The bubble is positioned on hover from JS because CSS alone cannot save it.
- * These triggers sit inside `.st-ask`, `.st-day` and `.st-hero`, all of which
- * need `overflow: hidden` for their own rounded corners and ambient washes — and
- * an ancestor's overflow clips a descendant regardless of `z-index` or
- * `position: absolute`. Only a fixed-position element escapes the clip, and a
- * fixed element cannot be placed relative to its parent, so the trigger measures
- * itself and hands the bubble viewport coordinates.
+ * The bubble is rendered through a React portal directly into `document.body`
+ * and positioned with `position: fixed` viewport coordinates. This is the only
+ * layout that is immune to every ancestor hazard: Radar/Team cards and heroes
+ * use transforms, animations and `overflow: hidden` for their rounded corners
+ * and ambient washes, and any of those turns an ancestor into a containing
+ * block for `position: fixed` (or clips a descendant regardless of z-index).
+ * With the bubble outside the component tree, the trigger measures itself in
+ * *viewport* coordinates (getBoundingClientRect is already viewport-relative)
+ * and the bubble is placed with those exact pixels — always directly under the
+ * question mark, never shifted, never clipped, never affecting layout.
+ *
+ * The reveal is JS-driven, not a pure `:hover` rule: the bubble mounts hidden,
+ * is measured with `useLayoutEffect` (before paint, so no flash at wrong
+ * coordinates), and only then gets `.is-open`. It closes on leave, blur,
+ * Escape, scroll and resize.
  */
 export function InfoTip({ text, label }: { text: string; label?: string }) {
   const { t } = useLocale();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ x: number; y: number; flip: 'below' | 'above'; arrow: number } | null>(null);
 
-  const place = useCallback((event: React.SyntheticEvent<HTMLButtonElement>) => {
-    const button = event.currentTarget;
-    const tip = button.querySelector<HTMLElement>('.st-tip');
-    if (!tip) return;
+  // Measure once the bubble exists in the portal. It mounts with
+  // visibility:hidden (so it is measurable but invisible), layout is computed
+  // before paint, and only then do we reveal it with real coordinates.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const button = buttonRef.current;
+    const tip = tipRef.current;
+    if (!button || !tip) return;
 
     const anchor = button.getBoundingClientRect();
     const width = tip.offsetWidth;
     const height = tip.offsetHeight;
     const margin = 10;
 
-    // Centre under the trigger, then pull back inside the viewport if that would
-    // overhang either edge.
+    // Centre under the trigger, then pull back inside the viewport if that
+    // would overhang either edge.
     const half = width / 2;
     const centre = anchor.left + anchor.width / 2;
     const clamped = Math.min(
@@ -64,27 +81,78 @@ export function InfoTip({ text, label }: { text: string; label?: string }) {
       window.innerWidth - margin - half,
     );
 
-    // Below by default, as asked. Flips above only when there is genuinely no
-    // room underneath, which beats rendering the text off-screen.
+    // Below by default. Flips above only when there is genuinely no room
+    // underneath, which beats rendering the text off-screen.
     const below = anchor.bottom + margin;
     const fitsBelow = below + height <= window.innerHeight - margin;
 
-    tip.style.setProperty('--tip-x', `${clamped}px`);
-    tip.style.setProperty('--tip-y', `${fitsBelow ? below : anchor.top - margin - height}px`);
-    tip.dataset.flip = fitsBelow ? 'below' : 'above';
+    setCoords({
+      x: clamped,
+      y: fitsBelow ? below : anchor.top - margin - height,
+      flip: fitsBelow ? 'below' : 'above',
+      // The arrow tracks the trigger horizontally so the bubble never points
+      // at empty space after clamping.
+      arrow: clamped - anchor.left - anchor.width / 2,
+    });
+  }, [open]);
+
+  const hide = useCallback(() => {
+    setOpen(false);
+    setCoords(null);
   }, []);
 
+  // Any of these should dismiss the tooltip: leaving, blur, Escape, scrolling
+  // or resizing (after which the old coordinates are stale anyway).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') hide();
+    };
+    const onMove = () => hide();
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, hide]);
+
   return (
-    <button
-      type="button"
-      className="st-info"
-      aria-label={label ?? t('inst.explain')}
-      onMouseEnter={place}
-      onFocus={place}
-    >
-      <span className="st-info-mark" aria-hidden="true">?</span>
-      <span className="st-tip" role="tooltip">{text}</span>
-    </button>
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`st-info${open ? ' is-open' : ''}`}
+        aria-label={label ?? t('inst.explain')}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onFocus={() => setOpen(true)}
+        onMouseLeave={hide}
+        onBlur={hide}
+      >
+        <span className="st-info-mark" aria-hidden="true">?</span>
+      </button>
+      {open && createPortal(
+        <div
+          ref={tipRef}
+          className={`st-tip${coords ? ' is-open' : ''}`}
+          role="tooltip"
+          data-flip={coords?.flip ?? 'below'}
+          style={
+            {
+              left: coords ? `${coords.x}px` : 0,
+              top: coords ? `${coords.y}px` : 0,
+              '--tip-arrow': coords ? `${coords.arrow}px` : '0px',
+            } as CSSProperties
+          }
+        >
+          {text}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 

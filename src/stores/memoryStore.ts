@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StoreApi } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type { Memory } from '../types';
 
@@ -9,9 +10,25 @@ interface MemoryState {
   error: string | null;
   fetchMemories: () => Promise<void>;
   selectMemory: (memory: Memory | null) => void;
+  memorySetState: (id: string, state: string) => Promise<void>;
+  memoryConfirm: (id: string) => Promise<void>;
+  memoryFeedback: (id: string, kind: string, note?: string) => Promise<void>;
+  refreshSelected: () => Promise<void>;
 }
 
-export const useMemoryStore = create<MemoryState>((set) => ({
+type MemorySetState = StoreApi<MemoryState>['setState'];
+
+function replaceSelected(set: MemorySetState, updated: Memory) {
+  set((state) => ({
+    memories: state.memories.map((m) => (m.id === updated.id ? updated : m)),
+    selectedMemory:
+      state.selectedMemory && state.selectedMemory.id === updated.id
+        ? updated
+        : state.selectedMemory,
+  }));
+}
+
+export const useMemoryStore = create<MemoryState>((set, get) => ({
   memories: [],
   selectedMemory: null,
   isLoading: false,
@@ -26,4 +43,42 @@ export const useMemoryStore = create<MemoryState>((set) => ({
     }
   },
   selectMemory: (memory) => set({ selectedMemory: memory }),
+  memorySetState: async (id, state) => {
+    try {
+      const updated = await invoke<Memory>('memory_set_state', { id, state });
+      replaceSelected(set, updated);
+    } catch (error) {
+      set({ error: String(error) });
+    }
+  },
+  memoryConfirm: async (id) => {
+    try {
+      const updated = await invoke<Memory>('memory_confirm', { id, by: null });
+      replaceSelected(set, updated);
+    } catch (error) {
+      set({ error: String(error) });
+    }
+  },
+  memoryFeedback: async (id, kind, note) => {
+    try {
+      const updated = await invoke<Memory>('memory_feedback', {
+        id,
+        kind,
+        note: note ?? null,
+      });
+      replaceSelected(set, updated);
+    } catch (error) {
+      set({ error: String(error) });
+    }
+  },
+  refreshSelected: async () => {
+    const current = get().selectedMemory;
+    if (!current) return;
+    try {
+      const updated = await invoke<Memory | null>('get_memory', { id: current.id });
+      if (updated) replaceSelected(set, updated);
+    } catch {
+      // Keep the current copy if the refresh fails; the detail view stays usable.
+    }
+  },
 }));

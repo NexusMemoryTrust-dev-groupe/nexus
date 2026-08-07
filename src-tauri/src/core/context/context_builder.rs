@@ -103,6 +103,16 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilderImpl<G, M> {
         package.candidate_memories = package.memory_records.len() as u32;
     }
 
+    /// Attach the project's AGENTS.md instructions to the package.
+    ///
+    /// Best-effort: when no instruction file has been stored (or the knowledge
+    /// store is unavailable) the field stays `None` and the pipeline is
+    /// unaffected. When present, the AI sees the project's rules in the same
+    /// payload as the context itself.
+    fn attach_agent_instructions(package: &mut ContextPackage) {
+        package.agent_instructions = crate::core::knowledge::agents::active_agents_content();
+    }
+
     /// Collect relationships for all given entity IDs from the graph store.
     /// Deduplicates by relationship ID.
     async fn collect_relationships(&self, entity_ids: &[EntityId]) -> Result<Vec<Relationship>> {
@@ -277,6 +287,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
             .compressor
             .compress(&package, request.max_tokens, request.min_relevance)?;
 
+        // Attach AGENTS.md project instructions (best-effort, may be None)
+        Self::attach_agent_instructions(&mut package);
+
         Ok(package)
     }
 
@@ -356,6 +369,9 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
             max_tokens,
             ContextCompressor::DEFAULT_MIN_RELEVANCE,
         )?;
+
+        // Attach AGENTS.md project instructions (best-effort, may be None)
+        Self::attach_agent_instructions(&mut package);
 
         Ok(package)
     }

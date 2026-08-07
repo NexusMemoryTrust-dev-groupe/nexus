@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
-  ArrowLeft, Check, Copy, Eye, FileText, Fingerprint, Link2,
-  Paperclip, Quote, Terminal, User, Wand2,
+  AlertTriangle, ArrowLeft, Check, CircleHelp, Copy, Eye, FileText, Fingerprint, Link2,
+  Paperclip, Quote, SendHorizontal, ShieldCheck, Terminal, ThumbsDown, ThumbsUp,
+  User, UserCheck, Wand2, X,
 } from 'lucide-react';
 import { useMemoryStore } from '../../stores/memoryStore';
 import { useLocale } from '../../stores/localeStore';
@@ -14,11 +15,62 @@ import {
 
 const CLIP_CHARS = 1_000;
 
+/** Feedback kind — mirrors the backend enum. */
+type FeedbackKind = 'useful' | 'irrelevant' | 'wrong';
+
+/** Lifecycle state → locale key + badge colour. Unknown states fall back to
+ *  the muted badge rather than crashing, so a state added on the backend later
+ *  degrades gracefully. */
+const STATE_META: Record<string, { label: string; hint: string; badge: string }> = {
+  Current: { label: 'sheet.state.current', hint: 'sheet.state.hint.current', badge: 'st-state-badge--current' },
+  Inferred: { label: 'sheet.state.inferred', hint: 'sheet.state.hint.inferred', badge: 'st-state-badge--inferred' },
+  Conflicted: { label: 'sheet.state.conflicted', hint: 'sheet.state.hint.conflicted', badge: 'st-state-badge--conflicted' },
+  Superseded: { label: 'sheet.state.superseded', hint: 'sheet.state.hint.superseded', badge: 'st-state-badge--superseded' },
+  UserConfirmed: { label: 'sheet.state.userConfirmed', hint: 'sheet.state.hint.userConfirmed', badge: 'st-state-badge--userConfirmed' },
+};
+
 export function MemoryDetail() {
-  const { selectedMemory, selectMemory } = useMemoryStore();
+  const { selectedMemory, selectMemory, memoryConfirm, memoryFeedback } = useMemoryStore();
   const { locale, t } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [pendingKind, setPendingKind] = useState<FeedbackKind | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSending, setNoteSending] = useState(false);
+  const [noteSent, setNoteSent] = useState(false);
+
+  // Sync the draft with the saved explanation when switching memories, so
+  // reopening the panel shows what was already written. Keyed only on the id:
+  // after confirming a vote, the store refresh changes feedback.voted/note and
+  // must not wipe the "Saved" flash or the draft the user just typed.
+  useEffect(() => {
+    setPendingKind(null);
+    setNoteDraft(selectedMemory?.feedback?.note ?? '');
+    setNoteSent(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMemory?.id]);
+
+  // Close the "why" panel when the user presses Escape or clicks outside of it
+  // (and outside the verdict buttons — those have their own handler). The vote
+  // is not recorded yet, so dismissing the panel simply forgets the selection.
+  useEffect(() => {
+    if (!pendingKind) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest('.st-feedback-note, .st-feedback-btn')) return;
+      setPendingKind(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPendingKind(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pendingKind]);
 
   const copy = useCallback((value: string) => {
     navigator.clipboard.writeText(value).then(
@@ -30,12 +82,51 @@ export function MemoryDetail() {
     );
   }, []);
 
+  const act = useCallback(async (run: () => Promise<void>) => {
+    setActing(true);
+    try {
+      await run();
+    } finally {
+      setActing(false);
+    }
+  }, []);
+
+  /** Open the "why" panel for a verdict. The vote itself is NOT sent to the
+   *  backend here — it is only recorded when the user confirms with an
+   *  explanation. Clicking the same verdict again closes the panel and forgets
+   *  the selection; clicking another verdict moves the panel to it. */
+  const openFeedback = useCallback((kind: FeedbackKind) => {
+    setPendingKind((current) => (current === kind ? null : kind));
+  }, []);
+
+  /** Confirm the verdict and send the explanation (if any) to the backend. */
+  const sendNote = useCallback(
+    async (kind: FeedbackKind) => {
+      const text = noteDraft.trim();
+      if (!text) return;
+      setNoteSending(true);
+      try {
+        await memoryFeedback(memory?.id ?? '', kind, text);
+        setNoteSent(true);
+        window.setTimeout(() => setNoteSent(false), 1_800);
+      } finally {
+        setNoteSending(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [noteDraft, memoryFeedback],
+  );
+
   if (!selectedMemory) return null;
   const memory = selectedMemory;
   const layer = layerVisual(memory.layer);
   const files = memory.attachedFiles ?? [];
   const linked = memory.linkedEntityIds?.length ?? 0;
   const clipped = !expanded && memory.content.length > CLIP_CHARS;
+  const state = STATE_META[memory.memoryState] ?? STATE_META.Current;
+  const feedback = memory.feedback ?? { useful: 0, irrelevant: 0, wrong: 0 };
+  const votedKind = (feedback.voted ?? null) as FeedbackKind | null;
+  const isConfirmed = memory.memoryState === 'UserConfirmed';
 
   return (
     <article className="st-sheet" style={layerVars(memory.layer)}>
@@ -167,6 +258,129 @@ export function MemoryDetail() {
               {expanded ? t('sheet.collapse') : t('sheet.expand')}
             </button>
           )}
+        </section>
+
+        <section className="st-sheet-section">
+          <div className="st-sheet-section-head">
+            <ShieldCheck size={11} style={{ color: 'var(--mint)' }} />
+            <span className="st-sheet-section-title">{t('sheet.lifecycle')}</span>
+            <InfoTip text={t('sheet.lifecycle.hint')} />
+            <span className="st-sheet-section-line" />
+          </div>
+
+          <div className="st-lifecycle">
+            <div className="st-lifecycle-state">
+              <span className={`st-state-badge ${state.badge}`}>
+                <ShieldCheck /> {t(state.label)}
+              </span>
+              <span className="st-lifecycle-hint">{t(state.hint)}</span>
+            </div>
+
+            {(memory.confirmedAt || memory.confirmedBy) && (
+              <div className="st-lifecycle-meta">
+                {memory.confirmedBy && (
+                  <span><UserCheck size={10} /> {t('sheet.confirmed.by')}: {memory.confirmedBy}</span>
+                )}
+                {memory.confirmedAt && (
+                  <span title={stamp(memory.confirmedAt, locale)}>{ago(memory.confirmedAt, locale)}</span>
+                )}
+              </div>
+            )}
+            {memory.supersededById && (
+              <div className="st-lifecycle-meta">
+                <span><Fingerprint size={10} /> {t('sheet.superseded.by')}: {memory.supersededById.slice(0, 8)}</span>
+              </div>
+            )}
+            {memory.supersedesId && (
+              <div className="st-lifecycle-meta">
+                <span><Fingerprint size={10} /> {t('sheet.supersedes')}: {memory.supersedesId.slice(0, 8)}</span>
+              </div>
+            )}
+
+            <div className="st-lifecycle-actions">
+              {!isConfirmed && (
+                <button
+                  type="button"
+                  className="st-lifecycle-confirm"
+                  disabled={acting}
+                  onClick={() => act(() => memoryConfirm(memory.id))}
+                  title={t('sheet.confirm.hint')}
+                >
+                  <UserCheck size={12} /> {t('sheet.confirm')}
+                </button>
+              )}
+              <div className="st-lifecycle-feedback">
+                <span className="st-feedback-label">{t('sheet.feedback.title')}</span>
+                <button
+                  type="button"
+                  className={`st-feedback-btn st-feedback-btn--useful${votedKind === 'useful' ? ' is-voted' : ''}${pendingKind === 'useful' && votedKind !== 'useful' ? ' is-pending' : ''}`}
+                  onClick={() => openFeedback('useful')}
+                  title={t('sheet.feedback.hint')}
+                >
+                  {votedKind === 'useful' ? <Check /> : pendingKind === 'useful' ? <CircleHelp /> : <ThumbsUp />}
+                  {t('sheet.feedback.useful')}
+                </button>
+                <button
+                  type="button"
+                  className={`st-feedback-btn st-feedback-btn--irrelevant${votedKind === 'irrelevant' ? ' is-voted' : ''}${pendingKind === 'irrelevant' && votedKind !== 'irrelevant' ? ' is-pending' : ''}`}
+                  onClick={() => openFeedback('irrelevant')}
+                  title={t('sheet.feedback.hint')}
+                >
+                  {votedKind === 'irrelevant' ? <Check /> : pendingKind === 'irrelevant' ? <CircleHelp /> : <ThumbsDown />}
+                  {t('sheet.feedback.irrelevant')}
+                </button>
+                <button
+                  type="button"
+                  className={`st-feedback-btn st-feedback-btn--wrong${votedKind === 'wrong' ? ' is-voted' : ''}${pendingKind === 'wrong' && votedKind !== 'wrong' ? ' is-pending' : ''}`}
+                  onClick={() => openFeedback('wrong')}
+                  title={t('sheet.feedback.hint')}
+                >
+                  {votedKind === 'wrong' ? <Check /> : pendingKind === 'wrong' ? <CircleHelp /> : <AlertTriangle />}
+                  {t('sheet.feedback.wrong')}
+                </button>
+              </div>
+            </div>
+
+            {pendingKind && (
+              <div className="st-feedback-note">
+                <div className="st-feedback-note-head">
+                  <span className="st-feedback-note-title">{t('sheet.feedback.note.title')}</span>
+                  <InfoTip text={t('sheet.feedback.note.hint')} />
+                  <button
+                    type="button"
+                    className="st-feedback-note-close"
+                    onClick={() => setPendingKind(null)}
+                    aria-label={t('sheet.feedback.note.close')}
+                    title={t('sheet.feedback.note.close')}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <textarea
+                  className="st-feedback-note-input"
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  placeholder={t('sheet.feedback.note.placeholder')}
+                  rows={3}
+                  maxLength={600}
+                />
+                <div className="st-feedback-note-actions">
+                  <button
+                    type="button"
+                    className="st-feedback-note-send"
+                    disabled={noteSending || !noteDraft.trim()}
+                    onClick={() => sendNote(pendingKind)}
+                  >
+                    {noteSent ? <Check size={12} /> : <SendHorizontal size={12} />}
+                    {noteSent ? t('sheet.feedback.note.sent') : t('sheet.feedback.note.send')}
+                  </button>
+                  {feedback.note && !noteSent && (
+                    <span className="st-feedback-note-saved">{t('sheet.feedback.note.saved')}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         {files.length > 0 && (

@@ -1,4 +1,4 @@
-import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown, Layers } from 'lucide-react';
+import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown, Layers, Radar, Users, Scale } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
 import { NexusLogo } from './NexusLogo';
@@ -13,6 +13,9 @@ export function Sidebar() {
     { icon: Network, labelKey: 'sidebar.graph', view: 'graph', shortcut: 'Ctrl+2' },
     { icon: Clock, labelKey: 'sidebar.timeline', view: 'timeline', shortcut: 'Ctrl+3' },
     { icon: Layers, labelKey: 'sidebar.context', view: 'context', shortcut: 'Ctrl+6' },
+    { icon: Radar, labelKey: 'sidebar.radar', view: 'radar', shortcut: 'Ctrl+7' },
+    { icon: Users, labelKey: 'sidebar.team', view: 'team', shortcut: 'Ctrl+8' },
+    { icon: Scale, labelKey: 'sidebar.audit', view: 'audit', shortcut: 'Ctrl+9' },
     { icon: FolderOpen, labelKey: 'sidebar.projects', view: 'projects', shortcut: 'Ctrl+4' },
   ];
 

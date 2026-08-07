@@ -7,6 +7,8 @@ import {
   Target, Type, XCircle,
 } from 'lucide-react';
 import { useContextStore } from '../../stores/contextStore';
+import { useGraphStore } from '../../stores/graphStore';
+import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
 import { compact } from '../../lib/format';
 import type { ContextTrace } from '../../types';
@@ -74,6 +76,7 @@ function TraceRows({
   dropped?: boolean;
 }) {
   const { t } = useLocale();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   if (traces.length === 0) {
     return (
       <div className={`st-prune-summary${dropped ? ' good' : ''}`}>
@@ -83,14 +86,23 @@ function TraceRows({
     );
   }
 
+  const scoreLabel = (component: string) => {
+    const key = `ctx.score.${component}`;
+    const known = ['titleMatch', 'keywordMatch', 'contentMatch', 'importance', 'recency', 'confidence', 'base'];
+    return known.includes(component) ? t(key) : component;
+  };
+
   return (
     <div className="st-rank-list">
       {traces.map((trace) => {
         const color = trace.kind === 'entity' ? 'var(--cyan)' : 'var(--tangerine)';
         const score = Math.max(trace.score ?? 0, 0);
+        const key = `${trace.kind}-${trace.id}`;
+        const expanded = expandedId === key;
+        const parts = trace.scoreParts ?? [];
         return (
           <div
-            key={`${trace.kind}-${trace.id}`}
+            key={key}
             className={`st-rank-row${dropped ? ' is-dropped' : ''}`}
             style={{ '--row-color': color, '--score': Math.min(score, 1) } as CSSProperties}
           >
@@ -119,6 +131,31 @@ function TraceRows({
                   </span>
                 )}
               </div>
+              {parts.length > 0 && (
+                <div className="st-rank-arithmetic">
+                  <button
+                    type="button"
+                    className="st-rank-arithmetic-toggle"
+                    onClick={() => setExpandedId(expanded ? null : key)}
+                    aria-expanded={expanded}
+                  >
+                    {expanded ? '−' : '+'} {expanded ? t('ctx.rank.breakdown') : t('ctx.rank.expand')}
+                  </button>
+                  {expanded && (
+                    <div className="st-rank-parts">
+                      {parts.map((part, index) => (
+                        <div className="st-rank-part" key={`${part.component}-${index}`}>
+                          <span className="st-rank-part-name">{scoreLabel(part.component)}</span>
+                          <span className="st-rank-part-bar">
+                            <span className="st-rank-part-fill" style={{ '--fill': `${Math.min(Math.max(part.points, 0), 1) * 100}%` } as CSSProperties} />
+                          </span>
+                          <span className="st-rank-part-points">{part.points.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <span className="st-score-track"><span className="st-score-fill" /></span>
             <span className="st-score-value">{trace.score === null ? '—' : trace.score.toFixed(2)}</span>
@@ -186,6 +223,8 @@ function ExportStage() {
 export function ContextView() {
   const { t, locale } = useLocale();
   const { context, isLoading, error, buildContext, clearContext } = useContextStore();
+  const { requestFocus } = useGraphStore();
+  const { setActiveView } = useUiStore();
   const [query, setQuery] = useState('');
   const seeds = locale === 'ru' ? SEEDS_RU : SEEDS_EN;
   const ready = query.trim().length > 0 && !isLoading;
@@ -194,6 +233,16 @@ export function ContextView() {
     const trimmed = value.trim();
     if (trimmed) buildContext(trimmed);
   }, [buildContext]);
+
+  // "Show in graph": jump to the graph view with the package's entities
+  // highlighted. Only entity ids travel — memories are not graph nodes, so
+  // sending them would silently highlight nothing.
+  const showInGraph = useCallback(() => {
+    const ids = (context?.entities ?? []).map((entity) => entity.id);
+    if (ids.length === 0) return;
+    requestFocus(ids);
+    setActiveView('graph');
+  }, [context, requestFocus, setActiveView]);
 
   const included = useMemo(() => context?.provenance.filter((trace) => trace.included) ?? [], [context]);
   const dropped = useMemo(() => context?.provenance.filter((trace) => !trace.included) ?? [], [context]);
@@ -281,6 +330,11 @@ export function ContextView() {
               <SourceCard icon={Network} label={t('ctx.gather.entities')} value={context.entities.length} note={t('ctx.source.entities.note')} color="var(--cyan)" />
               <SourceCard icon={Brain} label={t('ctx.gather.memories')} value={context.memoryRecords.length} note={t('ctx.source.memories.note')} color="var(--tangerine)" />
               <SourceCard icon={Link2} label={t('ctx.gather.links')} value={context.relationships.length} note={t('ctx.source.links.note')} color="var(--periwinkle)" />
+              {context.entities.length > 0 && (
+                <button type="button" className="st-show-in-graph" onClick={showInGraph}>
+                  <Network size={11} /> {t('ctx.showInGraph')}
+                </button>
+              )}
             </div>
           ) : <StagePlaceholder />}
         </Stage>

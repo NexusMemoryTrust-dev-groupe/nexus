@@ -8,8 +8,15 @@ interface GraphState {
   selectedNode: GraphNode | null;
   isLoading: boolean;
   error: string | null;
+  /** One-shot focus request: entity ids the graph should highlight and select
+   *  when it mounts/is visible (set from ContextView's "show in graph"). The
+   *  view consumes it and clears it, so it never re-applies on unrelated
+   *  re-renders. */
+  focusRequest: string[] | null;
   fetchGraph: () => Promise<void>;
   selectNode: (node: GraphNode | null) => void;
+  requestFocus: (entityIds: string[]) => void;
+  clearFocus: () => void;
 }
 
 export const useGraphStore = create<GraphState>((set) => ({
@@ -18,6 +25,7 @@ export const useGraphStore = create<GraphState>((set) => ({
   selectedNode: null,
   isLoading: false,
   error: null,
+  focusRequest: null,
   fetchGraph: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -28,4 +36,6 @@ export const useGraphStore = create<GraphState>((set) => ({
     }
   },
   selectNode: (node) => set({ selectedNode: node }),
+  requestFocus: (entityIds) => set({ focusRequest: entityIds }),
+  clearFocus: () => set({ focusRequest: null }),
 }));

@@ -79,6 +79,7 @@ src-tauri/.fastembed_cache/
 
 # OpenCode runtime state
 src-tauri/.omo/
+.omo/
 
 # Test artifacts
 test-results/

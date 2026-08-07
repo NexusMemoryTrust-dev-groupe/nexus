@@ -293,6 +293,20 @@ pub struct SavingsMeasurement {
     pub candidate_memories: u32,
     /// `"exact"` when the real BPE vocabulary was used, `"estimated"` otherwise.
     pub token_method: String,
+
+    // ── Product metrics (V13) ──
+    /// Context build latency in milliseconds, measured by the caller.
+    pub latency_ms: u32,
+    /// Fraction of considered items that survived to the final package (0..=1).
+    pub precision: f64,
+    /// Fragments the caller reports as actually used in the final answer.
+    pub used_fragments: u32,
+    /// Fragments the ranker dropped as below the relevance floor.
+    pub irrelevant_fragments: u32,
+    /// 1 when the user supplied context manually for this interaction.
+    pub manual_context: u32,
+    /// Memory ids delivered in this package (for cross-session reuse tracking).
+    pub memory_ids: Vec<String>,
 }
 
 impl SavingsMeasurement {
@@ -302,6 +316,18 @@ impl SavingsMeasurement {
     /// by the builder before compression (the full candidate set), and
     /// `token_count` after it. Nothing is inferred here.
     pub fn from_package(pkg: &crate::core::context::ContextPackage) -> Self {
+        use crate::core::context::provenance::DropCause;
+
+        let included = pkg.provenance.included().count() as f64;
+        let dropped = pkg.provenance.dropped().count() as f64;
+        let total = included + dropped;
+        let precision = if total > 0.0 { included / total } else { 0.0 };
+        let irrelevant = pkg
+            .provenance
+            .dropped()
+            .filter(|t| matches!(t.dropped, Some(DropCause::BelowRelevance { .. })))
+            .count() as u32;
+
         Self {
             baseline_tokens: pkg.baseline_tokens,
             context_tokens: pkg.token_count,
@@ -311,6 +337,16 @@ impl SavingsMeasurement {
             candidate_entities: pkg.candidate_entities,
             candidate_memories: pkg.candidate_memories,
             token_method: crate::core::tokenizer::method().as_str().to_string(),
+            latency_ms: 0,
+            precision,
+            used_fragments: 0,
+            irrelevant_fragments: irrelevant,
+            manual_context: 0,
+            memory_ids: pkg
+                .memory_records
+                .iter()
+                .map(|r| r.id.as_str().to_string())
+                .collect(),
         }
     }
 
@@ -344,8 +380,9 @@ fn record_savings_inner(
         "INSERT INTO savings_log (
             id, context_tokens, entities_count, memories_count, relationships_count,
             manual_context_tokens, tokens_saved, cost_saved_usd, query_text, intent_type,
-            baseline_tokens, token_method, candidate_entities, candidate_memories
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            baseline_tokens, token_method, candidate_entities, candidate_memories,
+            latency_ms, precision, used_fragments, irrelevant_fragments, manual_context
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         params![
             id,
             m.context_tokens,
@@ -363,9 +400,25 @@ fn record_savings_inner(
             m.token_method,
             m.candidate_entities,
             m.candidate_memories,
+            m.latency_ms,
+            m.precision,
+            m.used_fragments,
+            m.irrelevant_fragments,
+            m.manual_context,
         ],
     )
     .map_err(|e| e.to_string())?;
+
+    // Track which memories each interaction delivered, so cross-session reuse
+    // is a counted fact rather than a guess.
+    for memory_id in &m.memory_ids {
+        conn.execute(
+            "INSERT OR IGNORE INTO context_memory_usage (interaction_id, memory_id)
+             VALUES (?1, ?2)",
+            params![id, memory_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }
@@ -383,6 +436,11 @@ pub fn record_savings_event(
     candidate_memories: u32,
     query: String,
     intent_type: String,
+    latency_ms: Option<u32>,
+    precision: Option<f64>,
+    used_fragments: Option<u32>,
+    irrelevant_fragments: Option<u32>,
+    manual_context: Option<u32>,
 ) -> std::result::Result<(), String> {
     let m = SavingsMeasurement {
         baseline_tokens,
@@ -393,6 +451,12 @@ pub fn record_savings_event(
         candidate_entities,
         candidate_memories,
         token_method: crate::core::tokenizer::method().as_str().to_string(),
+        latency_ms: latency_ms.unwrap_or(0),
+        precision: precision.unwrap_or(0.0),
+        used_fragments: used_fragments.unwrap_or(0),
+        irrelevant_fragments: irrelevant_fragments.unwrap_or(0),
+        manual_context: manual_context.unwrap_or(0),
+        memory_ids: Vec::new(),
     };
     record_savings_inner(&m, &query, &intent_type)
 }
@@ -485,6 +549,191 @@ pub fn get_savings_stats() -> std::result::Result<SavingsStats, String> {
         exact_interactions,
         token_method: crate::core::tokenizer::method().as_str().to_string(),
         recent_interactions: recent,
+    })
+}
+
+/// Product metrics that prove Nexus' value (per the task list):
+///
+/// * share of queries where the user did not add context manually
+/// * precision of the collected context
+/// * share of fragments actually used in the final answer
+/// * number of irrelevant fragments
+/// * token savings vs baseline
+/// * context build latency
+/// * number of stale memories
+/// * number of memory fixes by the user
+/// * memory reuse across sessions
+///
+/// Every figure is aggregated from measured per-interaction rows written by
+/// `record_savings` — nothing here is estimated on read.
+#[derive(Serialize)]
+pub struct ProductMetrics {
+    pub total_interactions: u64,
+    /// Share (0..=1) of interactions where the user did NOT add context manually.
+    pub auto_context_share: f64,
+    /// Average precision of collected context (included / considered).
+    pub avg_precision: f64,
+    /// Fragments reported as used in the final answer, across all interactions.
+    pub total_used_fragments: u64,
+    /// Share (0..=1) of used fragments out of all considered fragments.
+    pub used_fragment_share: f64,
+    /// Fragments dropped as below the relevance floor, across all interactions.
+    pub total_irrelevant_fragments: u64,
+    pub total_tokens_saved: u64,
+    pub total_baseline_tokens: u64,
+    /// Average context build latency in milliseconds.
+    pub avg_latency_ms: f64,
+    /// Memories currently marked superseded, conflicted, or expired.
+    pub stale_memories: u64,
+    /// Memory fixes by the user: irrelevant + wrong feedback marks.
+    pub memory_fixes: u64,
+    /// Distinct memories delivered in more than one interaction.
+    pub reused_memories: u64,
+    /// Distinct memories ever delivered.
+    pub total_memories_delivered: u64,
+}
+
+/// Tauri command: aggregate product metrics from measured savings rows.
+#[tauri::command]
+pub async fn get_product_metrics() -> std::result::Result<ProductMetrics, String> {
+    let conn = db::open_connection().map_err(|e| e.to_string())?;
+
+    let total_interactions: u64 = conn
+        .query_row("SELECT COUNT(*) FROM savings_log", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    // Share of interactions where the user did NOT add context manually.
+    let auto_context_share = if total_interactions > 0 {
+        let manual: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM savings_log WHERE manual_context = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        (total_interactions.saturating_sub(manual.max(0) as u64)) as f64 / total_interactions as f64
+    } else {
+        0.0
+    };
+
+    // Average precision over rows that actually recorded a precision.
+    let avg_precision: f64 = conn
+        .query_row(
+            "SELECT AVG(precision) FROM savings_log WHERE precision > 0",
+            [],
+            |r| r.get::<_, Option<f64>>(0),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(0.0);
+
+    let total_used_fragments: u64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(used_fragments), 0) FROM savings_log",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    let considered_fragments: u64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(used_fragments + irrelevant_fragments), 0) FROM savings_log",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    let used_fragment_share = if considered_fragments > 0 {
+        total_used_fragments as f64 / considered_fragments as f64
+    } else {
+        0.0
+    };
+
+    let total_irrelevant_fragments: u64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(irrelevant_fragments), 0) FROM savings_log",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    let (total_tokens_saved, total_baseline_tokens): (i64, i64) = conn
+        .query_row(
+            "SELECT COALESCE(SUM(tokens_saved), 0), COALESCE(SUM(baseline_tokens), 0) FROM savings_log",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap_or((0, 0));
+
+    let avg_latency_ms: f64 = conn
+        .query_row(
+            "SELECT AVG(latency_ms) FROM savings_log WHERE latency_ms > 0",
+            [],
+            |r| r.get::<_, Option<f64>>(0),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(0.0);
+
+    // Stale memories: superseded, conflicted, or past their re-check date.
+    let stale_memories: u64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM memory_records
+             WHERE memory_state IN ('Superseded', 'Conflicted')
+                OR (expires_at IS NOT NULL AND expires_at != '' AND expires_at < datetime('now'))",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    // Memory fixes by the user: sum of irrelevant + wrong feedback marks.
+    let memory_fixes: u64 = crate::commands::lifecycle::feedback_fix_count()
+        .await
+        .unwrap_or(0);
+
+    // Cross-session memory reuse: distinct memories delivered in >1 interaction.
+    let reused_memories: u64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM (
+                SELECT memory_id FROM context_memory_usage
+                GROUP BY memory_id HAVING COUNT(DISTINCT interaction_id) > 1
+             )",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    let total_memories_delivered: u64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT memory_id) FROM context_memory_usage",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|v| v.max(0) as u64)
+        .unwrap_or(0);
+
+    Ok(ProductMetrics {
+        total_interactions,
+        auto_context_share,
+        avg_precision,
+        total_used_fragments,
+        used_fragment_share,
+        total_irrelevant_fragments,
+        total_tokens_saved: total_tokens_saved.max(0) as u64,
+        total_baseline_tokens: total_baseline_tokens.max(0) as u64,
+        avg_latency_ms,
+        stale_memories,
+        memory_fixes,
+        reused_memories,
+        total_memories_delivered,
     })
 }
 

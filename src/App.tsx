@@ -7,6 +7,7 @@ import { useMemoryStore } from './stores/memoryStore';
 import { useLocale } from './stores/localeStore';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { invoke } from '@tauri-apps/api/core';
+import { check } from '@tauri-apps/plugin-updater';
 
 // The first-run wizard is only ever needed once, so it is split out of the
 // main bundle rather than loaded on every launch.
@@ -22,6 +23,9 @@ const ContextView = lazy(() => import('./components/context/ContextView').then(m
 const SettingsView = lazy(() => import('./components/settings/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProjectsView = lazy(() => import('./components/projects/ProjectsView').then(m => ({ default: m.ProjectsView })));
 const SavingsView = lazy(() => import('./components/savings/SavingsView').then(m => ({ default: m.SavingsView })));
+const RadarView = lazy(() => import('./components/radar/RadarView').then(m => ({ default: m.RadarView })));
+const TeamView = lazy(() => import('./components/team/TeamView').then(m => ({ default: m.TeamView })));
+const AuditView = lazy(() => import('./components/audit/AuditView').then(m => ({ default: m.AuditView })));
 
 function ViewSpinner() {
   return (
@@ -45,6 +49,9 @@ function AppContent() {
           case 'settings':  return <SettingsView />;
           case 'projects':  return <ProjectsView />;
           case 'savings':   return <SavingsView />;
+          case 'radar':     return <RadarView />;
+          case 'team':      return <TeamView />;
+          case 'audit':     return <AuditView />;
           default:          return <MemoryExplorer />;
         }
       })()}
@@ -101,6 +108,28 @@ export function App() {
     }
     loadSettings();
   }, [setLocale]);
+
+  // Check for updates shortly after startup (never blocks the first paint).
+  // Silent by design: offline, unreachable endpoint or a missing updater
+  // simply skips; a new version downloads and installs in the background.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      check()
+        .then(async (update) => {
+          if (update && !cancelled) {
+            await update.downloadAndInstall();
+          }
+        })
+        .catch(() => {
+          // Offline or no published release yet — ignore.
+        });
+    }, 5000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Hold the shell back until the setup check answers, so a first-run user
   // never sees the empty app behind the wizard.

@@ -77,6 +77,14 @@ pub struct ContextPackage {
     // engine itself rather than from a guess.
     #[serde(default)]
     pub provenance: crate::core::context::provenance::Provenance,
+
+    // ── Agent instructions (AGENTS.md) ──
+    //
+    // Project instruction file content (conventionally AGENTS.md) attached to
+    // the package so the AI sees the project's rules in the same payload as
+    // the context itself. Absent when the project has not defined one.
+    #[serde(default)]
+    pub agent_instructions: Option<String>,
 }
 
 impl ContextPackage {
@@ -97,6 +105,7 @@ impl ContextPackage {
             candidate_entities: 0,
             candidate_memories: 0,
             provenance: crate::core::context::provenance::Provenance::new(),
+            agent_instructions: None,
         }
     }
 

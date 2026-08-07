@@ -546,6 +546,117 @@ impl SemanticSearch {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok((cache.len(), cache.capacity))
     }
+
+    // ═══════════════════════════════════════════════════════════
+    //  Document fingerprints (RAG corpus)
+    // ═══════════════════════════════════════════════════════════
+
+    /// Store a semantic fingerprint for a project document.
+    /// Documents live in `document_fingerprints`, separate from memories.
+    pub fn store_document_fingerprint(&self, document_id: &EntityId, text: &str) -> Result<()> {
+        let (text, _truncated) = Self::validate_text(text);
+        let embedding = self.get_embedding(text)?;
+        let embedding_json =
+            serde_json::to_string(&embedding).map_err(|e| AppError::Internal(e.to_string()))?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        conn.execute(
+            "INSERT OR REPLACE INTO document_fingerprints (document_id, keywords_json, created_at)
+             VALUES (?1, ?2, ?3)",
+            params![document_id.as_str(), embedding_json, now],
+        )
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Delete a project document's fingerprint.
+    pub fn delete_document_fingerprint(&self, document_id: &EntityId) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM document_fingerprints WHERE document_id = ?1",
+            params![document_id.as_str()],
+        )
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Search project documents by semantic similarity to a query.
+    /// Returns (document_id, similarity) pairs sorted descending.
+    pub fn search_documents(&self, query: &str, limit: u32) -> Result<Vec<(EntityId, f64)>> {
+        // Rate limiting
+        {
+            let mut last = self
+                .last_search
+                .lock()
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            let elapsed = last.elapsed();
+            if elapsed < SEARCH_RATE_LIMIT {
+                std::thread::sleep(SEARCH_RATE_LIMIT - elapsed);
+            }
+            *last = Instant::now();
+        }
+
+        let limit = limit.min(MAX_SEARCH_LIMIT);
+        let (query, _truncated) = Self::validate_text(query);
+        let query_embedding = self.get_embedding(query)?;
+
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut stmt = conn
+            .prepare("SELECT document_id, keywords_json FROM document_fingerprints")
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let id_str: String = row.get(0)?;
+                let keywords_json: String = row.get(1)?;
+                Ok((id_str, keywords_json))
+            })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut results: Vec<(EntityId, f64)> = Vec::new();
+        for row in rows {
+            let (id_str, embedding_json) = row.map_err(|e| AppError::Internal(e.to_string()))?;
+            if let Ok(doc_id) = EntityId::parse(&id_str)
+                && let Ok(embedding) = serde_json::from_str::<Vec<f32>>(&embedding_json)
+            {
+                let similarity = Self::cosine_similarity(&query_embedding, &embedding);
+                if similarity > 0.0 {
+                    results.push((doc_id, similarity));
+                }
+            }
+        }
+
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        results.truncate(limit as usize);
+        Ok(results)
+    }
+
+    /// Count document fingerprints.
+    pub fn count_documents(&self) -> Result<u64> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM document_fingerprints", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(count.max(0) as u64)
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════

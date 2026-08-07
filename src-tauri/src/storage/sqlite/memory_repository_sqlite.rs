@@ -6,7 +6,8 @@ use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::memory::types::{
-    MemoryCaptureMode, MemoryLayer, MemorySource, MemoryStatus, MemoryVisibility,
+    MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState, MemoryStatus,
+    MemoryVisibility,
 };
 use crate::core::result::{AppError, Result};
 use crate::storage::sqlite::schema;
@@ -66,6 +67,17 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
     let reason: Option<String> = row.get(19)?;
     let version: u32 = row.get::<_, i32>(20)? as u32;
     let updated_by: Option<String> = row.get(21)?;
+    let memory_state: String = row
+        .get::<_, Option<String>>(22)?
+        .unwrap_or_else(|| "Current".to_string());
+    let supersedes_id: Option<String> = row.get(23)?;
+    let superseded_by_id: Option<String> = row.get(24)?;
+    let confirmed_at: Option<String> = row.get(25)?;
+    let confirmed_by: Option<String> = row.get(26)?;
+    let expires_at: Option<String> = row.get(27)?;
+    let feedback_json: String = row
+        .get::<_, Option<String>>(28)?
+        .unwrap_or_else(|| "{\"useful\":0,\"irrelevant\":0,\"wrong\":0}".to_string());
 
     let linked_entity_ids: Vec<EntityId> = serde_json::from_str(&linked_json).unwrap_or_default();
     let attached_files: Vec<crate::core::memory::memory_record::AttachedFile> =
@@ -103,6 +115,17 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
         reason,
         version,
         updated_by,
+        memory_state: MemoryState::parse(&memory_state),
+        supersedes_id,
+        superseded_by_id,
+        confirmed_at: confirmed_at
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
+        confirmed_by,
+        expires_at: expires_at
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
+        feedback: serde_json::from_str(&feedback_json).unwrap_or_default(),
     })
 }
 
@@ -224,6 +247,8 @@ impl MemoryRepository for SqliteMemoryRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let derived_from_json = serde_json::to_string(&record.derived_from)
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let feedback_json = serde_json::to_string(&record.feedback)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "INSERT INTO memory_records (
@@ -231,8 +256,10 @@ impl MemoryRepository for SqliteMemoryRepository {
                 author, source, confidence_score, importance_score,
                 visibility, capture_mode, project_space_id,
                 linked_entity_ids_json, latest_version_id, status, layer,
-                attached_files_json, derived_from_json, reason, version, updated_by
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                attached_files_json, derived_from_json, reason, version, updated_by,
+                memory_state, supersedes_id, superseded_by_id,
+                confirmed_at, confirmed_by, expires_at, feedback_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
             params![
                 id,
                 record.title,
@@ -256,6 +283,13 @@ impl MemoryRepository for SqliteMemoryRepository {
                 record.reason,
                 record.version as i32,
                 record.updated_by,
+                record.memory_state.as_str(),
+                record.supersedes_id,
+                record.superseded_by_id,
+                record.confirmed_at.map(|dt| dt.to_rfc3339()),
+                record.confirmed_by,
+                record.expires_at.map(|dt| dt.to_rfc3339()),
+                feedback_json,
             ],
         )
         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -274,7 +308,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     author, source, confidence_score, importance_score,
                     visibility, capture_mode, project_space_id,
                     linked_entity_ids_json, latest_version_id, status, layer,
-                    attached_files_json, derived_from_json, reason, version, updated_by
+                    attached_files_json, derived_from_json, reason, version, updated_by,
+                    memory_state, supersedes_id, superseded_by_id,
+                    confirmed_at, confirmed_by, expires_at, feedback_json
                  FROM memory_records WHERE id = ?1",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -298,7 +334,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     author, source, confidence_score, importance_score,
                     visibility, capture_mode, project_space_id,
                     linked_entity_ids_json, latest_version_id, status, layer,
-                    attached_files_json, derived_from_json, reason, version, updated_by
+                    attached_files_json, derived_from_json, reason, version, updated_by,
+                    memory_state, supersedes_id, superseded_by_id,
+                    confirmed_at, confirmed_by, expires_at, feedback_json
                  FROM memory_records WHERE project_space_id = ?1",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -343,7 +381,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     mr.author, mr.source, mr.confidence_score, mr.importance_score,
                     mr.visibility, mr.capture_mode, mr.project_space_id,
                     mr.linked_entity_ids_json, mr.latest_version_id, mr.status, mr.layer,
-                    mr.attached_files_json, mr.derived_from_json, mr.reason, mr.version, mr.updated_by
+                    mr.attached_files_json, mr.derived_from_json, mr.reason, mr.version, mr.updated_by,
+                    mr.memory_state, mr.supersedes_id, mr.superseded_by_id,
+                    mr.confirmed_at, mr.confirmed_by, mr.expires_at, mr.feedback_json
                  FROM memory_fts fts
                  JOIN memory_records mr ON fts.rowid = mr.rowid
                  WHERE memory_fts MATCH ?1
@@ -373,6 +413,8 @@ impl MemoryRepository for SqliteMemoryRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let derived_from_json = serde_json::to_string(&record.derived_from)
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let feedback_json = serde_json::to_string(&record.feedback)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Persists the versioning columns too — without them `touch()` bumps
         // `version` in memory but the DB keeps the stale value forever.
@@ -384,7 +426,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     visibility = ?11, capture_mode = ?12, project_space_id = ?13,
                     linked_entity_ids_json = ?14, latest_version_id = ?15, status = ?16, layer = ?17,
                     attached_files_json = ?18, derived_from_json = ?19, reason = ?20,
-                    version = ?21, updated_by = ?22
+                    version = ?21, updated_by = ?22,
+                    memory_state = ?23, supersedes_id = ?24, superseded_by_id = ?25,
+                    confirmed_at = ?26, confirmed_by = ?27, expires_at = ?28, feedback_json = ?29
                  WHERE id = ?1",
                 params![
                     record.id.as_str(),
@@ -409,6 +453,13 @@ impl MemoryRepository for SqliteMemoryRepository {
                     record.reason,
                     record.version as i32,
                     record.updated_by,
+                    record.memory_state.as_str(),
+                    record.supersedes_id,
+                    record.superseded_by_id,
+                    record.confirmed_at.map(|dt| dt.to_rfc3339()),
+                    record.confirmed_by,
+                    record.expires_at.map(|dt| dt.to_rfc3339()),
+                    feedback_json,
                 ],
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -454,7 +505,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     author, source, confidence_score, importance_score,
                     visibility, capture_mode, project_space_id,
                     linked_entity_ids_json, latest_version_id, status, layer,
-                    attached_files_json, derived_from_json, reason, version, updated_by
+                    attached_files_json, derived_from_json, reason, version, updated_by,
+                    memory_state, supersedes_id, superseded_by_id,
+                    confirmed_at, confirmed_by, expires_at, feedback_json
                  FROM memory_records ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;

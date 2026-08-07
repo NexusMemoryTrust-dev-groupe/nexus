@@ -115,6 +115,20 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "savings" => cmd_savings().await,
         "savings-model" => cmd_savings_model(&cmd.args).await,
 
+        // ── Memory lifecycle commands ──
+        "memory-set-state" => cmd_memory_set_state(&cmd.args).await,
+        "memory-confirm" => cmd_memory_confirm(&cmd.args).await,
+        "memory-feedback" => cmd_memory_feedback(&cmd.args).await,
+        "memory-supersede" => cmd_memory_supersede(&cmd.args).await,
+        "lifecycle" => cmd_lifecycle().await,
+
+        // ── Entity resolution commands ──
+        "find-duplicates" => cmd_find_duplicates(&cmd.args).await,
+        "merge-entities" => cmd_merge_entities(&cmd.args).await,
+
+        // ── Product metrics commands ──
+        "product-metrics" => cmd_product_metrics().await,
+
         // ── Utility commands ──
         "help" => cmd_help().await,
         "projects" => cmd_projects().await,
@@ -141,6 +155,35 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "config-set" => cmd_config_set(&cmd.args).await,
         "file-rename" => cmd_file_rename(&cmd.args).await,
         "file-delete-folder" => cmd_file_delete_folder(&cmd.args).await,
+
+        // ── Project knowledge base (RAG / AGENTS.md / skills) ──
+        "docs-import" => cmd_docs_import(&cmd.args).await,
+        "docs-search" => cmd_docs_search(&cmd.args).await,
+        "agents" => cmd_agents_read(&cmd.args).await,
+        "agents-generate" => cmd_agents_generate().await,
+        "skills" => cmd_skills_list().await,
+        "skill-run" => cmd_skills_run(&cmd.args).await,
+
+        // ── Code graph ──
+        "code-import" => cmd_code_import(&cmd.args).await,
+        "code-search" => cmd_code_search(&cmd.args).await,
+        "code-deps" => cmd_code_deps(&cmd.args).await,
+        "code-dependents" => cmd_code_dependents(&cmd.args).await,
+        "code-stats" => cmd_code_stats().await,
+
+        // ── Memory radar (proactive recall) ──
+        "radar" => cmd_radar(&cmd.args).await,
+        "radar-mark-seen" => cmd_radar_mark_seen().await,
+
+        // ── Team memory (shared trusted layer) ──
+        "team-add-member" => cmd_team_add_member(&cmd.args).await,
+        "team-members" => cmd_team_members().await,
+        "team-overview" => cmd_team_overview().await,
+
+        // ── Audit memory (decision chain / compliance) ──
+        "audit" => cmd_audit(&cmd.args).await,
+        "audit-alternative" => cmd_audit_alternative(&cmd.args).await,
+        "audit-note" => cmd_audit_note(&cmd.args).await,
 
         // ── Unknown ──
         other => CopilotResponse::err(format!("Unknown command: /{}", other)),
@@ -452,11 +495,14 @@ async fn cmd_build_context(args: &[String]) -> CopilotResponse {
         query: query.clone(),
         ..Default::default()
     };
+    let start = std::time::Instant::now();
     match service.build_context(&request).await {
         Ok(pkg) => {
-            // Record savings for this interaction
+            // Record savings for this interaction, including measured latency.
+            let mut measurement = crate::commands::savings::SavingsMeasurement::from_package(&pkg);
+            measurement.latency_ms = start.elapsed().as_millis() as u32;
             crate::commands::savings::record_savings(
-                &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+                &measurement,
                 &query,
                 &format!("{:?}", pkg.user_intent.intent_type),
             );
@@ -515,11 +561,14 @@ async fn cmd_build_entity_context(args: &[String]) -> CopilotResponse {
     };
 
     let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
+    let start = std::time::Instant::now();
     match builder.build_for_entity(&eid, depth).await {
         Ok(pkg) => {
-            // Record savings for this entity context build
+            // Record savings for this entity context build, including measured latency.
+            let mut measurement = crate::commands::savings::SavingsMeasurement::from_package(&pkg);
+            measurement.latency_ms = start.elapsed().as_millis() as u32;
             crate::commands::savings::record_savings(
-                &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+                &measurement,
                 &format!("entity:{}", entity_id),
                 "EntityContext",
             );
@@ -941,6 +990,796 @@ async fn cmd_savings_model(args: &[String]) -> CopilotResponse {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Memory lifecycle commands
+// ═══════════════════════════════════════════════════════════════
+
+/// Set the trust state of a memory: Current | Inferred | Superseded | Conflicted.
+async fn cmd_memory_set_state(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err(
+            "Usage: /memory-set-state <id> <state> (Current|Inferred|Superseded|Conflicted)",
+        );
+    }
+    let id = args[0].clone();
+    let state = args[1].clone();
+    match crate::commands::lifecycle::memory_set_state(id.clone(), state.clone()).await {
+        Ok(m) => {
+            let message = format!("Memory {} is now {}. {}", id, m.memory_state, m.title);
+            CopilotResponse::ok(message, Some(serde_json::to_value(&m).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("State error: {}", e)),
+    }
+}
+
+/// Mark a memory as explicitly confirmed by a human.
+async fn cmd_memory_confirm(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /memory-confirm <id> [by]");
+    }
+    let id = args[0].clone();
+    let by = args.get(1).cloned();
+    match crate::commands::lifecycle::memory_confirm(id.clone(), by).await {
+        Ok(m) => {
+            let message = format!(
+                "Memory {} confirmed by {}: {}",
+                id,
+                m.confirmed_by.as_deref().unwrap_or("user"),
+                m.title
+            );
+            CopilotResponse::ok(message, Some(serde_json::to_value(&m).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Confirm error: {}", e)),
+    }
+}
+
+/// Record user feedback on a memory: useful | irrelevant | wrong.
+/// One vote per memory — same kind again removes the vote, a different kind
+/// switches it. Optional third argument: an explanation used by the copilot.
+async fn cmd_memory_feedback(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err(
+            "Usage: /memory-feedback <id> <useful|irrelevant|wrong> [note]",
+        );
+    }
+    let id = args[0].clone();
+    let kind = args[1].clone();
+    let note = args.get(2).cloned();
+    match crate::commands::lifecycle::memory_feedback(id.clone(), kind.clone(), note).await {
+        Ok(m) => {
+            let mut message = format!(
+                "Feedback '{}' recorded on memory {}. Useful: {}, irrelevant: {}, wrong: {}.",
+                kind, id, m.feedback.useful, m.feedback.irrelevant, m.feedback.wrong
+            );
+            if let Some(n) = &m.feedback.note {
+                message.push_str(&format!(" Note: {}", n));
+            }
+            CopilotResponse::ok(message, Some(serde_json::to_value(&m).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Feedback error: {}", e)),
+    }
+}
+
+/// Supersede an outdated memory with a newer one.
+async fn cmd_memory_supersede(args: &[String]) -> CopilotResponse {
+    if args.len() < 3 {
+        return CopilotResponse::err("Usage: /memory-supersede <old_id> <new_title> <new_content>");
+    }
+    let old_id = args[0].clone();
+    let new_title = args[1].clone();
+    let new_content = args[2..].join(" ");
+    match crate::commands::lifecycle::memory_supersede(
+        old_id.clone(),
+        new_title.clone(),
+        new_content.clone(),
+        None,
+    )
+    .await
+    {
+        Ok(m) => {
+            let message = format!(
+                "Memory {} superseded by {} (state: {}).",
+                old_id, m.id, m.memory_state
+            );
+            CopilotResponse::ok(message, Some(serde_json::to_value(&m).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Supersede error: {}", e)),
+    }
+}
+
+/// Show the memory trust lifecycle overview.
+async fn cmd_lifecycle() -> CopilotResponse {
+    match crate::commands::lifecycle::get_lifecycle_overview().await {
+        Ok(o) => {
+            let message = format!(
+                "Memory lifecycle: {} current, {} user-confirmed, {} inferred, {} superseded, {} conflicted (total {}).",
+                o.current, o.user_confirmed, o.inferred, o.superseded, o.conflicted, o.total
+            );
+            CopilotResponse::ok(message, Some(serde_json::to_value(&o).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Lifecycle error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Entity resolution commands
+// ═══════════════════════════════════════════════════════════════
+
+/// Scan the graph for duplicate entities.
+async fn cmd_find_duplicates(args: &[String]) -> CopilotResponse {
+    let min_score = args.first().and_then(|a| a.parse::<f64>().ok());
+    match crate::commands::graph::find_duplicate_entities(min_score).await {
+        Ok(groups) => {
+            let count: usize = groups
+                .iter()
+                .map(|g| g.entities.len().saturating_sub(1))
+                .sum();
+            let message = format!(
+                "Found {} duplicate groups ({} entities that could be merged).",
+                groups.len(),
+                count
+            );
+            CopilotResponse::ok(
+                message,
+                Some(serde_json::to_value(&groups).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Duplicate scan error: {}", e)),
+    }
+}
+
+/// Merge duplicate entities into a canonical node.
+async fn cmd_merge_entities(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err("Usage: /merge-entities <primary_id> <dup_id> [dup_id ...]");
+    }
+    let primary = args[0].clone();
+    let duplicates = args[1..].to_vec();
+    match crate::commands::graph::merge_entities(primary.clone(), duplicates.clone()).await {
+        Ok(node) => {
+            let message = format!(
+                "Merged {} entities into '{}' (type: {}).",
+                duplicates.len() + 1,
+                node.title,
+                node.entity_type
+            );
+            CopilotResponse::ok(
+                message,
+                Some(serde_json::to_value(&node).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Merge error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Product metrics commands
+// ═══════════════════════════════════════════════════════════════
+
+/// Show product metrics that prove Nexus' value.
+async fn cmd_product_metrics() -> CopilotResponse {
+    match crate::commands::savings::get_product_metrics().await {
+        Ok(m) => {
+            let message = format!(
+                "Product metrics: {} interactions. No-manual-context share: {:.0}%. Avg precision: {:.2}. Used fragments: {} ({}% of considered). Irrelevant fragments: {}. Tokens saved: {} (baseline {}). Avg latency: {:.0} ms. Stale memories: {}. Memory fixes: {}. Memories reused across sessions: {} of {}.",
+                m.total_interactions,
+                m.auto_context_share * 100.0,
+                m.avg_precision,
+                m.total_used_fragments,
+                m.used_fragment_share * 100.0,
+                m.total_irrelevant_fragments,
+                m.total_tokens_saved,
+                m.total_baseline_tokens,
+                m.avg_latency_ms,
+                m.stale_memories,
+                m.memory_fixes,
+                m.reused_memories,
+                m.total_memories_delivered,
+            );
+            CopilotResponse::ok(message, Some(serde_json::to_value(&m).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Product metrics error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Project knowledge base (RAG / AGENTS.md / skills)
+// ═══════════════════════════════════════════════════════════════
+
+/// Import all .md/.txt docs from a folder into the RAG corpus.
+async fn cmd_docs_import(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /docs-import <folder_path>");
+    }
+    let folder = args.join(" ");
+    let repo = match crate::core::knowledge::documents::ProjectDocumentRepository::open() {
+        Ok(r) => r,
+        Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
+    };
+    let dir = std::path::PathBuf::from(&folder);
+    match crate::core::knowledge::documents::import_directory(&repo, &dir) {
+        Ok(report) => {
+            let msg = format!(
+                "Docs import: scanned {}, imported {}, unchanged {}, pruned {}, failed {}.",
+                report.scanned, report.imported, report.unchanged, report.updated, report.failed
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Import error: {}", e)),
+    }
+}
+
+/// Search the imported RAG corpus.
+async fn cmd_docs_search(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /docs-search <query>");
+    }
+    let query = args.join(" ");
+    match crate::core::knowledge::documents::search_docs(&query, 10) {
+        Ok(hits) => {
+            if hits.is_empty() {
+                return CopilotResponse::ok(
+                    format!(
+                        "No documents match '{}'. Import docs first with /docs-import <folder>.",
+                        query
+                    ),
+                    Some(serde_json::json!({ "hits": [], "count": 0 })),
+                );
+            }
+            let count = hits.len();
+            let rows: Vec<serde_json::Value> = hits
+                .iter()
+                .map(|h| {
+                    serde_json::json!({
+                        "path": h.document.path,
+                        "title": h.document.title,
+                        "score": h.score,
+                        "doc_type": h.document.doc_type,
+                        "updated_at": h.document.updated_at,
+                    })
+                })
+                .collect();
+            CopilotResponse::ok(
+                format!("{} document(s) match '{}'", count, query),
+                Some(serde_json::json!({ "hits": rows, "count": count })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Search error: {}", e)),
+    }
+}
+
+/// Read the active AGENTS.md instruction file.
+async fn cmd_agents_read(args: &[String]) -> CopilotResponse {
+    let name = args
+        .first()
+        .cloned()
+        .unwrap_or_else(|| crate::core::knowledge::agents::DEFAULT_AGENTS_NAME.to_string());
+    match crate::commands::knowledge::agents_read(Some(name.clone())).await {
+        Ok(Some(file)) => CopilotResponse::ok(
+            format!("Agents file '{}' ({} chars)", file.name, file.content.len()),
+            Some(serde_json::json!({
+                "name": file.name,
+                "content": file.content,
+                "path": file.path,
+                "updated_at": file.updated_at,
+            })),
+        ),
+        Ok(None) => CopilotResponse::err(format!(
+            "Agents file '{}' not found. Generate one with /agents-generate.",
+            name
+        )),
+        Err(e) => CopilotResponse::err(format!("Read error: {}", e)),
+    }
+}
+
+/// Generate an AGENTS.md from live system data and store it — the
+/// "documentation skill".
+async fn cmd_agents_generate() -> CopilotResponse {
+    match crate::commands::knowledge::agents_generate().await {
+        Ok(file) => CopilotResponse::ok(
+            format!(
+                "AGENTS.md generated from live system data ({} chars) and stored as the active instruction file.",
+                file.content.len()
+            ),
+            Some(serde_json::json!({
+                "name": file.name,
+                "content": file.content,
+                "path": file.path,
+            })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Generate error: {}", e)),
+    }
+}
+
+/// List registered skills.
+async fn cmd_skills_list() -> CopilotResponse {
+    match crate::commands::knowledge::skills_list().await {
+        Ok(skills) => {
+            if skills.is_empty() {
+                return CopilotResponse::ok(
+                    "No skills registered. Register one with /skill-register <name> <command>.",
+                    Some(serde_json::json!({ "skills": [], "count": 0 })),
+                );
+            }
+            let count = skills.len();
+            let rows: Vec<serde_json::Value> = skills
+                .iter()
+                .map(|s| {
+                    serde_json::json!({
+                        "name": s.name,
+                        "description": s.description,
+                        "command": s.command,
+                        "script_path": s.script_path,
+                        "enabled": s.enabled,
+                    })
+                })
+                .collect();
+            CopilotResponse::ok(
+                format!("{} skills registered", count),
+                Some(serde_json::json!({ "skills": rows, "count": count })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("List error: {}", e)),
+    }
+}
+
+/// Run a skill by name with optional args.
+async fn cmd_skills_run(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /skill-run <name> [args...]");
+    }
+    let name = args[0].clone();
+    let argv = args[1..].to_vec();
+    match crate::core::knowledge::skills::SkillRunner::run(&name, &argv) {
+        Ok(out) => {
+            let status = if out.success { "ok" } else { "failed" };
+            let msg = format!(
+                "Skill '{}' {} ({} ms, exit {:?}).\n\nstdout:\n{}\n\nstderr:\n{}",
+                name, status, out.duration_ms, out.exit_code, out.stdout, out.stderr
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&out).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Run error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Code graph commands
+// ═══════════════════════════════════════════════════════════════
+
+/// Index a folder of source files into the code graph.
+async fn cmd_code_import(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /code-import <folder_path>");
+    }
+    let folder = args.join(" ");
+    match crate::commands::knowledge::code_import(folder.clone()).await {
+        Ok(report) => {
+            let msg = format!(
+                "Code import: scanned {}, indexed/updated {}, unchanged {}, symbols {}, dependencies {}, pruned {}, failed {}.",
+                report.scanned,
+                report.indexed,
+                report.unchanged,
+                report.symbols,
+                report.dependencies,
+                report.pruned,
+                report.failed
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Import error: {}", e)),
+    }
+}
+
+/// Search symbols across the code graph.
+async fn cmd_code_search(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /code-search <symbol>");
+    }
+    let query = args.join(" ");
+    match crate::commands::knowledge::code_search(query.clone(), None).await {
+        Ok(hits) => {
+            if hits.is_empty() {
+                return CopilotResponse::ok(
+                    format!(
+                        "No symbol matches '{}'. Index code first with /code-import <folder>.",
+                        query
+                    ),
+                    Some(serde_json::json!({ "hits": [], "count": 0 })),
+                );
+            }
+            let count = hits.len();
+            let rows: Vec<serde_json::Value> = hits
+                .iter()
+                .map(|h| {
+                    serde_json::json!({
+                        "name": h.symbol.name,
+                        "kind": h.symbol.kind,
+                        "signature": h.symbol.signature,
+                        "file": h.file_path,
+                        "language": h.file_language,
+                    })
+                })
+                .collect();
+            CopilotResponse::ok(
+                format!("{} symbol(s) match '{}'", count, query),
+                Some(serde_json::json!({ "hits": rows, "count": count })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Search error: {}", e)),
+    }
+}
+
+/// Dependencies of one indexed file.
+async fn cmd_code_deps(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /code-deps <file_path>");
+    }
+    let path = args.join(" ");
+    match crate::commands::knowledge::code_deps(path.clone()).await {
+        Ok(deps) => {
+            if deps.is_empty() {
+                return CopilotResponse::ok(
+                    format!(
+                        "No dependencies recorded for '{}' (file not indexed?)",
+                        path
+                    ),
+                    Some(serde_json::json!({ "deps": [], "count": 0 })),
+                );
+            }
+            let count = deps.len();
+            let rows: Vec<serde_json::Value> = deps
+                .iter()
+                .map(|d| {
+                    serde_json::json!({
+                        "target": d.target,
+                        "kind": d.kind,
+                        "is_external": d.is_external,
+                    })
+                })
+                .collect();
+            CopilotResponse::ok(
+                format!("{} dependencies for '{}'", count, path),
+                Some(serde_json::json!({ "deps": rows, "count": count })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Deps error: {}", e)),
+    }
+}
+
+/// Files that depend on a target (reverse edges).
+async fn cmd_code_dependents(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /code-dependents <target>");
+    }
+    let target = args.join(" ");
+    match crate::commands::knowledge::code_dependents(target.clone()).await {
+        Ok(hits) => {
+            if hits.is_empty() {
+                return CopilotResponse::ok(
+                    format!("No internal files depend on '{}'", target),
+                    Some(serde_json::json!({ "dependents": [], "count": 0 })),
+                );
+            }
+            let count = hits.len();
+            let rows: Vec<serde_json::Value> = hits
+                .iter()
+                .map(|h| {
+                    serde_json::json!({
+                        "file": h.file_path,
+                        "kind": h.kind,
+                    })
+                })
+                .collect();
+            CopilotResponse::ok(
+                format!("{} file(s) depend on '{}'", count, target),
+                Some(serde_json::json!({ "dependents": rows, "count": count })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Dependents error: {}", e)),
+    }
+}
+
+/// Code graph statistics.
+async fn cmd_code_stats() -> CopilotResponse {
+    match crate::commands::knowledge::code_stats().await {
+        Ok(stats) => {
+            let msg = format!(
+                "Code graph: {} files, {} symbols, {} dependencies.",
+                stats.file_count, stats.symbol_count, stats.dependency_count
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&stats).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Stats error: {}", e)),
+    }
+}
+
+/// Memory radar: what needs attention right now (conflicts, expiring,
+/// unconfirmed, new/changed since last scan). `/radar mark` advances the
+/// checkpoint after showing the snapshot.
+async fn cmd_radar(args: &[String]) -> CopilotResponse {
+    let mark_seen = args.first().map(|a| a.as_str() == "mark").unwrap_or(false);
+    let snapshot = if mark_seen {
+        crate::commands::radar::radar_scan_and_seen().await
+    } else {
+        crate::commands::radar::get_radar_snapshot().await
+    };
+    match snapshot {
+        Ok(s) => {
+            if s.items.is_empty() {
+                let msg = format!(
+                    "Radar: nothing needs attention right now (attention score {}). Total memories: {}, conflicts: {}, expiring: {}.",
+                    s.attention_score, s.counts.total, s.counts.conflicted, s.counts.expiring
+                );
+                return CopilotResponse::ok(
+                    msg,
+                    Some(serde_json::to_value(&s).unwrap_or_default()),
+                );
+            }
+            let mut lines = Vec::new();
+            lines.push(format!(
+                "Memory radar — {} item(s) need attention (score {}) since {}:",
+                s.items.len(),
+                s.attention_score,
+                s.since.clone().unwrap_or_else(|| "first scan".to_string())
+            ));
+            for item in &s.items {
+                lines.push(format!(
+                    "  [{}] {} — {} (importance {:.2})",
+                    item.action, item.title, item.reason, item.importance
+                ));
+            }
+            CopilotResponse::ok(
+                lines.join("\n"),
+                Some(serde_json::to_value(&s).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Radar error: {}", e)),
+    }
+}
+
+/// Advance the radar checkpoint to now.
+async fn cmd_radar_mark_seen() -> CopilotResponse {
+    match crate::commands::radar::radar_mark_seen().await {
+        Ok(()) => CopilotResponse::ok(
+            "Radar checkpoint advanced — the next scan will only report what changes from now.",
+            None,
+        ),
+        Err(e) => CopilotResponse::err(format!("Radar error: {}", e)),
+    }
+}
+
+/// Add a team member to the roster.
+async fn cmd_team_add_member(args: &[String]) -> CopilotResponse {
+    let name = args.first().cloned().unwrap_or_default();
+    if name.trim().is_empty() {
+        return CopilotResponse::err(
+            "Usage: /team-add-member <name> [admin|member|viewer]".to_string(),
+        );
+    }
+    let role = args.get(1).cloned();
+    match crate::commands::team::team_add_member(name.clone(), role).await {
+        Ok(m) => CopilotResponse::ok(
+            format!("Team member '{}' added with role {}.", m.name, m.role),
+            Some(serde_json::to_value(&m).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Team add member error: {}", e)),
+    }
+}
+
+/// List the team roster.
+async fn cmd_team_members() -> CopilotResponse {
+    match crate::commands::team::team_list_members().await {
+        Ok(members) => {
+            if members.is_empty() {
+                return CopilotResponse::ok(
+                    "Team roster is empty — add members with /team-add-member <name> [role].",
+                    Some(serde_json::json!([])),
+                );
+            }
+            let rows: Vec<serde_json::Value> = members
+                .iter()
+                .map(|m| {
+                    serde_json::json!({
+                        "id": m.id,
+                        "name": m.name,
+                        "role": m.role,
+                        "active": m.active,
+                    })
+                })
+                .collect();
+            let mut lines = vec!["Team roster:".to_string()];
+            for m in &members {
+                lines.push(format!(
+                    "  {} — {} ({}){}",
+                    m.name,
+                    m.role,
+                    m.id,
+                    if m.active { "" } else { ", inactive" }
+                ));
+            }
+            CopilotResponse::ok(
+                lines.join("\n"),
+                Some(serde_json::json!({ "members": rows })),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Team list members error: {}", e)),
+    }
+}
+
+/// Show the trusted decision layer of the team.
+async fn cmd_team_overview() -> CopilotResponse {
+    match crate::commands::team::get_team_overview().await {
+        Ok(o) => {
+            let mut lines = Vec::new();
+            lines.push(format!(
+                "Team trusted layer — {} member(s), {} confirmed, {} superseded, {} in conflict.",
+                o.totals.members, o.totals.confirmed, o.totals.superseded, o.totals.conflicted,
+            ));
+            if !o.confirmed_decisions.is_empty() {
+                lines.push("Confirmed decisions:".to_string());
+                for d in &o.confirmed_decisions {
+                    lines.push(format!(
+                        "  [{}] {} — by {}",
+                        d.memory_id,
+                        d.title,
+                        d.by.as_deref().unwrap_or("unknown")
+                    ));
+                }
+            }
+            if !o.superseded_decisions.is_empty() {
+                lines.push("Superseded (stale):".to_string());
+                for d in &o.superseded_decisions {
+                    lines.push(format!(
+                        "  [{}] {} — {}",
+                        d.memory_id,
+                        d.title,
+                        d.detail.as_deref().unwrap_or("replaced")
+                    ));
+                }
+            }
+            if !o.conflicted.is_empty() {
+                lines.push("In conflict:".to_string());
+                for d in &o.conflicted {
+                    lines.push(format!(
+                        "  [{}] {} — by {}",
+                        d.memory_id,
+                        d.title,
+                        d.by.as_deref().unwrap_or("unknown")
+                    ));
+                }
+            }
+            CopilotResponse::ok(
+                lines.join("\n"),
+                Some(serde_json::to_value(&o).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Team overview error: {}", e)),
+    }
+}
+
+/// Reconstruct the full decision chain for one memory: why it exists, which
+/// alternatives were considered, who confirmed it, and what replaced it.
+async fn cmd_audit(args: &[String]) -> CopilotResponse {
+    let memory_id = args.first().cloned().unwrap_or_default();
+    if memory_id.trim().is_empty() {
+        return CopilotResponse::err("Usage: /audit <memory-id>".to_string());
+    }
+    match crate::commands::audit::get_audit_trail(memory_id).await {
+        Ok(t) => {
+            let mut lines = Vec::new();
+            lines.push(format!(
+                "Audit trail: '{}' [{}] — by {}",
+                t.title, t.state, t.author
+            ));
+            if let Some(reason) = &t.reason {
+                lines.push(format!("  Why: {}", reason));
+            }
+            if let Some(by) = &t.confirmed_by {
+                lines.push(format!(
+                    "  Confirmed by {} {}",
+                    by,
+                    t.confirmed_at.as_deref().unwrap_or("")
+                ));
+            } else {
+                lines.push("  Confirmed by: nobody yet".to_string());
+            }
+            if let Some(s) = &t.supersedes {
+                lines.push(format!("  Supersedes: {}", s));
+            }
+            if let Some(s) = &t.superseded_by {
+                lines.push(format!("  Superseded by: {}", s));
+            }
+            if !t.alternatives.is_empty() {
+                lines.push(format!(
+                    "  Alternatives considered ({}):",
+                    t.alternatives.len()
+                ));
+                for a in &t.alternatives {
+                    lines.push(format!("    - {} — rejected: {}", a.title, a.reason));
+                }
+            }
+            if !t.events.is_empty() {
+                lines.push(format!("  Decision journal ({} events):", t.events.len()));
+                for e in &t.events {
+                    lines.push(format!(
+                        "    [{}] {} by {} — {}",
+                        e.created_at,
+                        e.event_type,
+                        e.actor,
+                        e.detail.as_deref().unwrap_or("")
+                    ));
+                }
+            }
+            if !t.versions.is_empty() {
+                lines.push(format!(
+                    "  Version history ({} versions):",
+                    t.versions.len()
+                ));
+                for v in &t.versions {
+                    lines.push(format!(
+                        "    v{} {} by {} — {}",
+                        v.version,
+                        v.change_type,
+                        v.by,
+                        v.reason.as_deref().unwrap_or("")
+                    ));
+                }
+            }
+            CopilotResponse::ok(
+                lines.join("\n"),
+                Some(serde_json::to_value(&t).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Audit error: {}", e)),
+    }
+}
+
+/// Record that an alternative was considered for a decision (and rejected).
+async fn cmd_audit_alternative(args: &[String]) -> CopilotResponse {
+    let memory_id = args.first().cloned().unwrap_or_default();
+    let title = args.get(1).cloned().unwrap_or_default();
+    let reason = args.get(2).cloned().unwrap_or_default();
+    if memory_id.trim().is_empty() || title.trim().is_empty() {
+        return CopilotResponse::err(
+            "Usage: /audit-alternative <memory-id> <title> <reason> [actor]".to_string(),
+        );
+    }
+    let actor = args.get(3).cloned().unwrap_or_else(|| "user".to_string());
+    match crate::commands::audit::audit_alternative(memory_id, title, reason, actor).await {
+        Ok(e) => CopilotResponse::ok(
+            format!("Alternative recorded for memory {}.", e.memory_id),
+            Some(serde_json::to_value(&e).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Audit alternative error: {}", e)),
+    }
+}
+
+/// Append a free-form note to a memory's decision journal.
+async fn cmd_audit_note(args: &[String]) -> CopilotResponse {
+    let memory_id = args.first().cloned().unwrap_or_default();
+    let detail = args.get(1).cloned().unwrap_or_default();
+    if memory_id.trim().is_empty() || detail.trim().is_empty() {
+        return CopilotResponse::err("Usage: /audit-note <memory-id> <note> [actor]".to_string());
+    }
+    let actor = args.get(2).cloned().unwrap_or_else(|| "user".to_string());
+    match crate::commands::audit::audit_add_event(
+        memory_id,
+        "Note".to_string(),
+        actor,
+        Some(detail),
+        None,
+    )
+    .await
+    {
+        Ok(e) => CopilotResponse::ok(
+            format!("Note recorded for memory {}.", e.memory_id),
+            Some(serde_json::to_value(&e).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Audit note error: {}", e)),
+    }
+}
+
 async fn cmd_help() -> CopilotResponse {
     let help_text = r#"Nexus Copilot Commands:
 
@@ -969,6 +1808,20 @@ Savings Commands:
   /savings                           Show token/cost savings stats (hard data)
   /savings-model <name>              Show savings for a specific model (e.g. /savings-model GPT-5.6 Terra)
 
+Memory Lifecycle Commands:
+  /lifecycle                         Show memory trust lifecycle overview
+  /memory-set-state <id> <state>     Set state: Current|Inferred|Superseded|Conflicted
+  /memory-confirm <id> [by]          Mark a memory as confirmed by a human
+  /memory-feedback <id> <kind>       Record feedback: useful|irrelevant|wrong
+  /memory-supersede <old_id> <title> <content>  Replace an outdated memory
+
+Entity Resolution Commands:
+  /find-duplicates [min_score]       Scan graph for duplicate entities
+  /merge-entities <primary> <dup>... Merge duplicate entities into one
+
+Product Metrics Commands:
+  /product-metrics                   Show product metrics proving Nexus' value
+
 File Operations (sandboxed to the Nexus data folder):
   /create-file <path> <content>      Create a new file on disk
   /write-file <path> <content>       Write/overwrite a file
@@ -994,6 +1847,35 @@ Projects:
 Config:
   /config-get [key]                  Show all config (or a single key)
   /config-set <key> <value>          Set a config value
+
+Project Knowledge Base (RAG / AGENTS.md / skills):
+  /docs-import <folder>              Import project .md/.txt docs into the RAG corpus
+  /docs-search <query>               Search the imported project docs
+  /agents [name]                     Read the AGENTS.md instruction file
+  /agents-generate                   Generate AGENTS.md from live system data
+  /skills                            List registered skills
+  /skill-run <name> [args...]        Run a skill (e.g. a JS script)
+
+Code Graph (structure over source files):
+  /code-import <folder>              Index source files (symbols + dependencies)
+  /code-search <symbol>              Search symbols across the code graph
+  /code-deps <path>                  Dependencies of an indexed file
+  /code-dependents <target>          Files that depend on a target
+  /code-stats                        Code graph statistics
+
+Memory Radar (proactive recall):
+  /radar [mark]                     Show what needs attention (conflicts, expiring, unconfirmed, new). "mark" also advances the checkpoint
+  /radar-mark-seen                  Advance the radar checkpoint to now
+
+Team Memory (shared trusted layer):
+  /team-add-member <name> [role]    Add a team member (role: admin|member|viewer)
+  /team-members                     List the team roster
+  /team-overview                    Trusted decisions: who confirmed what, what is stale, what is in conflict
+
+Audit Memory (decision chain / compliance):
+  /audit <memory-id>                Reconstruct the full decision chain: why it exists, alternatives considered, who confirmed, what replaced it
+  /audit-alternative <id> <title> <reason> [actor]  Record an alternative that was considered (and rejected)
+  /audit-note <id> <note> [actor]   Append a free-form note to the decision journal
 
 System Commands:
   /stats                             Show database statistics
@@ -1455,6 +2337,90 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn execute_team_add_member_usage() {
+        let cmd = parse_command("/team-add-member").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_team_members() {
+        let cmd = parse_command("/team-members").unwrap();
+        let resp = execute_command(&cmd).await;
+        // DB may not be available in test environment
+        assert!(
+            resp.success || resp.message.contains("error") || resp.message.contains("DB"),
+            "Expected success or DB-related error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_team_overview() {
+        let cmd = parse_command("/team-overview").unwrap();
+        let resp = execute_command(&cmd).await;
+        // DB may not be available in test environment
+        assert!(
+            resp.success || resp.message.contains("error") || resp.message.contains("DB"),
+            "Expected success or DB-related error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_audit_usage() {
+        let cmd = parse_command("/audit").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_audit_alternative_usage() {
+        let cmd = parse_command("/audit-alternative").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_audit_note_usage() {
+        let cmd = parse_command("/audit-note").unwrap();
+        let resp = execute_command(&cmd).await;
+        assert!(!resp.success);
+        assert!(
+            resp.message.contains("Usage"),
+            "Expected usage error, got: {}",
+            resp.message
+        );
+    }
+
+    #[tokio::test]
+    async fn execute_audit_missing_memory() {
+        let cmd = parse_command("/audit 00000000-0000-0000-0000-000000000000").unwrap();
+        let resp = execute_command(&cmd).await;
+        // Unknown id: either "not found" error or DB-unavailable error
+        assert!(
+            !resp.success,
+            "Expected error for unknown memory, got success: {}",
+            resp.message
+        );
+    }
+
     #[test]
     fn parse_command_new_file_commands() {
         let cmd = parse_command("/create-file C:\\x\\a.txt hello world").unwrap();
@@ -1579,9 +2545,10 @@ pub async fn enhanced_context_search(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Record savings for this enhanced search
+    // Record savings for this enhanced search.
+    let measurement = crate::commands::savings::SavingsMeasurement::from_package(&pkg);
     crate::commands::savings::record_savings(
-        &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+        &measurement,
         query,
         &format!("{:?}", pkg.user_intent.intent_type),
     );

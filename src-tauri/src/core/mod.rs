@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+pub mod audit;
 pub mod config;
 pub mod context;
 pub mod domain_event;
@@ -9,12 +10,14 @@ pub mod entity_id;
 pub mod event_bus;
 pub mod graph;
 pub mod interpreter;
+pub mod knowledge;
 pub mod mcp_register;
 pub mod memory;
 pub mod module_registry;
 pub mod result;
 pub mod sandbox;
 pub mod security;
+pub mod team;
 pub mod text;
 pub mod tokenizer;
 pub mod value_object;

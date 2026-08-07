@@ -160,14 +160,17 @@ pub async fn build_context(query: String) -> Result<ContextDto, String> {
         ..Default::default()
     };
 
+    let start = std::time::Instant::now();
     let pkg = service
         .build_context(&request)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Record savings for this interaction
+    // Record savings for this interaction, including measured latency.
+    let mut measurement = crate::commands::savings::SavingsMeasurement::from_package(&pkg);
+    measurement.latency_ms = start.elapsed().as_millis() as u32;
     crate::commands::savings::record_savings(
-        &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+        &measurement,
         &query,
         &format!("{:?}", pkg.user_intent.intent_type),
     );
@@ -247,14 +250,17 @@ pub async fn build_context_for_entity(
         .map_err(|e| e.to_string())?;
 
     let builder = ContextBuilderImpl::new(graph_repo, memory_repo);
+    let start = std::time::Instant::now();
     let pkg = builder
         .build_for_entity(&eid, depth)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Record savings for this entity context build
+    // Record savings for this entity context build, including measured latency.
+    let mut measurement = crate::commands::savings::SavingsMeasurement::from_package(&pkg);
+    measurement.latency_ms = start.elapsed().as_millis() as u32;
     crate::commands::savings::record_savings(
-        &crate::commands::savings::SavingsMeasurement::from_package(&pkg),
+        &measurement,
         &format!("entity:{}", entity_id),
         "EntityContext",
     );

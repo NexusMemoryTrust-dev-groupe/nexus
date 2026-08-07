@@ -1,4 +1,6 @@
 pub mod memory_compression;
+pub mod memory_lifecycle;
+pub mod memory_radar;
 pub mod memory_recall;
 pub mod memory_record;
 pub mod memory_repository;
@@ -12,4 +14,7 @@ pub use memory_recall::{MemoryRecallService, RecallContext, RecallResult};
 pub use memory_record::MemoryRecord;
 pub use memory_repository::MemoryRepository;
 pub use memory_service::MemoryService;
-pub use types::{MemoryCaptureMode, MemoryLayer, MemorySource, MemoryStatus, MemoryVisibility};
+pub use types::{
+    MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState, MemoryStatus,
+    MemoryVisibility,
+};

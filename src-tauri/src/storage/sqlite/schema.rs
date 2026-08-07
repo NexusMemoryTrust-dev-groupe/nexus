@@ -28,6 +28,15 @@ const MIGRATIONS: &[(i32, &str)] = &[
         11,
         include_str!("migrations/V11_savings_measured_baseline.sql"),
     ),
+    (12, include_str!("migrations/V12_add_memory_lifecycle.sql")),
+    (13, include_str!("migrations/V13_add_product_metrics.sql")),
+    (
+        14,
+        include_str!("migrations/V14_create_project_knowledge.sql"),
+    ),
+    (15, include_str!("migrations/V15_create_code_graph.sql")),
+    (16, include_str!("migrations/V16_create_team_members.sql")),
+    (17, include_str!("migrations/V17_create_audit_events.sql")),
 ];
 
 /// Table that tracks which migrations have been applied.

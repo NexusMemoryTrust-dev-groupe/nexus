@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   Search, Brain, Network, Clock, Settings, Plus, Database,
   GitBranch, ArrowRight, Layers, Sparkles,
-  Zap, FolderOpen, TrendingDown,
+  Zap, FolderOpen, TrendingDown, Radar, Users, Scale,
 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useMemoryStore } from '../../stores/memoryStore';
@@ -131,6 +131,33 @@ export function CommandBar() {
       category: 'Navigation',
       shortcut: 'Ctrl+4',
       action: () => { setActiveView('projects'); toggleCommandBar(); },
+    },
+    {
+      id: 'nav:radar',
+      label: 'Go to Memory Radar',
+      description: 'Surface conflicts, expirations, and unconfirmed inferences',
+      icon: Radar,
+      category: 'Navigation',
+      shortcut: 'Ctrl+7',
+      action: () => { setActiveView('radar'); toggleCommandBar(); },
+    },
+    {
+      id: 'nav:team',
+      label: 'Go to Team Memory',
+      description: 'Trusted team decisions: who confirmed what, what is stale, what is in conflict',
+      icon: Users,
+      category: 'Navigation',
+      shortcut: 'Ctrl+8',
+      action: () => { setActiveView('team'); toggleCommandBar(); },
+    },
+    {
+      id: 'nav:audit',
+      label: 'Go to Audit Memory',
+      description: 'Decision chain: why was this decided, what alternatives lost, who confirmed, what replaced it',
+      icon: Scale,
+      category: 'Navigation',
+      shortcut: 'Ctrl+9',
+      action: () => { setActiveView('audit'); toggleCommandBar(); },
     },
     {
       id: 'nav:settings',

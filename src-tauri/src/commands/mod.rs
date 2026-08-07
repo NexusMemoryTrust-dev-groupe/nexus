@@ -1,11 +1,16 @@
 pub mod ai;
 pub mod ai_prompt;
+pub mod audit;
 pub mod config;
 pub mod context;
 pub mod copilot;
 pub mod files;
 pub mod graph;
+pub mod knowledge;
+pub mod lifecycle;
 pub mod memory;
+pub mod radar;
 pub mod savings;
 pub mod setup;
+pub mod team;
 pub mod workspace;

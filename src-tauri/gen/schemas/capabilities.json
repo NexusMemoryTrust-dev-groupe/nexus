@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capability for the main window — enables invoke and event listeners (AI streaming)","local":true,"windows":["main"],"permissions":["core:default","core:event:default"]}}
+{"default":{"identifier":"default","description":"Default capability for the main window — enables invoke and event listeners (AI streaming)","local":true,"windows":["main"],"permissions":["core:default","core:event:default","updater:default"]}}
