@@ -1,0 +1,24 @@
+{
+  "_comment": "Performance baseline for the CI REGRESSION gate (plan 6.2). Measured 2026-08-11 with release binaries; the CI job reruns the benches, parses NEXUS_METRIC lines and fails the PR if a metric regresses more than tolerance. Metrics below 5 ms are exempt from the relative check: their absolute GATE (SLA < X ms) already fails the bench, and relative comparison on sub-5 ms values is pure noise.",
+  "generated_at": "2026-08-11",
+  "tolerance": 0.25,
+  "metrics": {
+    "sla_startup_ms": { "value": 22, "higher_is_better": false },
+    "sla_insert_ms": { "value": 0, "higher_is_better": false },
+    "sla_search_ms": { "value": 8, "higher_is_better": false },
+    "sla_cached_ms": { "value": 0, "higher_is_better": false },
+    "sla_context_ms": { "value": 106, "higher_is_better": false },
+    "sla_mcp_ms": { "value": 0, "higher_is_better": false },
+    "sla_index_ms": { "value": 12, "higher_is_better": false },
+    "load_100k_insert_rec_per_sec": { "value": 2555, "higher_is_better": true },
+    "load_100k_search_ms": { "value": 182, "higher_is_better": false },
+    "load_100k_list_ms": { "value": 0, "higher_is_better": false },
+    "conflict_detection_rate": { "value": 1.0, "higher_is_better": true },
+    "conflict_fp_rate": { "value": 0.0, "higher_is_better": false },
+    "lh_2000_insert_rec_per_sec": { "value": 4504, "higher_is_better": true },
+    "lh_2000_search_ms": { "value": 2, "higher_is_better": false },
+    "lh_2000_list_ms": { "value": 0, "higher_is_better": false },
+    "lh_2000_rehearsal_ms": { "value": 506, "higher_is_better": false },
+    "lh_superseded_pairs": { "value": 100, "higher_is_better": true }
+  }
+}

@@ -60,3 +60,52 @@
 **Decision**: No SQLite connection pool. Each command opens and closes its own connection.
 
 **Why**: WAL mode allows concurrent readers. A single-user desktop app doesn't have enough concurrent writes to need a pool. Adds complexity (deadpool/sqlite-pool crate) for no measurable benefit at this scale.
+
+---
+
+### 7. Canonical consolidation (System 3) — merged memories, never deleted
+
+**Decision**: `core/memory/canonical_consolidation.rs` clusters similar memories by Jaccard similarity of token sets (threshold 0.40) and builds a canonical memory per cluster: title from the most important member, summary merges unique tokens, importance/confidence get a per-repeat boost (`0.05`/`0.04`, capped at 1.0). Originals are marked `Merged` + `superseded_by_id` and set to private — **nothing is deleted**.
+
+**Why**: The flagman requirement was «nothing is lost». Merging in place (instead of deleting) keeps provenance and lets the user inspect what fed the canonical.
+
+**Implementation notes**: 
+- Idempotency: `exists_cluster` compares the sorted JSON array of member ids, so re-running consolidation never duplicates canons.
+- Sources use `MemorySource::Compressed`; the canonical derives from `MemoryRecord::new(title, content, author, source)`.
+- Persistence: `V27_canonical_memories.sql` + `storage/sqlite/canonical_repository.rs`.
+
+---
+
+### 8. Agent-level firewall permissions (System 4) — deny by default
+
+**Decision**: `core/memory/agent_permissions.rs` classifies memories into categories (secrets/personal/architecture/code/decisions/documentation) and sensitivity levels (public/project/restricted/private). `assess_agent_access(agent, memory)` decides Allow/Deny per agent policy.
+
+**Why**: One global firewall rule cannot express «the researcher may see project architecture but never secrets». Agent-level policies map naturally onto MCP: the caller identifies itself, Nexus decides what it may see.
+
+**Implementation notes**:
+- Safety default: a disabled/missing policy is **Deny**; empty `allowed_visibility`/`allowed_layers` lists mean «everything allowed».
+- CLI format: `/agent-policy add <agent> [vis] [layers] : <deny-patterns>` parsed via `split_once(':')`.
+- Persistence: `V28_agent_policies.sql` + CRUD in `SqliteFirewallRepository` (`save_policy`, `list_policies`, `get_policy_for_agent`, `delete_policy`).
+
+---
+
+### 9. Context chain recording (System 5) — why did AI say this?
+
+**Decision**: `core/flight/context_chain.rs` records the full pipeline of every answer: 10 `ChainStage`s (request → seeds → expand → inject → compress → answer), `ContextSeed`s with kind/weight/tokens, final answer confidence and total tokens. `render_why` produces an ASCII breakdown («Why did AI say this?») with per-category share bars; `render_stages` renders the pipeline chronology.
+
+**Why**: The flight recorder stores *what happened* (records/sessions). The context chain answers *why the answer came out this way* — the debug path from an answer back to the memory seeds that shaped it.
+
+**Implementation notes**:
+- `ContextKind` derives `Ord` for deterministic BTreeMap aggregation in `context_breakdown`; seeds/stages derive `Deserialize` so the repository can round-trip them as JSON columns.
+- Persistence: `V29_context_chains.sql` + `save_context_chain` / `get_context_chain` / `recent_context_chains` / `count_context_chains` in `SqliteFlightRepository` (upsert on id).
+- Surface: MCP `nexus_why` / `nexus_context_chain_record` / `nexus_context_chain_recent`; copilot `/why <chain-id>` and `/context-chain recent|record|get`.
+
+---
+
+### 10. Knowledge Map (System 9) — AI Universe rings
+
+**Decision**: `core/knowledge/knowledge_map.rs` renders the graph around an entity as four concentric rings — Mission (directly relevant), Relevant (2nd degree), Supporting (3rd+ degree), Historical (superseded/old) — via BFS with layer bucketing (`ring_for_layer`).
+
+**Why**: A flat neighbor list doesn't show *why* an entity matters. Ring structure communicates distance and role at a glance, matching the flagman's «AI Universe» picture.
+
+**Implementation notes**: traversal needs `GraphNeighborhood` + `GraphTraversal` traits in scope (E0599 trap); `KnowledgeMapDto` carries the four ring arrays plus a rendered text form.

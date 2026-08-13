@@ -1,0 +1,843 @@
+[
+    {
+        "query":  "How are HTTP sessions and cookies managed in requests?",
+        "ground_truth":  [
+                             "sessions.py",
+                             "cookies.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "What authentication schemes are supported (basic, digest)?",
+        "ground_truth":  [
+                             "auth.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the library retry failed HTTP requests?",
+        "ground_truth":  [
+                             "adapters.py",
+                             "sessions.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are query string parameters encoded into URLs?",
+        "ground_truth":  [
+                             "models.py",
+                             "utils.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the requests library expose the public API module?",
+        "ground_truth":  [
+                             "api.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the Response object implemented in requests?",
+        "ground_truth":  [
+                             "models.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does HTTPAdapter manage connection pools?",
+        "ground_truth":  [
+                             "adapters.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "What exceptions does requests define and when are they raised?",
+        "ground_truth":  [
+                             "exceptions.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the hooks dispatch system work?",
+        "ground_truth":  [
+                             "hooks.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the case-insensitive dictionary implemented?",
+        "ground_truth":  [
+                             "structures.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are cookies merged into the session cookie jar?",
+        "ground_truth":  [
+                             "cookies.py",
+                             "sessions.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does Session follow redirects across requests?",
+        "ground_truth":  [
+                             "sessions.py",
+                             "models.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are connect and read timeouts enforced?",
+        "ground_truth":  [
+                             "adapters.py",
+                             "sessions.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does TLS certificate verification work?",
+        "ground_truth":  [
+                             "adapters.py",
+                             "certs.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are multipart file uploads encoded?",
+        "ground_truth":  [
+                             "models.py",
+                             "utils.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is proxy support implemented in sessions?",
+        "ground_truth":  [
+                             "sessions.py",
+                             "adapters.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are status codes exposed as constants?",
+        "ground_truth":  [
+                             "status_codes.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the compat module bridge Python 2 and 3?",
+        "ground_truth":  [
+                             "compat.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the help module used to introspect the environment?",
+        "ground_truth":  [
+                             "help.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How are cookies extracted from HTTP responses?",
+        "ground_truth":  [
+                             "cookies.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the library handle content decoding and decompression?",
+        "ground_truth":  [
+                             "adapters.py",
+                             "models.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the session-level authentication hook wired in?",
+        "ground_truth":  [
+                             "sessions.py",
+                             "auth.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does prepare_request build a PreparedRequest?",
+        "ground_truth":  [
+                             "models.py",
+                             "sessions.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the vendor packages shim implemented?",
+        "ground_truth":  [
+                             "packages.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How does the library detect and handle content types in responses?",
+        "ground_truth":  [
+                             "models.py"
+                         ],
+        "dataset":  "requests"
+    },
+    {
+        "query":  "How is the logger initialized and configured in the log crate?",
+        "ground_truth":  [
+                             "lib.rs",
+                             "macros.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "Where are log levels and maximum level filtering implemented?",
+        "ground_truth":  [
+                             "lib.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How are the log macros (info!, warn!, error!) defined?",
+        "ground_truth":  [
+                             "macros.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How does the serde feature serialize log records?",
+        "ground_truth":  [
+                             "serde.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the private API module structured in log?",
+        "ground_truth":  [
+                             "__private_api.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How are log errors represented?",
+        "ground_truth":  [
+                             "error.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is key-value logging supported in log?",
+        "ground_truth":  [
+                             "key.rs",
+                             "value.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the source location (file, line, module) captured?",
+        "ground_truth":  [
+                             "source.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How does the Log trait define the logging interface?",
+        "ground_truth":  [
+                             "lib.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the Record type constructed and what fields does it hold?",
+        "ground_truth":  [
+                             "lib.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the module tree organized in log?",
+        "ground_truth":  [
+                             "mod.rs",
+                             "lib.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the maximum level filter updated at runtime?",
+        "ground_truth":  [
+                             "lib.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How are structured values formatted for output?",
+        "ground_truth":  [
+                             "value.rs"
+                         ],
+        "dataset":  "rust-log"
+    },
+    {
+        "query":  "How is the MUI Button component implemented and styled?",
+        "ground_truth":  [
+                             "Button/Button.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does the MUI Dialog component handle modal behavior?",
+        "ground_truth":  [
+                             "Dialog/Dialog.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Checkbox support the indeterminate state?",
+        "ground_truth":  [
+                             "Checkbox/Checkbox.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Accordion component implemented?",
+        "ground_truth":  [
+                             "Accordion/Accordion.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI AccordionSummary render the expand button?",
+        "ground_truth":  [
+                             "AccordionSummary/AccordionSummary.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Alert component styled with severity variants?",
+        "ground_truth":  [
+                             "Alert/Alert.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI AppBar component implemented?",
+        "ground_truth":  [
+                             "AppBar/AppBar.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Autocomplete filter and select options?",
+        "ground_truth":  [
+                             "Autocomplete/Autocomplete.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Avatar component implemented?",
+        "ground_truth":  [
+                             "Avatar/Avatar.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI AvatarGroup stack multiple avatars?",
+        "ground_truth":  [
+                             "AvatarGroup/AvatarGroup.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Badge component implemented?",
+        "ground_truth":  [
+                             "Badge/Badge.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI BottomNavigation component implemented?",
+        "ground_truth":  [
+                             "BottomNavigation/BottomNavigation.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Box component implemented?",
+        "ground_truth":  [
+                             "Box/Box.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Breadcrumbs render navigation trails?",
+        "ground_truth":  [
+                             "Breadcrumbs/Breadcrumbs.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ButtonGroup component implemented?",
+        "ground_truth":  [
+                             "ButtonGroup/ButtonGroup.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ButtonBase component implemented?",
+        "ground_truth":  [
+                             "ButtonBase/ButtonBase.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Card component implemented?",
+        "ground_truth":  [
+                             "Card/Card.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI CardMedia render media content?",
+        "ground_truth":  [
+                             "CardMedia/CardMedia.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Chip component implemented?",
+        "ground_truth":  [
+                             "Chip/Chip.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI CircularProgress animate loading states?",
+        "ground_truth":  [
+                             "CircularProgress/CircularProgress.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Collapse component implemented?",
+        "ground_truth":  [
+                             "Collapse/Collapse.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Container component implemented?",
+        "ground_truth":  [
+                             "Container/Container.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Divider component implemented?",
+        "ground_truth":  [
+                             "Divider/Divider.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Drawer component implemented?",
+        "ground_truth":  [
+                             "Drawer/Drawer.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Fab component implemented?",
+        "ground_truth":  [
+                             "Fab/Fab.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI FormControl provide context to children?",
+        "ground_truth":  [
+                             "FormControl/FormControl.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI FormControlLabel render labels for controls?",
+        "ground_truth":  [
+                             "FormControlLabel/FormControlLabel.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI FormGroup component implemented?",
+        "ground_truth":  [
+                             "FormGroup/FormGroup.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI FormHelperText render helper text?",
+        "ground_truth":  [
+                             "FormHelperText/FormHelperText.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Grid component implemented?",
+        "ground_truth":  [
+                             "Grid/Grid.tsx"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Icon component implemented?",
+        "ground_truth":  [
+                             "Icon/Icon.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI IconButton component implemented?",
+        "ground_truth":  [
+                             "IconButton/IconButton.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ImageList component implemented?",
+        "ground_truth":  [
+                             "ImageList/ImageList.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Input handle text input styling?",
+        "ground_truth":  [
+                             "Input/Input.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI InputAdornment implemented?",
+        "ground_truth":  [
+                             "InputAdornment/InputAdornment.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI InputBase implemented?",
+        "ground_truth":  [
+                             "InputBase/InputBase.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI InputLabel float labels for inputs?",
+        "ground_truth":  [
+                             "InputLabel/InputLabel.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI LinearProgress component implemented?",
+        "ground_truth":  [
+                             "LinearProgress/LinearProgress.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Link component implemented?",
+        "ground_truth":  [
+                             "Link/Link.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI List component implemented?",
+        "ground_truth":  [
+                             "List/List.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI ListItem render list items?",
+        "ground_truth":  [
+                             "ListItem/ListItem.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI ListItemButton implemented?",
+        "ground_truth":  [
+                             "ListItemButton/ListItemButton.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI ListItemIcon render icons in list items?",
+        "ground_truth":  [
+                             "ListItemIcon/ListItemIcon.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI ListItemText implemented?",
+        "ground_truth":  [
+                             "ListItemText/ListItemText.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ListSubheader component implemented?",
+        "ground_truth":  [
+                             "ListSubheader/ListSubheader.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does the MUI Menu component work?",
+        "ground_truth":  [
+                             "Menu/Menu.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI MenuItem component implemented?",
+        "ground_truth":  [
+                             "MenuItem/MenuItem.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI MenuList component implemented?",
+        "ground_truth":  [
+                             "MenuList/MenuList.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Modal component implemented?",
+        "ground_truth":  [
+                             "Modal/Modal.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI NativeSelect render native selects?",
+        "ground_truth":  [
+                             "NativeSelect/NativeSelect.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI OutlinedInput implemented?",
+        "ground_truth":  [
+                             "OutlinedInput/OutlinedInput.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Pagination component implemented?",
+        "ground_truth":  [
+                             "Pagination/Pagination.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Paper component implemented?",
+        "ground_truth":  [
+                             "Paper/Paper.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does the MUI Popover component work?",
+        "ground_truth":  [
+                             "Popover/Popover.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Popper component implemented?",
+        "ground_truth":  [
+                             "Popper/Popper.tsx"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Radio component implemented?",
+        "ground_truth":  [
+                             "Radio/Radio.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Rating component implemented?",
+        "ground_truth":  [
+                             "Rating/Rating.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Select render dropdown selections?",
+        "ground_truth":  [
+                             "Select/Select.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Skeleton component implemented?",
+        "ground_truth":  [
+                             "Skeleton/Skeleton.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI Slider handle range input?",
+        "ground_truth":  [
+                             "Slider/Slider.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Snackbar component implemented?",
+        "ground_truth":  [
+                             "Snackbar/Snackbar.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Stack component implemented?",
+        "ground_truth":  [
+                             "Stack/Stack.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Stepper component implemented?",
+        "ground_truth":  [
+                             "Stepper/Stepper.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Switch component implemented?",
+        "ground_truth":  [
+                             "Switch/Switch.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Tab component implemented?",
+        "ground_truth":  [
+                             "Tab/Tab.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Table component implemented?",
+        "ground_truth":  [
+                             "Table/Table.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI TableCell render table cells?",
+        "ground_truth":  [
+                             "TableCell/TableCell.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does MUI TablePagination implement pagination controls?",
+        "ground_truth":  [
+                             "TablePagination/TablePagination.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is MUI TableSortLabel implemented?",
+        "ground_truth":  [
+                             "TableSortLabel/TableSortLabel.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Tabs component implemented?",
+        "ground_truth":  [
+                             "Tabs/Tabs.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI TextField component implemented?",
+        "ground_truth":  [
+                             "TextField/TextField.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ToggleButton component implemented?",
+        "ground_truth":  [
+                             "ToggleButton/ToggleButton.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Toolbar component implemented?",
+        "ground_truth":  [
+                             "Toolbar/Toolbar.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How does the MUI Tooltip component work?",
+        "ground_truth":  [
+                             "Tooltip/Tooltip.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Typography component implemented?",
+        "ground_truth":  [
+                             "Typography/Typography.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI Zoom component implemented?",
+        "ground_truth":  [
+                             "Zoom/Zoom.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ListItemAvatar component implemented?",
+        "ground_truth":  [
+                             "ListItemAvatar/ListItemAvatar.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI ListItemSecondaryAction component implemented?",
+        "ground_truth":  [
+                             "ListItemSecondaryAction/ListItemSecondaryAction.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI SpeedDial component implemented?",
+        "ground_truth":  [
+                             "SpeedDial/SpeedDial.js"
+                         ],
+        "dataset":  "mui"
+    },
+    {
+        "query":  "How is the MUI SwipeableDrawer component implemented?",
+        "ground_truth":  [
+                             "SwipeableDrawer/SwipeableDrawer.js"
+                         ],
+        "dataset":  "mui"
+    }
+]

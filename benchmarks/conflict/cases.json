@@ -1,0 +1,219 @@
+{
+  "cases": [
+    {
+      "id": "para-01",
+      "class": "paraphrase",
+      "a_title": "Cloud",
+      "a_content": "We deploy the service to AWS",
+      "b_title": "Cloud",
+      "b_content": "We deploy the service to Azure",
+      "expected": "contradicted",
+      "semantic": 0.85
+    },
+    {
+      "id": "para-02",
+      "class": "paraphrase",
+      "a_title": "Database",
+      "a_content": "Use MongoDB for the database layer",
+      "b_title": "Database",
+      "b_content": "Use PostgreSQL for the database layer",
+      "expected": "contradicted",
+      "semantic": 0.86
+    },
+    {
+      "id": "para-03",
+      "class": "paraphrase",
+      "a_title": "Auth",
+      "a_content": "Authentication uses JWT tokens",
+      "b_title": "Auth",
+      "b_content": "Authentication uses session cookies",
+      "expected": "contradicted",
+      "semantic": 0.84
+    },
+    {
+      "id": "neg-01",
+      "class": "negation",
+      "a_title": "Deploy",
+      "a_content": "Deploy to production on Fridays",
+      "b_title": "Deploy",
+      "b_content": "Do not deploy to production on Fridays",
+      "expected": "contradicted",
+      "semantic": 0.95
+    },
+    {
+      "id": "neg-02",
+      "class": "negation",
+      "a_title": "Feature",
+      "a_content": "The feature flag is enabled by default",
+      "b_title": "Feature",
+      "b_content": "The feature flag is not enabled by default",
+      "expected": "contradicted",
+      "semantic": 0.97
+    },
+    {
+      "id": "num-01",
+      "class": "numbers",
+      "a_title": "Port",
+      "a_content": "Run the API on port 8080",
+      "b_title": "Port",
+      "b_content": "Run the API on port 9090",
+      "expected": "contradicted",
+      "semantic": 0.8
+    },
+    {
+      "id": "num-02",
+      "class": "numbers",
+      "a_title": "Replicas",
+      "a_content": "The service runs with 3 replicas",
+      "b_title": "Replicas",
+      "b_content": "The service runs with 5 replicas",
+      "expected": "contradicted",
+      "semantic": 0.82
+    },
+    {
+      "id": "arch-01",
+      "class": "architecture",
+      "a_title": "Architecture",
+      "a_content": "The backend uses a monolith architecture",
+      "b_title": "Architecture",
+      "b_content": "The backend uses a microservices architecture",
+      "expected": "contradicted",
+      "semantic": 0.87
+    },
+    {
+      "id": "arch-02",
+      "class": "architecture",
+      "a_title": "Deployment",
+      "a_content": "The app runs fully local on the machine",
+      "b_title": "Deployment",
+      "b_content": "The app runs on cloud services now",
+      "expected": "contradicted",
+      "semantic": 0.85
+    },
+    {
+      "id": "lex-01",
+      "class": "lexical",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL as the primary database",
+      "b_title": "Database",
+      "b_content": "Use MySQL as the primary database",
+      "expected": "contradicted",
+      "semantic": null
+    },
+    {
+      "id": "lex-02",
+      "class": "lexical",
+      "a_title": "Cache",
+      "a_content": "Use Redis for the cache layer",
+      "b_title": "Cache",
+      "b_content": "Use Memcached for the cache layer",
+      "expected": "contradicted",
+      "semantic": 0.83
+    },
+    {
+      "id": "sup-01",
+      "class": "superseded",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL as the primary database",
+      "b_title": "Database",
+      "b_content": "Use SQLite as the primary database",
+      "expected": "superseded",
+      "semantic": 0.8
+    },
+    {
+      "id": "rel-01",
+      "class": "related",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL as the primary database",
+      "b_title": "Database",
+      "b_content": "Use PostgreSQL as our primary database storage",
+      "expected": "supported",
+      "semantic": 0.99
+    },
+    {
+      "id": "rel-02",
+      "class": "related",
+      "a_title": "Auth",
+      "a_content": "Authentication uses JWT tokens",
+      "b_title": "Auth",
+      "b_content": "Authentication uses JWT tokens for login",
+      "expected": "supported",
+      "semantic": 0.98
+    },
+    {
+      "id": "un-01",
+      "class": "unrelated",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL for persistence",
+      "b_title": "Onboarding",
+      "b_content": "Welcome email is sent to new hires",
+      "expected": "unrelated",
+      "semantic": null
+    },
+    {
+      "id": "un-02",
+      "class": "unrelated",
+      "a_title": "Deploy",
+      "a_content": "Deploy the service to production",
+      "b_title": "Budget",
+      "b_content": "The annual budget is approved in January",
+      "expected": "unrelated",
+      "semantic": null
+    },
+    {
+      "id": "un-03",
+      "class": "unrelated",
+      "a_title": "Postgres",
+      "a_content": "PostgreSQL is used for the analytics warehouse",
+      "b_title": "Postgres",
+      "b_content": "PostgreSQL is the primary database",
+      "expected": "uncertain",
+      "semantic": null
+    },
+    {
+      "id": "temp-01",
+      "class": "temporal",
+      "a_title": "Deploy",
+      "a_content": "The service runs on AWS since 2024",
+      "b_title": "Deploy",
+      "b_content": "The service runs on AWS since 2025",
+      "expected": "superseded",
+      "semantic": null,
+      "link": false
+    },
+    {
+      "id": "temp-02",
+      "class": "temporal",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL as the primary database",
+      "b_title": "Database",
+      "b_content": "Use PostgreSQL as the primary database with replication",
+      "expected": "superseded",
+      "semantic": null,
+      "link": false,
+      "b_version": 2
+    },
+    {
+      "id": "temp-03",
+      "class": "temporal",
+      "a_title": "Budget",
+      "a_content": "Annual budget for 2024 was approved",
+      "b_title": "Deploy",
+      "b_content": "Deploy to production on Fridays",
+      "expected": "unrelated",
+      "semantic": null,
+      "link": false
+    },
+    {
+      "id": "temp-04",
+      "class": "temporal",
+      "a_title": "Database",
+      "a_content": "Use PostgreSQL as the primary database",
+      "b_title": "Database",
+      "b_content": "Use PostgreSQL as our primary database storage",
+      "expected": "supported",
+      "semantic": 0.99,
+      "link": false
+    }
+  ]
+}

@@ -1,0 +1,2544 @@
+{
+  "count": 143,
+  "generated_by": "cargo test --lib dump_tool_schemas_for_docs -- --ignored",
+  "tools": [
+    {
+      "description": "Execute a Nexus copilot slash command. Supported: /memories, /memory <id>, /create-memory <title> <content>, /update-memory <id> <content>, /delete-memory <id>, /search <query>, /graph, /entity <id>, /create-entity <type> <title>, /update-entity <id> <title>, /delete-entity <id>, /link <source_id> <target_id> [type] [weight], /unlink <rel_id>, /context <query>, /entity_context <id> [depth], /stats, /health, /settings, /timeline, /savings, /savings-model <model_name>, /help, /projects",
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "description": "The slash command to execute",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_copilot_command"
+    },
+    {
+      "description": "List all memory records in the Nexus database",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_list_memories"
+    },
+    {
+      "description": "Get a single memory record by ID",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_get_memory"
+    },
+    {
+      "description": "Create a new memory record with title and content",
+      "inputSchema": {
+        "properties": {
+          "author": {
+            "default": "user",
+            "description": "Author name",
+            "type": "string"
+          },
+          "content": {
+            "description": "Memory content",
+            "type": "string"
+          },
+          "title": {
+            "description": "Memory title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_create_memory"
+    },
+    {
+      "description": "Update an existing memory record's content",
+      "inputSchema": {
+        "properties": {
+          "content": {
+            "description": "New content",
+            "type": "string"
+          },
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_update_memory"
+    },
+    {
+      "description": "Delete a memory record by ID",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_delete_memory"
+    },
+    {
+      "description": "Search memories by query string",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "Search query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_search_memories"
+    },
+    {
+      "description": "Get knowledge graph statistics (entity counts by type)",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_graph_stats"
+    },
+    {
+      "description": "Get a single entity by ID",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_get_entity"
+    },
+    {
+      "description": "Create a new entity in the knowledge graph",
+      "inputSchema": {
+        "properties": {
+          "entity_type": {
+            "description": "Entity type (Person, Organization, Project, Document, Meeting, Decision, Task, Technology, Memory)",
+            "type": "string"
+          },
+          "title": {
+            "description": "Entity title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "title"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_create_entity"
+    },
+    {
+      "description": "Update an existing entity's title",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Entity UUID",
+            "type": "string"
+          },
+          "title": {
+            "description": "New title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_update_entity"
+    },
+    {
+      "description": "Delete an entity by ID",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_delete_entity"
+    },
+    {
+      "description": "Create a relationship between two entities",
+      "inputSchema": {
+        "properties": {
+          "relationship_type": {
+            "default": "RelatedTo",
+            "description": "Relationship type (Uses, DependsOn, CreatedBy, RelatedTo, Implements, etc.)",
+            "type": "string"
+          },
+          "source_id": {
+            "description": "Source entity UUID",
+            "type": "string"
+          },
+          "target_id": {
+            "description": "Target entity UUID",
+            "type": "string"
+          },
+          "weight": {
+            "default": 0.8,
+            "description": "Relationship weight (0.0-1.0)",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source_id",
+          "target_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_link_entities"
+    },
+    {
+      "description": "Delete a relationship by ID",
+      "inputSchema": {
+        "properties": {
+          "relationship_id": {
+            "description": "Relationship UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relationship_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_unlink_entities"
+    },
+    {
+      "description": "Build a context package for a query (full M4 pipeline)",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "Context query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_build_context"
+    },
+    {
+      "description": "Build a context package centered on a specific entity with configurable traversal depth",
+      "inputSchema": {
+        "properties": {
+          "depth": {
+            "default": 2,
+            "description": "Traversal depth (1=hops only, 2=hops of hops, default=2)",
+            "type": "integer"
+          },
+          "entity_id": {
+            "description": "Entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_build_context_for_entity"
+    },
+    {
+      "description": "Show database statistics (memory and entity counts)",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_stats"
+    },
+    {
+      "description": "Check system health (database connectivity)",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_health"
+    },
+    {
+      "description": "Get application settings",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_settings"
+    },
+    {
+      "description": "Get timeline of all entities sorted by creation date",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_timeline"
+    },
+    {
+      "description": "Parse markdown text and extract entities and relationships (Auto Graph Builder)",
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "description": "Markdown text to parse",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_parse_markdown"
+    },
+    {
+      "description": "Enhanced context search with intent detection, keywords, and temporal reasoning",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "Search query with optional temporal references",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_search_context"
+    },
+    {
+      "description": "Get recent memories from the last N days",
+      "inputSchema": {
+        "properties": {
+          "days": {
+            "default": 7,
+            "description": "Number of days to look back",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_get_recent_memories"
+    },
+    {
+      "description": "Get memories with importance above threshold",
+      "inputSchema": {
+        "properties": {
+          "threshold": {
+            "default": 0.7,
+            "description": "Importance threshold (0.0-1.0)",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_get_important_memories"
+    },
+    {
+      "description": "Analyze text to extract keywords, entities, and temporal references",
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "description": "Text to analyze",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_analyze_text"
+    },
+    {
+      "description": "List all graph entities, optionally filtered by type",
+      "inputSchema": {
+        "properties": {
+          "entity_type": {
+            "description": "Filter by entity type (Person, Organization, Project, Document, Meeting, Decision, Task, Technology, Memory)",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Max results to return",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_list_graph_entities"
+    },
+    {
+      "description": "Search memories by semantic similarity using ONNX embeddings (AllMiniLML6V2, 384-dim)",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "default": 10,
+            "description": "Max results",
+            "type": "integer"
+          },
+          "query": {
+            "description": "Search query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_search_semantic"
+    },
+    {
+      "description": "Store semantic fingerprint for a memory",
+      "inputSchema": {
+        "properties": {
+          "memory_id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "text": {
+            "description": "Text to extract keywords from",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_store_fingerprint"
+    },
+    {
+      "description": "Link a memory to an entity",
+      "inputSchema": {
+        "properties": {
+          "entity_id": {
+            "description": "Entity UUID",
+            "type": "string"
+          },
+          "memory_id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "relationship": {
+            "default": "Related",
+            "description": "Relationship type",
+            "type": "string"
+          },
+          "weight": {
+            "default": 1.0,
+            "description": "Link weight (0-1)",
+            "type": "number"
+          }
+        },
+        "required": [
+          "memory_id",
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_link_memory_entity"
+    },
+    {
+      "description": "Remove link between a memory and an entity",
+      "inputSchema": {
+        "properties": {
+          "entity_id": {
+            "description": "Entity UUID",
+            "type": "string"
+          },
+          "memory_id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "relationship": {
+            "default": "Related",
+            "description": "Relationship type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_unlink_memory_entity"
+    },
+    {
+      "description": "Get all entity links for a memory",
+      "inputSchema": {
+        "properties": {
+          "memory_id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_get_memory_links"
+    },
+    {
+      "description": "Get all memory links for an entity",
+      "inputSchema": {
+        "properties": {
+          "entity_id": {
+            "description": "Entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_get_entity_memory_links"
+    },
+    {
+      "description": "Add native file(s)/folder(s) to a project workspace. Scans directories recursively and registers all files.",
+      "inputSchema": {
+        "properties": {
+          "paths": {
+            "description": "Native paths to add (files or folders)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "paths"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_add_to_workspace"
+    },
+    {
+      "description": "Get the workspace file tree for a project",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_get_workspace"
+    },
+    {
+      "description": "Sync workspace: rescan root dirs, remove stale entries, add new files from disk",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_sync_workspace"
+    },
+    {
+      "description": "Index a file into the knowledge graph: reads content, extracts entities (classes, functions, headings, etc.), creates Document entity + sub-entities with relationships. Supports: py, js, ts, rs, go, java, c, cpp, md, json, yaml, toml, html, css, images.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute file path",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Optional: Project entity UUID to link file to",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_index_file"
+    },
+    {
+      "description": "Index all interpretable files in a folder recursively into the knowledge graph. Skips hidden dirs, target/, node_modules/, __pycache__/.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute folder path",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Optional: Project entity UUID to link files to",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_index_folder"
+    },
+    {
+      "description": "Read and interpret file content: returns summary, extracted entities, and raw text. Does NOT create entities in the graph — use nexus_index_file for that.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute file path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_read_file_content"
+    },
+    {
+      "description": "Create a new file on disk with content. Creates parent directories automatically. Fails if file already exists — use nexus_write_file to overwrite.",
+      "inputSchema": {
+        "properties": {
+          "content": {
+            "description": "File content to write",
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute file path to create",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_create_file"
+    },
+    {
+      "description": "Write content to a file. Creates file if it doesn't exist, overwrites if it does. Creates parent directories automatically.",
+      "inputSchema": {
+        "properties": {
+          "content": {
+            "description": "Content to write",
+            "type": "string"
+          },
+          "path": {
+            "description": "Absolute file path to write",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_write_file"
+    },
+    {
+      "description": "Create a directory (and all parent directories) on disk.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute directory path to create",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_create_folder"
+    },
+    {
+      "description": "Delete a file or directory (recursive for directories). Use with caution.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute path to delete",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_delete_file"
+    },
+    {
+      "description": "Move or rename a file/directory. Provide either new_path (full destination) or dest_dir + new_name.",
+      "inputSchema": {
+        "properties": {
+          "dest_dir": {
+            "description": "Destination directory (for move)",
+            "type": "string"
+          },
+          "new_name": {
+            "description": "New name (used with dest_dir)",
+            "type": "string"
+          },
+          "new_path": {
+            "description": "New full destination path (for rename/move)",
+            "type": "string"
+          },
+          "source_path": {
+            "description": "Source file/directory path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_move_file"
+    },
+    {
+      "description": "Read raw file content as text. Returns the file content without interpretation or entity extraction. Use for reading code, config files, etc.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Absolute file path to read",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_read_file"
+    },
+    {
+      "description": "Create a file in a project workspace — creates on disk AND registers in the workspace database. Use this when an AI wants to save generated code into a Nexus project.",
+      "inputSchema": {
+        "properties": {
+          "content": {
+            "description": "File content to write",
+            "type": "string"
+          },
+          "name": {
+            "description": "File name (e.g. 'main.rs', 'index.ts')",
+            "type": "string"
+          },
+          "parent_path": {
+            "description": "Absolute path of parent directory in workspace",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "parent_path",
+          "name",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_create_workspace_file"
+    },
+    {
+      "description": "Get cumulative token and cost savings statistics: total tokens saved, cost saved (USD), per-day/week/month/year breakdown, average per interaction, and recent interactions. Real data from the database — no estimates.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_savings_stats"
+    },
+    {
+      "description": "Get a full savings report: aggregate stats PLUS per-model cost breakdown for all 21 supported LLMs (how much the saved tokens would have cost with each model's input price). Use this to answer 'how much money did Nexus save me?'",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_savings_report"
+    },
+    {
+      "description": "Calculate savings for a specific LLM model: how much the saved tokens would have cost with that model's input price. Model names are case-insensitive, e.g. 'GPT-5.6 Terra', 'deepseek v4 flash', 'Claude Opus 5'.",
+      "inputSchema": {
+        "properties": {
+          "model": {
+            "description": "Model display name (e.g. 'GPT-5.6 Terra', 'DeepSeek V4 Flash')",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_savings_per_model"
+    },
+    {
+      "description": "List all projects (entities with type Project) in the knowledge graph. Use this to enumerate projects and get their IDs for workspace/project-scoped operations.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_projects"
+    },
+    {
+      "description": "Get all entities linked to a project via relationships, plus the relationships themselves. Use this to see what a project contains (documents, people, decisions, etc.).",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_project_entities"
+    },
+    {
+      "description": "Get all memory records linked to a specific project. Use this to list the memories saved in a project's space.",
+      "inputSchema": {
+        "properties": {
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_project_memories"
+    },
+    {
+      "description": "Link an entity to a project by creating a relationship (default type: Uses). Use this to attach documents, people, decisions and other entities to a project.",
+      "inputSchema": {
+        "properties": {
+          "entity_id": {
+            "description": "Entity UUID to link to the project",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          },
+          "relationship_type": {
+            "default": "Uses",
+            "description": "Relationship type (default: Uses)",
+            "type": "string"
+          },
+          "weight": {
+            "default": 0.8,
+            "description": "Relationship weight (default: 0.8)",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_id",
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_link_project_entity"
+    },
+    {
+      "description": "Rename a workspace entry (file or folder) — renames on disk AND updates the workspace database, including all children. Returns the new absolute path.",
+      "inputSchema": {
+        "properties": {
+          "new_name": {
+            "description": "New name (file/folder name only, not a full path)",
+            "type": "string"
+          },
+          "old_path": {
+            "description": "Current absolute path of the entry",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "old_path",
+          "new_name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_workspace_rename"
+    },
+    {
+      "description": "Move a workspace entry (file or folder) to another directory — moves on disk (with cross-filesystem fallback) AND updates the workspace database. Returns the new absolute path.",
+      "inputSchema": {
+        "properties": {
+          "dest_dir": {
+            "description": "Absolute path of the destination directory",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          },
+          "source_path": {
+            "description": "Absolute path of the entry to move",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "source_path",
+          "dest_dir"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_workspace_move"
+    },
+    {
+      "description": "Delete a workspace entry (file or folder) — deletes from disk AND removes it from the workspace database (including all descendants). Irreversible.",
+      "inputSchema": {
+        "properties": {
+          "file_path": {
+            "description": "Absolute path of the entry to delete",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_workspace_delete"
+    },
+    {
+      "description": "Remove an entry from the workspace database ONLY — does NOT delete the file/folder from disk. Use this to un-register a file from a project without touching the filesystem.",
+      "inputSchema": {
+        "properties": {
+          "file_path": {
+            "description": "Absolute path of the entry to remove from the workspace DB",
+            "type": "string"
+          },
+          "project_id": {
+            "description": "Project entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_workspace_remove"
+    },
+    {
+      "description": "Check all projects for stale folders — returns the list of project_ids whose ALL workspace root directories no longer exist on disk. Use this to detect dead projects before cleanup.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_workspace_check_stale"
+    },
+    {
+      "description": "Rename a file or folder on disk (not tied to a workspace project). Returns the new absolute path.",
+      "inputSchema": {
+        "properties": {
+          "new_name": {
+            "description": "New name (file/folder name only, not a full path)",
+            "type": "string"
+          },
+          "old_path": {
+            "description": "Current absolute path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_path",
+          "new_name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_rename_file"
+    },
+    {
+      "description": "Recursively delete a folder on disk (not tied to a workspace project). Irreversible.",
+      "inputSchema": {
+        "properties": {
+          "folder_path": {
+            "description": "Absolute path of the folder to delete",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_delete_folder"
+    },
+    {
+      "description": "Scan a folder on disk and return its file tree (FileEntry with children). Use this to inspect a directory before indexing or linking it to a project.",
+      "inputSchema": {
+        "properties": {
+          "folder_path": {
+            "description": "Absolute path of the folder to scan",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_scan_folder"
+    },
+    {
+      "description": "Get the metadata map of an entity (key/value pairs stored on the entity). Returns an empty object if the entity has no metadata.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Entity UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_entity_metadata"
+    },
+    {
+      "description": "Record a measured token-savings event manually (baseline vs context usage). Use this to log a savings measurement that the UI would normally record automatically.",
+      "inputSchema": {
+        "properties": {
+          "baseline_tokens": {
+            "description": "Baseline token count",
+            "type": "integer"
+          },
+          "candidate_entities": {
+            "default": 0,
+            "description": "Candidate entities filtered",
+            "type": "integer"
+          },
+          "candidate_memories": {
+            "default": 0,
+            "description": "Candidate memories filtered",
+            "type": "integer"
+          },
+          "context_tokens": {
+            "description": "Context token count",
+            "type": "integer"
+          },
+          "entities_count": {
+            "default": 0,
+            "description": "Entities included",
+            "type": "integer"
+          },
+          "intent_type": {
+            "default": "unknown",
+            "description": "Detected intent type",
+            "type": "string"
+          },
+          "irrelevant_fragments": {
+            "default": 0,
+            "description": "Fragments dropped as below the relevance floor",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "default": 0,
+            "description": "Context build latency in milliseconds",
+            "type": "integer"
+          },
+          "manual_context": {
+            "default": 0,
+            "description": "1 if the user added context manually this round",
+            "type": "integer"
+          },
+          "memories_count": {
+            "default": 0,
+            "description": "Memories included",
+            "type": "integer"
+          },
+          "precision": {
+            "default": 0,
+            "description": "Precision of collected context (included/considered), 0..1",
+            "type": "number"
+          },
+          "query": {
+            "default": "",
+            "description": "Query text",
+            "type": "string"
+          },
+          "relationships_count": {
+            "default": 0,
+            "description": "Relationships included",
+            "type": "integer"
+          },
+          "used_fragments": {
+            "default": 0,
+            "description": "Fragments actually used in the final answer",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "baseline_tokens",
+          "context_tokens"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_savings_record"
+    },
+    {
+      "description": "List all available LLM models (via the opencode CLI). Pass free_only=true to list only free models. Use this to discover which models can be selected for AI features.",
+      "inputSchema": {
+        "properties": {
+          "free_only": {
+            "default": false,
+            "description": "Only list free models",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_ai_models"
+    },
+    {
+      "description": "Get database statistics: memory count, entity count, relationship count, commit count, snapshot count, and DB file size. Use this for health/status reports.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_db_stats"
+    },
+    {
+      "description": "Get configuration values. Pass a key to read a single value, or omit key to list ALL configuration entries. Use this to inspect app settings.",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "description": "Config key (optional — omit to list all)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_config_get"
+    },
+    {
+      "description": "Set a configuration value (creates or updates the key). Use this to change app settings programmatically.",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "description": "Config key",
+            "type": "string"
+          },
+          "value": {
+            "description": "Config value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_config_set"
+    },
+    {
+      "description": "Set the trust state of a memory explicitly: Current, Inferred, Superseded, or Conflicted. Use this to mark a memory as outdated, disputed, or re-verified.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "state": {
+            "description": "New state: Current | Inferred | Superseded | Conflicted",
+            "enum": [
+              "Current",
+              "Inferred",
+              "Superseded",
+              "Conflicted"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_memory_set_state"
+    },
+    {
+      "description": "Mark a memory as explicitly confirmed by a human. The memory state becomes UserConfirmed with a timestamp. Use this to lock in a verified fact.",
+      "inputSchema": {
+        "properties": {
+          "by": {
+            "description": "Who confirmed it (optional)",
+            "type": "string"
+          },
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_memory_confirm"
+    },
+    {
+      "description": "Record user feedback on a memory: useful, irrelevant, or wrong. One vote per memory — voting the same kind again removes the vote, a different kind switches it. Optionally explain why in 'note'; the explanation is kept and used by the copilot to understand what is right or wrong about the memory. A 'wrong' verdict also marks the memory Conflicted so it stops being trusted as-is.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Feedback kind",
+            "enum": [
+              "useful",
+              "irrelevant",
+              "wrong"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "Optional explanation of why this feedback was given",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_memory_feedback"
+    },
+    {
+      "description": "Replace an outdated memory with a newer one. The old memory is marked Superseded (never deleted), and a new Current record is created with the new title/content.",
+      "inputSchema": {
+        "properties": {
+          "author": {
+            "description": "Author of the new memory (optional)",
+            "type": "string"
+          },
+          "new_content": {
+            "description": "Content of the new memory",
+            "type": "string"
+          },
+          "new_title": {
+            "description": "Title of the new memory",
+            "type": "string"
+          },
+          "old_id": {
+            "description": "UUID of the memory to replace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old_id",
+          "new_title",
+          "new_content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_memory_supersede"
+    },
+    {
+      "description": "Get the memory trust lifecycle overview: how many memories are Current, UserConfirmed, Inferred, Superseded, and Conflicted. Use this for a memory-health dashboard.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_lifecycle_overview"
+    },
+    {
+      "description": "Scan the knowledge graph for duplicate entities (exact + normalized + fuzzy name match). Returns groups of 2+ entities that look like the same thing, with a bestId merge target per group. Use this before merging to review what would be combined.",
+      "inputSchema": {
+        "properties": {
+          "min_score": {
+            "default": 0.78,
+            "description": "Minimum Dice similarity (default 0.78). Lower finds more (noisier) groups, higher finds only strong matches.",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_find_duplicates"
+    },
+    {
+      "description": "Merge duplicate entities into one canonical node. The primary is kept; every id in duplicates is merged into it (metadata combined, relationships redirected, duplicates marked Merged). Idempotent.",
+      "inputSchema": {
+        "properties": {
+          "duplicates": {
+            "description": "UUIDs of the entities to merge into primary",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "primary": {
+            "description": "UUID of the entity to keep (use bestId from nexus_find_duplicates)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary",
+          "duplicates"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_merge_entities"
+    },
+    {
+      "description": "Get product metrics that prove Nexus' value: share of queries without manual context, average context precision, used/irrelevant fragments, token savings vs baseline, average build latency, stale memories, memory fixes, and cross-session memory reuse. Use this to answer 'does Nexus actually help?' with measured data.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_product_metrics"
+    },
+    {
+      "description": "Import all .md/.markdown/.txt files from a folder into the project knowledge base (RAG corpus). Idempotent: unchanged files are skipped, changed files are re-indexed, files removed from disk are pruned. Use this to make a project's documentation searchable by the AI.",
+      "inputSchema": {
+        "properties": {
+          "folder_path": {
+            "description": "Absolute path of the folder to import",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_docs_import"
+    },
+    {
+      "description": "List imported project documents (RAG corpus), newest first. Use this to see what documentation is already indexed before searching.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max results (default 100)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_docs_list"
+    },
+    {
+      "description": "Search the imported project documentation (RAG corpus) by a query. Combines keyword overlap with semantic similarity (ONNX embeddings when available). Returns matching documents with relevance scores so the AI can answer questions about the project's own docs.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max results (default 10)",
+            "type": "integer"
+          },
+          "query": {
+            "description": "Search query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_docs_search"
+    },
+    {
+      "description": "Read the project's AGENTS.md instruction file (or another agents file by name). The content is already injected into context packages automatically, but use this to see the exact rules the AI is expected to follow.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "description": "Agents file name (default: AGENTS.md)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_agents_read"
+    },
+    {
+      "description": "Generate an AGENTS.md from live Nexus data (modules, commands, knowledge base state) and store it as the active instruction file. The 'documentation skill': use this to create or refresh project instructions without writing them by hand.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_agents_generate"
+    },
+    {
+      "description": "List all registered skills (runnable commands like JS scripts) with their descriptions. Skills are the lightweight alternative to MCP tools — an agent reads the list, picks the relevant one, and runs only it instead of carrying every tool in context.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_skills_list"
+    },
+    {
+      "description": "Run a registered skill by name with optional arguments. Captures stdout/stderr with a 30-second timeout. Use this to execute a project script or automation without loading the full MCP tool surface.",
+      "inputSchema": {
+        "properties": {
+          "args": {
+            "description": "Arguments passed to the skill",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Skill name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_skills_run"
+    },
+    {
+      "description": "Index a folder of source files into the code graph. Symbols (classes, functions, structs, traits) are extracted with the built-in language parsers, and dependency edges (import / require / use / #include / mod) are recorded. Use this to let the AI answer structural questions about a codebase: what depends on what, where a symbol is defined.",
+      "inputSchema": {
+        "properties": {
+          "folder_path": {
+            "description": "Absolute path of the folder to index",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder_path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_code_import"
+    },
+    {
+      "description": "List indexed source files in the code graph, newest first. Use this to see what code has been indexed before searching symbols.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max results (default 100)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_code_list"
+    },
+    {
+      "description": "Search symbols (classes, functions, structs, traits, interfaces) by name across all indexed source files. Returns the defining file and language. Use this to locate where something is defined in the project.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max results (default 20)",
+            "type": "integer"
+          },
+          "query": {
+            "description": "Symbol name or substring",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_code_search"
+    },
+    {
+      "description": "Return the dependencies of one indexed source file (by path): what it imports, requires, includes or uses, with internal/external classification. Use this to understand a file's connections in the code graph.",
+      "inputSchema": {
+        "properties": {
+          "path": {
+            "description": "Path of the indexed file",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_code_deps"
+    },
+    {
+      "description": "Return the files in the code graph that depend on the given target (reverse edges, internal only). Use this to answer 'what would be affected by changing X?'",
+      "inputSchema": {
+        "properties": {
+          "target": {
+            "description": "Dependency target (module or file)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_code_dependents"
+    },
+    {
+      "description": "Proactive memory radar: scans the whole memory pool and returns what needs attention right now — unresolved conflicts, memories expiring soon, inferred memories never confirmed by a human, and important memories created or changed since the last radar scan. Use this at the start of a session (or when opening a project) to see what the user should review, instead of waiting for a query. Optionally pass markSeen=true to advance the radar checkpoint to now so the next scan only reports what changed afterwards.",
+      "inputSchema": {
+        "properties": {
+          "markSeen": {
+            "description": "Advance the scan checkpoint to now after building the snapshot (default false)",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_radar_snapshot"
+    },
+    {
+      "description": "Memory rehearsal plan: which memories are due for review right now, ordered by importance. Rehearsal is the spaced-repetition cycle that keeps important knowledge fresh and lets forgotten memories fade. Use this periodically (e.g. at session start) to see what should be reviewed next. Read-only — does not modify anything.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_rehearsal_plan"
+    },
+    {
+      "description": "Run the memory rehearsal (sleep) cycle over the whole pool: rehearses every due memory (strengthens importance/confidence, reschedules the next review with a longer interval), schedules first rehearsals for fresh memories, and decays old never-rehearsed memories so they stop competing for context space. Returns a report of what was rehearsed, scheduled and decayed. Safe to run any time.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_rehearsal_cycle"
+    },
+    {
+      "description": "Mark a single memory as rehearsed right now — call this after a human (or the AI) actually reviewed the memory. Strengthens the memory slightly, bumps its rehearsal counter and reschedules the next review with a longer interval.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory id to rehearse",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_rehearse_memory"
+    },
+    {
+      "description": "Preview how the Memory Firewall would treat a piece of incoming content before it is stored: returns a verdict (allow|block|quarantine), heuristic scores (toxicity, spam, prompt-injection, pii) and the reasons. Read-only — does not store anything. Use it to screen AI-generated or imported text before calling nexus_create_memory.",
+      "inputSchema": {
+        "properties": {
+          "content": {
+            "description": "Memory content to screen",
+            "type": "string"
+          },
+          "title": {
+            "description": "Memory title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_firewall_check"
+    },
+    {
+      "description": "List all user-defined Memory Firewall rules: each rule has a pattern (matched case-insensitively in title+content), an action (block|quarantine), an enabled flag, an optional reason and its creation time.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_firewall_rules"
+    },
+    {
+      "description": "Add a user-defined Memory Firewall rule. When the pattern is found in incoming content, the rule overrides the heuristics: action 'block' rejects the content outright, action 'quarantine' parks it in the quarantine table for a human to approve or reject. Pattern matching is case-insensitive substring matching.",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "description": "block | quarantine",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Substring to match in title+content",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Optional human-readable reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_firewall_rule_add"
+    },
+    {
+      "description": "Delete a user-defined Memory Firewall rule by id.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Rule id to delete",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_firewall_rule_delete"
+    },
+    {
+      "description": "List quarantine entries — content the firewall screened but did not hard-block. Default shows pending entries that need a human decision. Pass status=pending|approved|rejected to filter, or status=all for everything.",
+      "inputSchema": {
+        "properties": {
+          "status": {
+            "description": "pending | approved | rejected | all (default pending)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_quarantine_list"
+    },
+    {
+      "description": "Approve a quarantined entry: creates a real memory from its content (bypassing the firewall — the human explicitly confirmed it) and marks the entry approved. The memory goes through the normal classification, conflict detection and semantic indexing pipelines.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Quarantine entry id to approve",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_quarantine_approve"
+    },
+    {
+      "description": "Reject a quarantined entry: the content is permanently discarded (marked rejected) and never enters the memory store.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Quarantine entry id to reject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_quarantine_reject"
+    },
+    {
+      "description": "Manually log an operation into the flight recorder (the system's black box). Use it to record significant agent actions that are not automatically captured: category, action, summary, entity, outcome and optional details. Nothing is stored in memory — only appended to the operation journal.",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "description": "Verb describing the operation, e.g. create_memory, resolve_conflict, run_cycle",
+            "type": "string"
+          },
+          "category": {
+            "description": "memory | conflict | firewall | rehearsal | radar | skill | context | team | versioning | mcp | system",
+            "type": "string"
+          },
+          "details": {
+            "description": "Optional extra details (JSON)",
+            "type": "object"
+          },
+          "duration_ms": {
+            "description": "Optional duration of the operation in ms",
+            "type": "number"
+          },
+          "entity_id": {
+            "description": "Optional entity id",
+            "type": "string"
+          },
+          "entity_type": {
+            "description": "Optional entity type, e.g. MemoryRecord",
+            "type": "string"
+          },
+          "outcome": {
+            "description": "success | error | blocked | skipped (default success)",
+            "type": "string"
+          },
+          "summary": {
+            "description": "One-line human-readable description",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "action",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_flight_log"
+    },
+    {
+      "description": "List the most recent flight recorder entries (the system's operation black box). Optionally filter by category. Useful to understand what the system has been doing and why.",
+      "inputSchema": {
+        "properties": {
+          "category": {
+            "description": "Filter: memory | conflict | firewall | rehearsal | radar | skill | context | team | versioning | mcp | system",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Max entries (default 50)",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_flight_recent"
+    },
+    {
+      "description": "Replay the full operation chain of one entity from the flight recorder — every recorded step that touched the entity, chronological. Like reading the black box of a specific memory: created, quarantined, approved, updated, superseded, etc.",
+      "inputSchema": {
+        "properties": {
+          "entity_id": {
+            "description": "Entity id to replay",
+            "type": "string"
+          },
+          "entity_type": {
+            "description": "Entity type, e.g. MemoryRecord",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_flight_replay"
+    },
+    {
+      "description": "List currently active flight recorder sessions — what operation runs are in progress right now (agent passes, tool batches, tasks).",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max sessions (default 20)",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_flight_active_sessions"
+    },
+    {
+      "description": "Flight recorder summary statistics: total records, sessions, active sessions, and counts broken down by category and outcome. A health check for the operation black box.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_flight_stats"
+    },
+    {
+      "description": "Explain a past AI answer: fetch a recorded context chain by id and return 'Why did AI say this?' — a breakdown of which memory seeds and pipeline stages produced the answer, with an ASCII bar chart of context shares by category and the most influential memories. Call it whenever a user asks why a previous answer came out the way it did.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Context chain id (from nexus_context_chain_recent)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_why"
+    },
+    {
+      "description": "Record the full context chain of an answer: the query, intent, answer confidence, memory seeds used (kind, memoryId, title, weight, tokens) and pipeline stages (stage, durationMs, note). Every model answer becomes explainable afterwards via nexus_why.",
+      "inputSchema": {
+        "properties": {
+          "actor": {
+            "description": "Agent/actor that answered",
+            "type": "string"
+          },
+          "answer": {
+            "description": "Final model answer text",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Answer confidence 0..1",
+            "type": "number"
+          },
+          "intent": {
+            "description": "Intent label, e.g. explain_architecture",
+            "type": "string"
+          },
+          "query": {
+            "description": "The user query that started the pipeline",
+            "type": "string"
+          },
+          "seeds_json": {
+            "description": "JSON array of {kind, memoryId, title, weight, tokens}",
+            "type": "string"
+          },
+          "stages_json": {
+            "description": "JSON array of {stage, durationMs, note}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_context_chain_record"
+    },
+    {
+      "description": "List recently recorded context chains (newest first) with their query, intent, answer confidence and 'why' breakdown. Use it to find the id of a past answer you need to explain.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max chains to return (default 10)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_context_chain_recent"
+    },
+    {
+      "description": "Get the identity passport of an agent: role, memory scope, trust level, available skills, allowed tools and constraints. Use it to confirm who you are and what you are allowed to do before acting. Falls back to the default primary passport when the name does not exist.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "description": "Agent name, e.g. opencode-primary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_passport_get"
+    },
+    {
+      "description": "List all agent identity passports registered in the system. Each passport describes an agent's role (generalist, coder, researcher, reviewer, orchestrator, memory-keeper), memory scope, trust level and allowed skills/tools/constraints.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_passport_list"
+    },
+    {
+      "description": "Create or update an agent identity passport by name. Fields update in place when the passport exists, or create a fresh one. Role is one of generalist, coder, researcher, reviewer, orchestrator, memory-keeper; memory_scope is personal, project, team or global; trust_level is 1..10 (how much the agent's memories can be trusted).",
+      "inputSchema": {
+        "properties": {
+          "constraints": {
+            "description": "Things the agent must NOT do",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "description": "What the agent does (1-2 sentences)",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Human-readable name",
+            "type": "string"
+          },
+          "memory_scope": {
+            "description": "personal|project|team|global",
+            "type": "string"
+          },
+          "name": {
+            "description": "Agent name (unique identity)",
+            "type": "string"
+          },
+          "role": {
+            "description": "generalist|coder|researcher|reviewer|orchestrator|memory-keeper",
+            "type": "string"
+          },
+          "skills": {
+            "description": "Available skill names",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tools": {
+            "description": "Allowed MCP tool names",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trust_level": {
+            "description": "1..10 trust in the agent's memories",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_passport_upsert"
+    },
+    {
+      "description": "Render an agent's passport as a compact markdown block (identity, role, skills, tools, constraints, trust). Use it to attach the passport to a context package or an AGENTS.md file so the AI knows its own boundaries.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "description": "Agent name, e.g. opencode-primary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_passport_render"
+    },
+    {
+      "description": "Add a new member to the team roster. The team roster powers the trusted decision layer (who confirmed what, what went stale, what is in conflict). Role is one of admin, member, viewer (default member).",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "description": "Member name (must be unique)",
+            "type": "string"
+          },
+          "role": {
+            "description": "admin | member | viewer (default member)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_team_add_member"
+    },
+    {
+      "description": "List all members of the team roster with their roles and active flags.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_team_list_members"
+    },
+    {
+      "description": "Update a team member's role and/or active flag by id.",
+      "inputSchema": {
+        "properties": {
+          "active": {
+            "description": "Whether the member is active",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Member id",
+            "type": "string"
+          },
+          "role": {
+            "description": "admin | member | viewer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_team_update_member"
+    },
+    {
+      "description": "Remove a team member from the roster by id.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Member id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_team_remove_member"
+    },
+    {
+      "description": "The trusted decision layer of the team: who confirmed which decision, what went stale (superseded), what is in conflict, and per-member activity (authored/confirmed/updated counts). This is the answer to 'what does the team actually know and agree on' — teams cannot get this from chat history.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_team_overview"
+    },
+    {
+      "description": "Reconstruct the full decision chain for one memory — the answer to 'why did we decide this?'. Returns the decision context (reason), the alternatives that were considered and rejected, who confirmed the decision and when, which memory it superseded and which replaced it, and the full version history (who changed what, with diff reasons). Use this for compliance questions like 'why did we choose PostgreSQL in March?' — prove the team knew and why it decided so.",
+      "inputSchema": {
+        "properties": {
+          "memoryId": {
+            "description": "Memory id to reconstruct the audit trail for",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memoryId"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_audit_trail"
+    },
+    {
+      "description": "Append a raw event to a memory's decision journal: Created, Confirmed, Superseded or Note. Every auditable action on a memory gets one row so the full chain 'why did we decide this' can be reconstructed. actor is who performed the action (member / user / system). For Superseded events pass relatedMemoryId pointing at the memory that replaced it.",
+      "inputSchema": {
+        "properties": {
+          "actor": {
+            "description": "Who performed the action",
+            "type": "string"
+          },
+          "detail": {
+            "description": "Optional free text",
+            "type": "string"
+          },
+          "eventType": {
+            "description": "Created | Confirmed | Superseded | Note",
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory id the event belongs to",
+            "type": "string"
+          },
+          "relatedMemoryId": {
+            "description": "For Superseded: the memory that replaced this one",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memoryId",
+          "eventType",
+          "actor"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_audit_add_event"
+    },
+    {
+      "description": "Record that an alternative was considered for a decision (and rejected). Appends an Alternative event with { title, reason } to the memory's decision journal, so the compliance chain shows which options were weighed and why they lost.",
+      "inputSchema": {
+        "properties": {
+          "actor": {
+            "description": "Who considered it",
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory id the decision belongs to",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it was not chosen (e.g. license costs)",
+            "type": "string"
+          },
+          "title": {
+            "description": "The alternative that was considered (e.g. MySQL)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memoryId",
+          "title",
+          "reason",
+          "actor"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_audit_alternative"
+    },
+    {
+      "description": "List the six cognitive layers (Working, Episodic, Semantic, Procedural, Decision, Strategic) with their meaning and what promotes to them. Use this before classifying anything — the layer ladder answers 'what kind of knowledge is this?'.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_layers_list"
+    },
+    {
+      "description": "Distribution of memories across cognitive layers with mean classifier confidence per layer. Reveals the shape of the knowledge pool — where the project has facts vs decisions vs principles. Use it to answer 'what does the project actually know?'.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_layer_stats"
+    },
+    {
+      "description": "Explicitly assign a cognitive layer to a memory (user override). Records full provenance: confidence 1.0, reason, and a history entry tagged 'user' that pins the layer against auto-reclassification. Layer names: Working, Episodic, Semantic, Procedural, Decision, Strategic.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          },
+          "layer": {
+            "description": "One of: Working, Episodic, Semantic, Procedural, Decision, Strategic",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why this layer (optional, recorded in history)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "layer"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_layer_set"
+    },
+    {
+      "description": "Re-run the signature classifier on a memory and persist the result (with a history entry tagged 'classifier'). No-op if the layer is user-pinned. Use when content changed and the layer may be stale.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_layer_reclassify"
+    },
+    {
+      "description": "Full provenance trail of a memory's layer: every assignment (layer, confidence, reason, timestamp, by=user|classifier|migration), newest first. Answers 'why is this memory on this layer?'.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Memory UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_layer_history"
+    },
+    {
+      "description": "List conflict groups — semantic contradictions between memories (both sides marked Conflicted). Optional status filter (open|resolved). Use this to find 'what does the project disagree with itself about?' and to surface open conflicts that need a decision.",
+      "inputSchema": {
+        "properties": {
+          "status": {
+            "description": "Optional filter: open | resolved",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_conflict_list"
+    },
+    {
+      "description": "One conflict group by id: topic, member memory ids, status, and the stored resolution (winner, confidence, reasons, by=user|engine, when). Use before resolving to see the full picture of the contradiction.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Conflict group UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_conflict_details"
+    },
+    {
+      "description": "Run the Current Truth Engine over a conflict's members (read-only, nothing persisted). Returns the current winner, normalized confidence (0–1) and human-readable reasons ('+ recent source', '+ user confirmation'). Use to answer 'which memory is right RIGHT NOW?' before deciding anything.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Conflict group UUID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_conflict_truth"
+    },
+    {
+      "description": "Settle a conflict: the winner becomes Current (engine) or UserConfirmed (user), every loser becomes Superseded (linked back to the winner), the group is marked resolved with full resolution provenance. When the engine's confidence is below 0.70 and a human must pick, this records the human verdict.",
+      "inputSchema": {
+        "properties": {
+          "by": {
+            "description": "Who decides: user | engine",
+            "type": "string"
+          },
+          "id": {
+            "description": "Conflict group UUID",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Optional human reason for the resolution",
+            "type": "string"
+          },
+          "winnerId": {
+            "description": "Memory id that wins the conflict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "winnerId",
+          "by"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_conflict_resolve"
+    },
+    {
+      "description": "Full conflict health check: reconcile conflict groups with the current Conflicted records (clustering duplicates into existing open groups), then report every open conflict with the engine's current verdict. One call to know 'is the knowledge pool self-consistent, and if not, what exactly contradicts what?'.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_conflict_check"
+    },
+    {
+      "description": "Nexus Memory Score — health panel of the project's memory: coverage (share of graph entities covered by memories), freshness, consistency, trust, redundancy, conflict rate and context quality (maturity of knowledge across cognitive layers), plus an overall MEMORY HEALTH percentage. Use it to answer 'how healthy is this project's brain?' and to spot where memory needs attention (stale, redundant, conflicted).",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_memory_score"
+    },
+    {
+      "description": "Context Lab — runs one query through multiple context-building strategies (compact / balanced / rich), measures each: memories included, tokens, maturity of cognitive layers, average relevance, build time, and a PREDICTED ACCURACY of the answer per strategy, then recommends the best one. Use it to answer 'how much context is enough for this question?' and to tune the engine's strategy per query type.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "The question to build context for",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_context_lab_run"
+    },
+    {
+      "description": "Context Lab history — returns recent lab experiments (newest first): which strategies won on which queries and the measured accuracy predictions. Use it to see what Nexus learned about choosing a context strategy.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "Max experiments to return (default 10)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_context_lab_history"
+    },
+    {
+      "description": "Context Lab stats — how many experiments were run and which strategy wins most often overall. Use it to check whether Nexus is converging on a preferred context strategy.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_context_lab_stats"
+    },
+    {
+      "description": "Skill Genesis — scans the flight log for REPEATED operations (same category+action performed N+ times) and proposes turning them into skills. Returns the new proposals with generated names, descriptions and occurrence counts. Use it to answer 'what are we doing over and over that should be a skill?' — Nexus noticing its own habits, no other project does this.",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "How many recent flight records to analyze (default 2000)",
+            "type": "integer"
+          },
+          "minOccurrences": {
+            "description": "Minimum repetitions to become a candidate (default 3)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_skill_genesis_scan"
+    },
+    {
+      "description": "Skill Genesis — list the current skill candidates (status: proposed | approved | rejected | all). Use it to review what Nexus discovered as repeatable operations before approving or rejecting them.",
+      "inputSchema": {
+        "properties": {
+          "status": {
+            "description": "Filter by status (default all)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_skill_genesis_candidates"
+    },
+    {
+      "description": "Skill Genesis — approve a candidate: creates a real runnable skill in the skills table (name + generated description; command placeholder, to be filled by the agent) and marks the proposal approved. Pass the proposal id from nexus_skill_genesis_candidates.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Proposal id to approve",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_skill_genesis_approve"
+    },
+    {
+      "description": "Skill Genesis — reject a candidate: marks it rejected (no skill is created) so it is not proposed again. Pass the proposal id.",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "description": "Proposal id to reject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_skill_genesis_reject"
+    },
+    {
+      "description": "Predictive Context — predicts the NEXT question the user is likely to ask, based on the Markov chain of past queries (every build_context call is remembered automatically). Returns ranked predictions with confidence, the predicted intent and the entities to prewarm in the context cache. Use it to answer 'what will they ask next?' and to pre-load context so the next answer comes instantly — no other project anticipates the user's next question like this.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "The current question, to predict what comes next",
+            "type": "string"
+          },
+          "topK": {
+            "description": "How many predictions to return (default 3)",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_predictive_predict"
+    },
+    {
+      "description": "Predictive Context stats — how many queries are in the history (the larger the history, the smarter the next-question predictions).",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_predictive_stats"
+    },
+    {
+      "description": "Knowledge Navigation 2.0 — renders the AI Universe map for an entity: concentric rings (Mission / Relevant / Supporting / Historical) around a concept, built from graph neighbors, linked memories, open conflicts and superseded records. Returns an ASCII-art map that shows what is mission-critical, what supports it, and what has been superseded — navigate any project space like a star chart, nothing else does this.",
+      "inputSchema": {
+        "properties": {
+          "depth": {
+            "description": "Graph traversal depth (default 1)",
+            "type": "integer"
+          },
+          "entityId": {
+            "description": "Entity id to build the map around",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entityId"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_knowledge_map"
+    },
+    {
+      "description": "Memory Rehearsal — canonical consolidation: finds records that state the same fact and collapses them into one Canonical Memory (e.g. 7 notes about JWT auth become one 'Authentication uses JWT access tokens + rotating refresh tokens'), boosting importance/confidence by repetition while keeping full provenance (derived_from). Run it in the sleep cycle — this is how Nexus' memory evolves on its own.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_rehearsal_consolidate"
+    },
+    {
+      "description": "List the canonical memories produced by consolidation — the distilled truths of the project (one record instead of many duplicates). Pass limit (default 25).",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "description": "How many canonical memories to return (default 25)",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "nexus_canonical_memories"
+    },
+    {
+      "description": "Firewall agent permissions — create/update the policy of WHO may see WHAT memory. Pass agent name, optional role, allowed visibility (public,private,restricted; comma-separated, empty=all), allowed layers (working,episodic,semantic,procedural,decision,strategic; empty=all), deny patterns (comma-separated; any match in title/summary/content denies the agent). Example: Claude Code sees architecture/code/decisions but never secrets or personal memory — enterprise-grade access control, not a plain ACL.",
+      "inputSchema": {
+        "properties": {
+          "agent": {
+            "description": "Agent name (e.g. claude-code)",
+            "type": "string"
+          },
+          "allowedLayers": {
+            "description": "Comma-separated layers (empty = all)",
+            "type": "string"
+          },
+          "allowedVisibility": {
+            "description": "Comma-separated: public,private,restricted (empty = all)",
+            "type": "string"
+          },
+          "denyPatterns": {
+            "description": "Comma-separated forbidden substrings (e.g. 'api key,password,паспорт')",
+            "type": "string"
+          },
+          "role": {
+            "description": "Optional role label (assistant/reviewer/automation)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_agent_policy_add"
+    },
+    {
+      "description": "List all agent-level memory permission policies — who may see what memory categories, layers and visibilities, plus deny patterns.",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "nexus_agent_policy_list"
+    },
+    {
+      "description": "Firewall access control — check whether a specific agent may see a specific memory (by memory id) BEFORE it is injected into the LLM context. Returns allow/deny with the reasons (visibility, layer or deny pattern) and the memory sensitivity level (public/project/restricted/private). Use this to enforce 'what should this agent know' — the second ring of the Memory Firewall.",
+      "inputSchema": {
+        "properties": {
+          "agent": {
+            "description": "Agent name (e.g. claude-code)",
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory id to check access for",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "memoryId"
+        ],
+        "type": "object"
+      },
+      "name": "nexus_agent_access_check"
+    }
+  ]
+}
