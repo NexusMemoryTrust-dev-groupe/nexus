@@ -104,6 +104,24 @@ impl ContextStore for SqliteContextRepository {
             .collect()
     }
 
+    async fn list_all_snapshots(&self) -> Result<Vec<ContextSnapshot>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, entity_id, package_json, created_at, label
+                 FROM context_snapshots ORDER BY created_at DESC",
+            )
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_snapshot)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        rows.map(|r| r.map_err(|e| AppError::Internal(e.to_string())))
+            .collect()
+    }
+
     async fn restore_snapshot(&self, snapshot_id: &str) -> Result<ContextPackage> {
         let snapshot = self
             .get_snapshot(snapshot_id)

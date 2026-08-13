@@ -345,6 +345,30 @@ impl GraphStore for SqliteGraphRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(count as u64)
     }
+
+    async fn list_all_entities(&self) -> Result<Vec<Entity>> {
+        let conn = lock(&self.conn)?;
+        let mut stmt = conn
+            .prepare(&format!("SELECT {} FROM graph_entities", ENTITY_COLS))
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_entity)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        rows.map(|r| r.map_err(|e| AppError::Internal(e.to_string())))
+            .collect()
+    }
+
+    async fn list_all_relationships(&self) -> Result<Vec<Relationship>> {
+        let conn = lock(&self.conn)?;
+        let mut stmt = conn
+            .prepare(&format!("SELECT {} FROM graph_relationships", REL_COLS))
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_relationship)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        rows.map(|r| r.map_err(|e| AppError::Internal(e.to_string())))
+            .collect()
+    }
 }
 
 // ── GraphTraversal ───────────────────────────────────────────────────

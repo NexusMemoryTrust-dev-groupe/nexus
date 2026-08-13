@@ -19,6 +19,174 @@ impl SqliteVersioningRepository {
             conn: Mutex::new(conn),
         })
     }
+
+    // ── Project export/import helpers (plan 9.2) ──────────────────────
+    // These read/write whole tables preserving IDs so a project export can be
+    // round-tripped byte-for-byte. They are inherent (not trait) methods: only
+    // the export/import workflows need them.
+
+    /// All automatic commits, chronological (used by project export).
+    pub fn list_all_commits(&self) -> Result<Vec<AutomaticCommit>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, hash, version_number, entity_type, entity_id, change_type,
+                    diff_json, baseline_snapshot_id, is_baseline, created_at, created_by,
+                    triggering_event_type, triggering_event_id, change_reason,
+                    linked_entity_ids_json, linked_decision_ids_json, is_indexed, is_archived, size_bytes
+                 FROM automatic_commits ORDER BY created_at",
+            )
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_commit)
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| crate::core::AppError::Internal(e.to_string()))?);
+        }
+        Ok(out)
+    }
+
+    /// All causality records, chronological (used by project export).
+    pub fn list_all_causality(&self) -> Result<Vec<CausalityRecord>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, entity_id, version_id, reason, affected_entities_json, created_at
+                 FROM causality_records ORDER BY created_at",
+            )
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_causality)
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| crate::core::AppError::Internal(e.to_string()))?);
+        }
+        Ok(out)
+    }
+
+    /// All version edges, chronological (used by project export).
+    pub fn list_all_version_edges(&self) -> Result<Vec<VersionEdge>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, from_version_id, to_version_id, relationship_type, created_at
+                 FROM version_edges ORDER BY created_at",
+            )
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let rows = stmt
+            .query_map([], row_to_version_edge)
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| crate::core::AppError::Internal(e.to_string()))?);
+        }
+        Ok(out)
+    }
+
+    /// Insert a commit with its original ID/hash/timestamps (used by project
+    /// import so the version chain round-trips exactly).
+    pub fn insert_commit(&self, commit: &AutomaticCommit) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let linked_json = serde_json::to_string(&commit.linked_entity_ids)
+            .map_err(|e| crate::core::AppError::Serialization(e.to_string()))?;
+        let linked_decisions_json = serde_json::to_string(&commit.linked_decision_ids)
+            .map_err(|e| crate::core::AppError::Serialization(e.to_string()))?;
+        conn.execute(
+            "INSERT INTO automatic_commits (
+                id, hash, version_number, entity_type, entity_id, change_type,
+                diff_json, baseline_snapshot_id, is_baseline, created_at, created_by,
+                triggering_event_type, triggering_event_id, change_reason,
+                linked_entity_ids_json, linked_decision_ids_json, is_indexed, is_archived, size_bytes
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+            params![
+                commit.id,
+                commit.hash,
+                commit.version_number,
+                commit.entity_type,
+                commit.entity_id.as_str(),
+                change_type_to_string(&commit.change_type),
+                commit.diff,
+                commit.baseline_snapshot_id,
+                commit.is_baseline as i32,
+                commit.created_at.to_rfc3339(),
+                commit.created_by,
+                commit.triggering_event_type,
+                commit.triggering_event_id,
+                commit.change_reason,
+                linked_json,
+                linked_decisions_json,
+                commit.is_indexed as i32,
+                commit.is_archived as i32,
+                commit.size_bytes as i64,
+            ],
+        )
+        .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Insert a causality record with its original ID (used by project import).
+    pub fn insert_causality(&self, record: &CausalityRecord) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let affected_json = serde_json::to_string(&record.affected_entities)
+            .map_err(|e| crate::core::AppError::Serialization(e.to_string()))?;
+        conn.execute(
+            "INSERT INTO causality_records (id, entity_id, version_id, reason, affected_entities_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                record.id,
+                record.entity_id.as_str(),
+                record.version_id,
+                record.reason,
+                affected_json,
+                record.created_at.to_rfc3339(),
+            ],
+        )
+        .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Insert a version edge with its original ID (used by project import).
+    pub fn insert_version_edge(&self, edge: &VersionEdge) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        let edge_type_str = match edge.relationship_type {
+            VersionEdgeType::EvolvedTo => "EvolvedTo",
+            VersionEdgeType::BranchedTo => "BranchedTo",
+            VersionEdgeType::MergedWith => "MergedWith",
+        };
+        conn.execute(
+            "INSERT INTO version_edges (id, from_version_id, to_version_id, relationship_type, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                edge.id,
+                edge.from_version_id,
+                edge.to_version_id,
+                edge_type_str,
+                edge.created_at.to_rfc3339(),
+            ],
+        )
+        .map_err(|e| crate::core::AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }
 
 fn row_to_commit(row: &rusqlite::Row) -> rusqlite::Result<AutomaticCommit> {
@@ -85,6 +253,49 @@ fn change_type_to_string(ct: &ChangeType) -> String {
         ChangeType::Deleted => "Deleted",
     }
     .to_string()
+}
+
+fn row_to_causality(row: &rusqlite::Row) -> rusqlite::Result<CausalityRecord> {
+    let id: String = row.get(0)?;
+    let entity_id: String = row.get(1)?;
+    let version_id: String = row.get(2)?;
+    let reason: String = row.get(3)?;
+    let affected_json: String = row.get(4)?;
+    let created_at: String = row.get(5)?;
+    let affected: Vec<String> = serde_json::from_str(&affected_json).unwrap_or_default();
+    Ok(CausalityRecord {
+        id,
+        entity_id: EntityId::parse(&entity_id)
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        version_id,
+        reason,
+        affected_entities: affected,
+        created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+    })
+}
+
+fn row_to_version_edge(row: &rusqlite::Row) -> rusqlite::Result<VersionEdge> {
+    let id: String = row.get(0)?;
+    let from: String = row.get(1)?;
+    let to: String = row.get(2)?;
+    let rel: String = row.get(3)?;
+    let created_at: String = row.get(4)?;
+    let rel_type = match rel.as_str() {
+        "BranchedTo" => VersionEdgeType::BranchedTo,
+        "MergedWith" => VersionEdgeType::MergedWith,
+        _ => VersionEdgeType::EvolvedTo,
+    };
+    Ok(VersionEdge {
+        id,
+        from_version_id: from,
+        to_version_id: to,
+        relationship_type: rel_type,
+        created_at: chrono::DateTime::parse_from_rfc3339(&created_at)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+    })
 }
 
 #[async_trait]
@@ -803,5 +1014,386 @@ mod tests {
         let r = repo();
         let dependents = r.get_dependents("nonexistent").await.unwrap();
         assert!(dependents.is_empty());
+    }
+
+    // ── Export/import helpers (plan 9.2) ──
+
+    #[tokio::test]
+    async fn insert_commit_roundtrip_preserves_all_change_types() {
+        use crate::core::versioning::automatic_commit::ChangeType as CT;
+
+        let src = repo();
+        let mut p1 = sample_params();
+        p1.change_type = CT::Created;
+        let c1 = src.create_automatic_commit(p1).await.unwrap();
+        let mut p2 = sample_params();
+        p2.change_type = CT::Modified;
+        let c2 = src.create_automatic_commit(p2).await.unwrap();
+        let mut p3 = sample_params();
+        p3.change_type = CT::Deleted;
+        let c3 = src.create_automatic_commit(p3).await.unwrap();
+
+        let dst = repo();
+        dst.insert_commit(&c1).unwrap();
+        dst.insert_commit(&c2).unwrap();
+        dst.insert_commit(&c3).unwrap();
+
+        let all = dst.list_all_commits().unwrap();
+        assert_eq!(all.len(), 3);
+        let types: Vec<ChangeType> = all.iter().map(|c| c.change_type.clone()).collect();
+        assert!(types.contains(&CT::Created));
+        assert!(types.contains(&CT::Deleted));
+        assert!(types.contains(&CT::Modified));
+    }
+
+    #[tokio::test]
+    async fn unknown_change_type_string_maps_to_modified() {
+        let r = repo();
+        let c = r.create_automatic_commit(sample_params()).await.unwrap();
+        {
+            let conn = r.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE automatic_commits SET change_type = 'Renamed' WHERE id = ?1",
+                [&c.id],
+            )
+            .unwrap();
+        }
+        let all = r.list_all_commits().unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].change_type, ChangeType::Modified);
+    }
+
+    #[tokio::test]
+    async fn insert_version_edge_roundtrip_all_types() {
+        use crate::core::versioning::version_edge::{VersionEdge as VE, VersionEdgeType as VET};
+
+        let src = repo();
+        let c1 = src.create_automatic_commit(sample_params()).await.unwrap();
+        let mut p2 = sample_params();
+        p2.entity_id = c1.entity_id.clone();
+        let c2 = src.create_automatic_commit(p2).await.unwrap();
+        let mut p3 = sample_params();
+        p3.entity_id = c1.entity_id.clone();
+        let c3 = src.create_automatic_commit(p3).await.unwrap();
+
+        let dst = repo();
+        for (id, from, to, ty) in [
+            ("e1", &c1.id, &c2.id, VET::EvolvedTo),
+            ("e2", &c1.id, &c3.id, VET::BranchedTo),
+            ("e3", &c2.id, &c3.id, VET::MergedWith),
+        ] {
+            dst.insert_version_edge(&VE {
+                id: id.to_string(),
+                from_version_id: from.clone(),
+                to_version_id: to.clone(),
+                relationship_type: ty,
+                created_at: chrono::Utc::now(),
+            })
+            .unwrap();
+        }
+
+        let edges = dst.list_all_version_edges().unwrap();
+        assert_eq!(edges.len(), 3);
+        let rels: Vec<VET> = edges.iter().map(|e| e.relationship_type.clone()).collect();
+        assert!(rels.contains(&VET::BranchedTo));
+        assert!(rels.contains(&VET::MergedWith));
+        assert!(rels.contains(&VET::EvolvedTo));
+    }
+
+    #[tokio::test]
+    async fn insert_causality_roundtrip() {
+        use crate::core::versioning::causality_record::CausalityRecord;
+
+        let src = repo();
+        let eid = EntityId::new();
+        let affected = vec!["e1".to_string(), "e2".to_string()];
+        src.insert_causality(&CausalityRecord {
+            id: "cr1".to_string(),
+            entity_id: eid.clone(),
+            version_id: "v1".to_string(),
+            reason: "decision".to_string(),
+            affected_entities: affected.clone(),
+            created_at: chrono::Utc::now(),
+        })
+        .unwrap();
+
+        let recs = src.list_all_causality().unwrap();
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].entity_id, eid);
+        assert_eq!(recs[0].affected_entities, affected);
+    }
+
+    // ── Error paths: poisoned mutex (every lock() fails) ──
+
+    fn poisoned_repo() -> SqliteVersioningRepository {
+        let r = repo();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = r.conn.lock().expect("lock before poisoning");
+            panic!("poison the mutex");
+        }));
+        assert!(outcome.is_err(), "poisoning must unwind");
+        r
+    }
+
+    #[tokio::test]
+    async fn all_methods_error_when_mutex_poisoned() {
+        use crate::core::versioning::causality_chain::CausalityChain;
+        use crate::core::versioning::commit_service::CommitService;
+        use crate::core::versioning::snapshot_service::SnapshotService;
+        use crate::core::versioning::version_edge::VersionEdgeType;
+        use crate::core::versioning::version_graph::VersionGraph;
+
+        let r = poisoned_repo();
+        let eid = EntityId::new();
+
+        assert!(r.create_automatic_commit(sample_params()).await.is_err());
+        assert!(r.get_commit("x").await.is_err());
+        assert!(r.get_entity_history("MemoryRecord", &eid).await.is_err());
+        assert!(
+            CommitService::get_baseline(&r, "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(
+            SnapshotService::capture(&r, "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(
+            SnapshotService::store(&r, b"x", "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(SnapshotService::get(&r, "x").await.is_err());
+        assert!(
+            SnapshotService::get_baseline(&r, "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(CausalityChain::trace_causes(&r, &eid, "v1").await.is_err());
+        assert!(CausalityChain::find_effects(&r, "x").await.is_err());
+        assert!(
+            CausalityChain::record_causality(&r, &eid, "v1", "r", &[])
+                .await
+                .is_err()
+        );
+        assert!(VersionGraph::get_lineage(&r, &eid).await.is_err());
+        assert!(VersionGraph::get_dependents(&r, "x").await.is_err());
+        assert!(
+            VersionGraph::add_edge(&r, "a", "b", VersionEdgeType::EvolvedTo)
+                .await
+                .is_err()
+        );
+    }
+
+    // ── Error paths: repository on a connection without the schema ──
+
+    fn bare_repo() -> SqliteVersioningRepository {
+        SqliteVersioningRepository::new(Connection::open_in_memory().unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn all_methods_error_without_schema() {
+        use crate::core::versioning::causality_chain::CausalityChain;
+        use crate::core::versioning::commit_service::CommitService;
+        use crate::core::versioning::snapshot_service::SnapshotService;
+        use crate::core::versioning::version_edge::VersionEdgeType;
+        use crate::core::versioning::version_graph::VersionGraph;
+
+        let r = bare_repo();
+        let eid = EntityId::new();
+
+        assert!(r.create_automatic_commit(sample_params()).await.is_err());
+        assert!(r.get_commit("x").await.is_err());
+        assert!(r.get_entity_history("MemoryRecord", &eid).await.is_err());
+        assert!(
+            CommitService::get_baseline(&r, "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(
+            SnapshotService::store(&r, b"x", "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(SnapshotService::get(&r, "x").await.is_err());
+        assert!(
+            SnapshotService::get_baseline(&r, "MemoryRecord", &eid)
+                .await
+                .is_err()
+        );
+        assert!(CausalityChain::trace_causes(&r, &eid, "v1").await.is_err());
+        assert!(CausalityChain::find_effects(&r, "x").await.is_err());
+        assert!(
+            CausalityChain::record_causality(&r, &eid, "v1", "r", &[])
+                .await
+                .is_err()
+        );
+        assert!(VersionGraph::get_lineage(&r, &eid).await.is_err());
+        assert!(VersionGraph::get_dependents(&r, "x").await.is_err());
+        assert!(
+            VersionGraph::add_edge(&r, "a", "b", VersionEdgeType::EvolvedTo)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn create_commit_insert_failure() {
+        // SELECT (next version number) succeeds on the minimal table, but the
+        // 19-column INSERT fails: the table has no `hash` column.
+        let r = SqliteVersioningRepository::new(Connection::open_in_memory().unwrap()).unwrap();
+        {
+            let conn = r.conn.lock().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE automatic_commits (id TEXT, version_number INTEGER, entity_id TEXT);",
+            )
+            .unwrap();
+        }
+        assert!(r.create_automatic_commit(sample_params()).await.is_err());
+    }
+
+    // ── Error paths: malformed rows in an otherwise valid schema ──
+
+    fn insert_malformed_commit(conn: &Connection, id: &str, entity_id: &str) {
+        conn.execute(
+            "INSERT INTO automatic_commits (
+                id, hash, version_number, entity_type, entity_id, change_type,
+                diff_json, baseline_snapshot_id, is_baseline, created_at, created_by,
+                triggering_event_type, triggering_event_id, change_reason,
+                linked_entity_ids_json, linked_decision_ids_json, is_indexed, is_archived, size_bytes
+            ) VALUES (?1, 'h', 1, 'MemoryRecord', ?2, 'Created', NULL, NULL, 0, 'not-a-date', 'sys',
+                '', '', NULL, '[]', '[]', 0, 0, 0)",
+            [id, entity_id],
+        )
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn history_errors_on_malformed_row() {
+        let r = repo();
+        let eid = EntityId::new();
+        {
+            let conn = r.conn.lock().unwrap();
+            insert_malformed_commit(&conn, "bad-commit-1", eid.as_str());
+        }
+        // Bad created_at makes row_to_commit fail while iterating rows.
+        let err = r
+            .get_entity_history("MemoryRecord", &eid)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn get_commit_errors_on_malformed_row() {
+        let r = repo();
+        {
+            let conn = r.conn.lock().unwrap();
+            insert_malformed_commit(&conn, "bad-get", "eid-get");
+        }
+        // row_to_commit fails inside query_row's mapper -> optional() error path.
+        let err = r.get_commit("bad-get").await.unwrap_err();
+        assert!(matches!(err, AppError::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn get_baseline_errors_on_malformed_row() {
+        use crate::core::versioning::commit_service::CommitService;
+
+        let r = repo();
+        let eid = EntityId::new();
+        {
+            let conn = r.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO automatic_commits (
+                    id, hash, version_number, entity_type, entity_id, change_type,
+                    diff_json, baseline_snapshot_id, is_baseline, created_at, created_by,
+                    triggering_event_type, triggering_event_id, change_reason,
+                    linked_entity_ids_json, linked_decision_ids_json, is_indexed, is_archived, size_bytes
+                ) VALUES ('bad-base', 'h', 1, 'MemoryRecord', ?1, 'Created', NULL, NULL, 1, 'not-a-date', 'sys',
+                    '', '', NULL, '[]', '[]', 0, 0, 0)",
+                [eid.as_str()],
+            )
+            .unwrap();
+        }
+        // is_baseline = 1 so get_baseline selects it; the malformed created_at
+        // fails inside query_row's mapper -> optional() error path.
+        let err = CommitService::get_baseline(&r, "MemoryRecord", &eid)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::Internal(_)));
+    }
+
+    #[tokio::test]
+    async fn trace_causes_tolerates_bad_timestamp() {
+        use crate::core::versioning::causality_chain::CausalityChain;
+
+        let r = repo();
+        let eid = EntityId::new();
+        {
+            let conn = r.conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO causality_records
+                     (id, entity_id, version_id, reason, affected_entities_json, created_at)
+                 VALUES ('c1', ?1, 'v1', 'r', '[]', 'not-a-date')",
+                [eid.as_str()],
+            )
+            .unwrap();
+        }
+        let causes = CausalityChain::trace_causes(&r, &eid, "v1").await.unwrap();
+        assert_eq!(causes.len(), 1); // created_at fell back to now
+    }
+
+    #[tokio::test]
+    async fn find_effects_errors_on_malformed_row() {
+        use crate::core::versioning::causality_chain::CausalityChain;
+
+        let r = repo();
+        {
+            let conn = r.conn.lock().unwrap();
+            // Malformed entity_id and created_at; the row is matched via the
+            // affected_entities LIKE pattern, so both parses run and fail.
+            conn.execute(
+                "INSERT INTO causality_records
+                     (id, entity_id, version_id, reason, affected_entities_json, created_at)
+                 VALUES ('c2', 'not-an-entity-id', 'v9', 'r', '[\"target-x\"]', 'not-a-date')",
+                [],
+            )
+            .unwrap();
+        }
+        assert!(CausalityChain::find_effects(&r, "target-x").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn lineage_errors_on_malformed_row() {
+        use crate::core::versioning::version_graph::VersionGraph;
+
+        let r = repo();
+        let eid = EntityId::new();
+        {
+            let conn = r.conn.lock().unwrap();
+            insert_malformed_commit(&conn, "bad-commit-2", eid.as_str());
+        }
+        assert!(VersionGraph::get_lineage(&r, &eid).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn dependents_error_on_malformed_row() {
+        use crate::core::versioning::version_graph::VersionGraph;
+
+        let r = repo();
+        {
+            let conn = r.conn.lock().unwrap();
+            insert_malformed_commit(&conn, "bad-commit-3", "eid-3");
+            conn.execute(
+                "INSERT INTO version_edges
+                     (id, from_version_id, to_version_id, relationship_type, created_at)
+                 VALUES ('ve1', 'from-v', 'bad-commit-3', 'EvolvedTo', '2026-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+        assert!(VersionGraph::get_dependents(&r, "from-v").await.is_err());
     }
 }

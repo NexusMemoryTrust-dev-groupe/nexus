@@ -86,6 +86,20 @@ impl AuditRepository for SqliteAuditRepository {
         }
         Ok(events)
     }
+
+    async fn list_all_events(&self) -> Result<Vec<AuditEvent>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, memory_id, event_type, actor, detail, related_memory_id, created_at
+             FROM audit_events ORDER BY created_at",
+        )?;
+        let rows = stmt.query_map([], row_to_event)?;
+        let mut events = Vec::new();
+        for row in rows {
+            events.push(row?);
+        }
+        Ok(events)
+    }
 }
 
 #[cfg(test)]
@@ -164,5 +178,114 @@ mod tests {
         let repo = SqliteAuditRepository::new_in_memory().unwrap();
         let events = repo.list_events(&EntityId::new()).await.unwrap();
         assert!(events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn audit_is_append_only_updates_forbidden() {
+        // Plan 4.5: the journal is immutable. After an event is inserted,
+        // UPDATE must fail — otherwise the trail could be rewritten.
+        let repo = SqliteAuditRepository::new_in_memory().unwrap();
+        let memory_id = EntityId::new();
+        repo.add_event(&AuditEvent::new(
+            memory_id.clone(),
+            AuditEventType::Note,
+            "alice".into(),
+            Some("original".into()),
+            None,
+        ))
+        .await
+        .unwrap();
+
+        let conn = repo.conn.lock().unwrap();
+        let err = conn.execute(
+            "UPDATE audit_events SET detail = 'tampered' WHERE memory_id = ?1",
+            rusqlite::params![memory_id.as_str()],
+        );
+        assert!(
+            err.is_err(),
+            "UPDATE on audit_events must be rejected by the append-only trigger"
+        );
+        let msg = err.unwrap_err().to_string();
+        assert!(
+            msg.contains("append-only"),
+            "trigger must say append-only, got: {msg}"
+        );
+
+        // The original row is untouched.
+        let original: Option<String> = conn
+            .query_row(
+                "SELECT detail FROM audit_events WHERE memory_id = ?1",
+                rusqlite::params![memory_id.as_str()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(original.as_deref(), Some("original"));
+    }
+
+    #[tokio::test]
+    async fn audit_is_append_only_deletes_forbidden() {
+        let repo = SqliteAuditRepository::new_in_memory().unwrap();
+        let memory_id = EntityId::new();
+        repo.add_event(&AuditEvent::new(
+            memory_id.clone(),
+            AuditEventType::Created,
+            "alice".into(),
+            None,
+            None,
+        ))
+        .await
+        .unwrap();
+
+        let conn = repo.conn.lock().unwrap();
+        let err = conn.execute(
+            "DELETE FROM audit_events WHERE memory_id = ?1",
+            rusqlite::params![memory_id.as_str()],
+        );
+        assert!(
+            err.is_err(),
+            "DELETE on audit_events must be rejected by the append-only trigger"
+        );
+        assert!(err.unwrap_err().to_string().contains("append-only"));
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM audit_events WHERE memory_id = ?1",
+                rusqlite::params![memory_id.as_str()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "the event must survive the failed delete");
+    }
+
+    #[tokio::test]
+    async fn permission_and_firewall_events_roundtrip() {
+        // Plan 4.5: full event coverage — permission changes and firewall
+        // denials are auditable events like any decision.
+        let repo = SqliteAuditRepository::new_in_memory().unwrap();
+        let memory_id = EntityId::new();
+
+        let perm = AuditEvent::new(
+            memory_id.clone(),
+            AuditEventType::PermissionChanged,
+            "admin".into(),
+            Some(r#"{"agent_id":"claude-code","change":"revoke:secrets"}"#.into()),
+            None,
+        );
+        let fw = AuditEvent::new(
+            memory_id.clone(),
+            AuditEventType::FirewallDenied,
+            "firewall".into(),
+            Some(r#"{"pattern":"password","memory_id":"m1"}"#.into()),
+            None,
+        );
+        repo.add_event(&perm).await.unwrap();
+        repo.add_event(&fw).await.unwrap();
+
+        let events = repo.list_events(&memory_id).await.unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].event_type, AuditEventType::PermissionChanged);
+        assert_eq!(events[1].event_type, AuditEventType::FirewallDenied);
+        assert_eq!(events[0].actor, "admin");
+        assert!(events[1].detail.as_deref().unwrap().contains("password"));
     }
 }

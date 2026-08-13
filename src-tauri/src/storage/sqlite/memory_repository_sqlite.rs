@@ -6,8 +6,8 @@ use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::memory::types::{
-    MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState, MemoryStatus,
-    MemoryVisibility,
+    LayerHistoryEntry, MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState,
+    MemoryStatus, MemoryVisibility,
 };
 use crate::core::result::{AppError, Result};
 use crate::storage::sqlite::schema;
@@ -78,11 +78,24 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
     let feedback_json: String = row
         .get::<_, Option<String>>(28)?
         .unwrap_or_else(|| "{\"useful\":0,\"irrelevant\":0,\"wrong\":0}".to_string());
+    // V18 cognitive layer provenance (columns 29–32).
+    let layer_confidence: f64 = row.get::<_, Option<f64>>(29)?.unwrap_or(0.5);
+    let layer_reason: String = row.get::<_, Option<String>>(30)?.unwrap_or_default();
+    let layer_updated_at: Option<String> = row.get(31)?;
+    let layer_history_json: String = row
+        .get::<_, Option<String>>(32)?
+        .unwrap_or_else(|| "[]".to_string());
+    // V20 memory rehearsal (columns 33–35).
+    let last_rehearsed_at: Option<String> = row.get(33)?;
+    let rehearsal_count: u32 = row.get::<_, i64>(34)? as u32;
+    let next_rehearsal_at: Option<String> = row.get(35)?;
 
     let linked_entity_ids: Vec<EntityId> = serde_json::from_str(&linked_json).unwrap_or_default();
     let attached_files: Vec<crate::core::memory::memory_record::AttachedFile> =
         serde_json::from_str(&attached_files_json).unwrap_or_default();
     let derived_from: Vec<String> = serde_json::from_str(&derived_from_json).unwrap_or_default();
+    let layer_history: Vec<LayerHistoryEntry> =
+        serde_json::from_str(&layer_history_json).unwrap_or_default();
 
     Ok(MemoryRecord {
         id: EntityId::parse(&id_str)
@@ -126,6 +139,19 @@ fn row_to_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
             .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
             .map(|dt| dt.with_timezone(&chrono::Utc)),
         feedback: serde_json::from_str(&feedback_json).unwrap_or_default(),
+        layer_confidence,
+        layer_reason,
+        layer_updated_at: layer_updated_at
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
+        layer_history,
+        last_rehearsed_at: last_rehearsed_at
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
+        rehearsal_count,
+        next_rehearsal_at: next_rehearsal_at
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc)),
     })
 }
 
@@ -214,23 +240,11 @@ fn parse_status(s: &str) -> MemoryStatus {
 }
 
 fn layer_to_string(l: &MemoryLayer) -> String {
-    match l {
-        MemoryLayer::Raw => "Raw",
-        MemoryLayer::Knowledge => "Knowledge",
-        MemoryLayer::Decision => "Decision",
-        MemoryLayer::Wisdom => "Wisdom",
-    }
-    .to_string()
+    l.as_str().to_string()
 }
 
 fn parse_layer(s: &str) -> MemoryLayer {
-    match s {
-        "Raw" => MemoryLayer::Raw,
-        "Knowledge" => MemoryLayer::Knowledge,
-        "Decision" => MemoryLayer::Decision,
-        "Wisdom" => MemoryLayer::Wisdom,
-        _ => MemoryLayer::Raw,
-    }
+    MemoryLayer::parse(s)
 }
 
 #[async_trait]
@@ -249,6 +263,8 @@ impl MemoryRepository for SqliteMemoryRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let feedback_json = serde_json::to_string(&record.feedback)
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let layer_history_json = serde_json::to_string(&record.layer_history)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         conn.execute(
             "INSERT INTO memory_records (
@@ -258,8 +274,10 @@ impl MemoryRepository for SqliteMemoryRepository {
                 linked_entity_ids_json, latest_version_id, status, layer,
                 attached_files_json, derived_from_json, reason, version, updated_by,
                 memory_state, supersedes_id, superseded_by_id,
-                confirmed_at, confirmed_by, expires_at, feedback_json
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29)",
+                confirmed_at, confirmed_by, expires_at, feedback_json,
+                layer_confidence, layer_reason, layer_updated_at, layer_history_json,
+                last_rehearsed_at, rehearsal_count, next_rehearsal_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
             params![
                 id,
                 record.title,
@@ -290,6 +308,13 @@ impl MemoryRepository for SqliteMemoryRepository {
                 record.confirmed_by,
                 record.expires_at.map(|dt| dt.to_rfc3339()),
                 feedback_json,
+                record.layer_confidence,
+                record.layer_reason,
+                record.layer_updated_at.map(|dt| dt.to_rfc3339()),
+                layer_history_json,
+                record.last_rehearsed_at.map(|dt| dt.to_rfc3339()),
+                record.rehearsal_count as i64,
+                record.next_rehearsal_at.map(|dt| dt.to_rfc3339()),
             ],
         )
         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -310,7 +335,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     linked_entity_ids_json, latest_version_id, status, layer,
                     attached_files_json, derived_from_json, reason, version, updated_by,
                     memory_state, supersedes_id, superseded_by_id,
-                    confirmed_at, confirmed_by, expires_at, feedback_json
+                    confirmed_at, confirmed_by, expires_at, feedback_json,
+                    layer_confidence, layer_reason, layer_updated_at, layer_history_json,
+                    last_rehearsed_at, rehearsal_count, next_rehearsal_at
                  FROM memory_records WHERE id = ?1",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -336,7 +363,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     linked_entity_ids_json, latest_version_id, status, layer,
                     attached_files_json, derived_from_json, reason, version, updated_by,
                     memory_state, supersedes_id, superseded_by_id,
-                    confirmed_at, confirmed_by, expires_at, feedback_json
+                    confirmed_at, confirmed_by, expires_at, feedback_json,
+                    layer_confidence, layer_reason, layer_updated_at, layer_history_json,
+                    last_rehearsed_at, rehearsal_count, next_rehearsal_at
                  FROM memory_records WHERE project_space_id = ?1",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -383,7 +412,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     mr.linked_entity_ids_json, mr.latest_version_id, mr.status, mr.layer,
                     mr.attached_files_json, mr.derived_from_json, mr.reason, mr.version, mr.updated_by,
                     mr.memory_state, mr.supersedes_id, mr.superseded_by_id,
-                    mr.confirmed_at, mr.confirmed_by, mr.expires_at, mr.feedback_json
+                    mr.confirmed_at, mr.confirmed_by, mr.expires_at, mr.feedback_json,
+                    mr.layer_confidence, mr.layer_reason, mr.layer_updated_at, mr.layer_history_json,
+                    mr.last_rehearsed_at, mr.rehearsal_count, mr.next_rehearsal_at
                  FROM memory_fts fts
                  JOIN memory_records mr ON fts.rowid = mr.rowid
                  WHERE memory_fts MATCH ?1
@@ -415,6 +446,8 @@ impl MemoryRepository for SqliteMemoryRepository {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let feedback_json = serde_json::to_string(&record.feedback)
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let layer_history_json = serde_json::to_string(&record.layer_history)
+            .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Persists the versioning columns too — without them `touch()` bumps
         // `version` in memory but the DB keeps the stale value forever.
@@ -428,7 +461,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     attached_files_json = ?18, derived_from_json = ?19, reason = ?20,
                     version = ?21, updated_by = ?22,
                     memory_state = ?23, supersedes_id = ?24, superseded_by_id = ?25,
-                    confirmed_at = ?26, confirmed_by = ?27, expires_at = ?28, feedback_json = ?29
+                    confirmed_at = ?26, confirmed_by = ?27, expires_at = ?28, feedback_json = ?29,
+                    layer_confidence = ?30, layer_reason = ?31, layer_updated_at = ?32, layer_history_json = ?33,
+                    last_rehearsed_at = ?34, rehearsal_count = ?35, next_rehearsal_at = ?36
                  WHERE id = ?1",
                 params![
                     record.id.as_str(),
@@ -460,6 +495,13 @@ impl MemoryRepository for SqliteMemoryRepository {
                     record.confirmed_by,
                     record.expires_at.map(|dt| dt.to_rfc3339()),
                     feedback_json,
+                    record.layer_confidence,
+                    record.layer_reason,
+                    record.layer_updated_at.map(|dt| dt.to_rfc3339()),
+                    layer_history_json,
+                    record.last_rehearsed_at.map(|dt| dt.to_rfc3339()),
+                    record.rehearsal_count as i64,
+                    record.next_rehearsal_at.map(|dt| dt.to_rfc3339()),
                 ],
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -507,7 +549,9 @@ impl MemoryRepository for SqliteMemoryRepository {
                     linked_entity_ids_json, latest_version_id, status, layer,
                     attached_files_json, derived_from_json, reason, version, updated_by,
                     memory_state, supersedes_id, superseded_by_id,
-                    confirmed_at, confirmed_by, expires_at, feedback_json
+                    confirmed_at, confirmed_by, expires_at, feedback_json,
+                    layer_confidence, layer_reason, layer_updated_at, layer_history_json,
+                    last_rehearsed_at, rehearsal_count, next_rehearsal_at
                  FROM memory_records ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
             )
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -742,7 +786,7 @@ mod tests {
         record.visibility = MemoryVisibility::Public;
         record.capture_mode = MemoryCaptureMode::Assisted;
         record.status = MemoryStatus::Active;
-        record.layer = MemoryLayer::Knowledge;
+        record.layer = MemoryLayer::Procedural;
         r.save(&record).await.unwrap();
 
         let fetched = r.get_by_id(&record.id).await.unwrap().unwrap();
@@ -752,6 +796,109 @@ mod tests {
         assert_eq!(fetched.visibility, MemoryVisibility::Public);
         assert_eq!(fetched.capture_mode, MemoryCaptureMode::Assisted);
         assert_eq!(fetched.status, MemoryStatus::Active);
-        assert_eq!(fetched.layer, MemoryLayer::Knowledge);
+        assert_eq!(fetched.layer, MemoryLayer::Procedural);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_layer_provenance() {
+        let r = repo();
+        let mut record = sample_record();
+        record.layer = MemoryLayer::Decision;
+        record.layer_confidence = 0.92;
+        record.layer_reason = "mentioned a decision and its rationale".to_string();
+        record.layer_updated_at = Some(chrono::Utc::now());
+        record.layer_history = vec![
+            LayerHistoryEntry {
+                layer: MemoryLayer::Decision,
+                confidence: 0.92,
+                reason: "mentioned a decision and its rationale".to_string(),
+                at: chrono::Utc::now().to_rfc3339(),
+                by: crate::core::memory::types::LayerAssignment::Classifier,
+            },
+            LayerHistoryEntry {
+                layer: MemoryLayer::Episodic,
+                confidence: 0.5,
+                reason: "initial capture".to_string(),
+                at: chrono::Utc::now().to_rfc3339(),
+                by: crate::core::memory::types::LayerAssignment::Unknown,
+            },
+        ];
+        r.save(&record).await.unwrap();
+
+        let fetched = r.get_by_id(&record.id).await.unwrap().unwrap();
+        assert_eq!(fetched.layer, MemoryLayer::Decision);
+        assert!((fetched.layer_confidence - 0.92).abs() < f64::EPSILON);
+        assert_eq!(
+            fetched.layer_reason,
+            "mentioned a decision and its rationale"
+        );
+        assert!(fetched.layer_updated_at.is_some());
+        assert_eq!(fetched.layer_history.len(), 2);
+        assert_eq!(fetched.layer_history[0].layer, MemoryLayer::Decision);
+        assert_eq!(
+            fetched.layer_history[1].by,
+            crate::core::memory::types::LayerAssignment::Unknown
+        );
+
+        // UPDATE path must persist provenance too.
+        let mut edited = fetched.clone();
+        edited.layer = MemoryLayer::Strategic;
+        edited.layer_confidence = 1.0;
+        edited.layer_reason = "user moved to Strategic".to_string();
+        r.update(&edited).await.unwrap();
+        let refetched = r.get_by_id(&record.id).await.unwrap().unwrap();
+        assert_eq!(refetched.layer, MemoryLayer::Strategic);
+        assert!((refetched.layer_confidence - 1.0).abs() < f64::EPSILON);
+        assert_eq!(refetched.layer_reason, "user moved to Strategic");
+    }
+
+    #[tokio::test]
+    async fn list_includes_layer_provenance() {
+        let r = repo();
+        let mut record = sample_record();
+        record.layer = MemoryLayer::Working;
+        record.layer_confidence = 0.88;
+        record.layer_reason = "mentions an active task".to_string();
+        r.save(&record).await.unwrap();
+
+        let listed = r.list(10, 0).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].layer, MemoryLayer::Working);
+        assert!((listed[0].layer_confidence - 0.88).abs() < f64::EPSILON);
+    }
+
+    /// Regression guard for System 3: rehearsal scheduling fields must survive
+    /// both INSERT and UPDATE round-trips through SQLite.
+    #[tokio::test]
+    async fn roundtrip_rehearsal_fields() {
+        let r = repo();
+        let mut record = sample_record();
+        record.last_rehearsed_at = Some(chrono::Utc::now());
+        record.rehearsal_count = 3;
+        record.next_rehearsal_at = Some(chrono::Utc::now() + chrono::Duration::days(12));
+        r.save(&record).await.unwrap();
+
+        let fetched = r.get_by_id(&record.id).await.unwrap().unwrap();
+        assert!(fetched.last_rehearsed_at.is_some());
+        assert_eq!(fetched.rehearsal_count, 3);
+        assert!(fetched.next_rehearsal_at.is_some());
+
+        // UPDATE path must persist rehearsal fields too.
+        let mut edited = fetched.clone();
+        edited.rehearsal_count = 4;
+        edited.last_rehearsed_at = Some(chrono::Utc::now());
+        edited.next_rehearsal_at = Some(chrono::Utc::now() + chrono::Duration::days(24));
+        r.update(&edited).await.unwrap();
+
+        let refetched = r.get_by_id(&record.id).await.unwrap().unwrap();
+        assert_eq!(refetched.rehearsal_count, 4);
+        assert!(refetched.last_rehearsed_at.is_some());
+        assert!(refetched.next_rehearsal_at.is_some());
+
+        // list() must surface rehearsal fields as well.
+        let listed = r.list(10, 0).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].rehearsal_count, 4);
+        assert!(listed[0].next_rehearsal_at.is_some());
     }
 }
