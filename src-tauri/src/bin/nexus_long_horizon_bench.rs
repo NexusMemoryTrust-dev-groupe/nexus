@@ -18,11 +18,16 @@
 //!   insert ≥ 300 rec/s, search ≤ 2000 ms, list(100) ≤ 2000 ms,
 //!   every supersession pair consistent, conflict pairs detected,
 //!   rehearsal cycle completes and records its timestamp.
-//!   The timing bounds are *catastrophe detectors*, not expected numbers:
+//! The timing bounds are *catastrophe detectors*, not expected numbers:
 //!   the shared windows-latest runner measures ~940 rec/s for batched inserts
 //!   vs ~5 300 on a dev machine (~5.7x), so dev-tuned gates would flag the CI
 //!   hardware. Real regressions are caught by the relative check in
 //!   scripts/perf-gate.ps1 against benchmarks/baseline.json.
+//!
+//! Like nexus_load_bench, growth inserts go through `save_many` in batches:
+//! per-record WAL COMMITs crawl on CI runners (antivirus/Defender on every
+//! write measured < 185 rec/s), batching pays the cost once per chunk while
+//! every row still travels the real repository code path.
 //!
 //! Run:  cargo run --release --bin nexus_long_horizon_bench
 //! Exit: 0 = GATE PASS, 1 = FAIL.
@@ -137,13 +142,30 @@ async fn main() {
     let mut written = 0usize;
     for scale in CORPUS_SCALES {
         // ── grow the pool up to `scale` (incremental, like real use) ──
+        // Insert in transaction batches (save_many): the per-row WAL COMMIT
+        // cost dominates on CI runners with antivirus/Defender on every write
+        // (see nexus_load_bench - per-record inserts measured < 185 rec/s on
+        // the shared runner vs ~940 rec/s batched). Records still go through
+        // the REAL repository code path.
+        const INSERT_BATCH: usize = 250;
         let insert_start = Instant::now();
         let mut supersede_tasks: Vec<(MemoryRecord, MemoryRecord)> = Vec::new();
+        let mut batch = Vec::with_capacity(INSERT_BATCH);
         for i in written..scale {
             // Agents alternate: two writers (plan 4.6 passport flow).
             let author = if i % 2 == 0 { "claude-code" } else { "copilot" };
-            let rec = make_record(i, author);
-            let _ = repo.save(&rec).await.expect("save must succeed");
+            batch.push(make_record(i, author));
+            if batch.len() == INSERT_BATCH {
+                repo.save_many(&batch)
+                    .await
+                    .expect("batch save must succeed");
+                batch.clear();
+            }
+        }
+        if !batch.is_empty() {
+            repo.save_many(&batch)
+                .await
+                .expect("final batch save must succeed");
         }
         let insert_elapsed = insert_start.elapsed();
         let inserted_now = scale - written;
