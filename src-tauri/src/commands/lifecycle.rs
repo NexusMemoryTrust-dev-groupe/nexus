@@ -1,16 +1,45 @@
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::core::audit::{AuditEvent, AuditEventType, AuditRepository};
 use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
 use crate::core::memory::memory_repository::MemoryRepository;
 use crate::core::memory::types::{MemoryFeedback, MemorySource, MemoryState};
+use crate::core::security::RequestContext;
 
 use super::memory::MemoryDto;
 
 fn open_repo() -> Result<crate::storage::sqlite::SqliteMemoryRepository, String> {
     let conn = crate::db::open_connection()?;
     crate::storage::sqlite::SqliteMemoryRepository::new(conn).map_err(|e| e.to_string())
+}
+
+fn open_audit_repo() -> Result<crate::storage::sqlite::SqliteAuditRepository, String> {
+    let conn = crate::db::open_connection()?;
+    crate::storage::sqlite::SqliteAuditRepository::new(conn).map_err(|e| e.to_string())
+}
+
+/// Append a decision-journal event (best-effort: a failure to record audit
+/// must never roll back an already-applied memory mutation).
+async fn record_audit(
+    memory_id: &EntityId,
+    event_type: AuditEventType,
+    actor: &str,
+    detail: Option<String>,
+    related_memory_id: Option<String>,
+) {
+    let Ok(repo) = open_audit_repo() else {
+        return;
+    };
+    let event = AuditEvent::new(
+        memory_id.clone(),
+        event_type,
+        actor.to_string(),
+        detail,
+        related_memory_id,
+    );
+    let _ = repo.add_event(&event).await;
 }
 
 /// Summary of the memory trust lifecycle: how many memories are in each state.
@@ -36,8 +65,24 @@ pub struct FeedbackSummary {
 }
 
 /// Set the trust state of a memory explicitly (Current / Inferred / Superseded / Conflicted).
+///
+/// Thin Tauri wrapper for the frontend: a human user acting through the local
+/// UI is always allowed to mutate (plan 4.4 — RequestContext is mandatory in
+/// critical commands, the UI passes a trusted user context).
 #[tauri::command]
 pub async fn memory_set_state(id: String, state: String) -> Result<MemoryDto, String> {
+    memory_set_state_ctx(id, state, &RequestContext::user()).await
+}
+
+/// Critical command (plan 4.4): mutating a memory's trust state REQUIRES a
+/// `RequestContext`. The actor is checked for write permission, and the state
+/// change is recorded in the decision journal with the actor's identity.
+pub async fn memory_set_state_ctx(
+    id: String,
+    state: String,
+    ctx: &RequestContext,
+) -> Result<MemoryDto, String> {
+    ctx.ensure_can_mutate()?;
     let repo = open_repo()?;
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let mut record = repo
@@ -47,15 +92,52 @@ pub async fn memory_set_state(id: String, state: String) -> Result<MemoryDto, St
         .ok_or_else(|| format!("Memory {} not found", id))?;
 
     let new_state = MemoryState::parse(&state);
+    // Formal state machine (plan 3.6): trust only moves forward. Reject
+    // forbidden transitions (Superseded→Current revival, UserConfirmed→Inferred
+    // demotion, Conflicted→Inferred degradation) instead of silently flipping.
+    if !MemoryState::can_transition(&record.memory_state, &new_state) {
+        return Err(format!(
+            "Forbidden memory state transition: {} -> {}",
+            record.memory_state.as_str(),
+            new_state.as_str()
+        ));
+    }
+    let new_state_str = new_state.as_str().to_string();
     record.memory_state = new_state;
     record.touch();
     repo.update(&record).await.map_err(|e| e.to_string())?;
+    record_audit(
+        &entity_id,
+        AuditEventType::Note,
+        &ctx.actor_label(),
+        Some(format!(
+            "State changed to {} by {}",
+            new_state_str,
+            ctx.actor_label()
+        )),
+        None,
+    )
+    .await;
     Ok(MemoryDto::from(record))
 }
 
 /// Mark a memory as explicitly confirmed by a human.
+///
+/// Thin Tauri wrapper for the frontend (plan 4.4 — see [`memory_confirm_ctx`]).
 #[tauri::command]
 pub async fn memory_confirm(id: String, by: Option<String>) -> Result<MemoryDto, String> {
+    memory_confirm_ctx(id, by, &RequestContext::user()).await
+}
+
+/// Critical command (plan 4.4): confirmation REQUIRES a `RequestContext`. The
+/// actor is checked for write permission; `by` falls back to the actor label
+/// so the journal always records who confirmed. A `Confirmed` event is written.
+pub async fn memory_confirm_ctx(
+    id: String,
+    by: Option<String>,
+    ctx: &RequestContext,
+) -> Result<MemoryDto, String> {
+    ctx.ensure_can_mutate()?;
     let repo = open_repo()?;
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let mut record = repo
@@ -64,15 +146,45 @@ pub async fn memory_confirm(id: String, by: Option<String>) -> Result<MemoryDto,
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("Memory {} not found", id))?;
 
+    // Only active-lifecycle records can be confirmed; a Superseded one is
+    // retired and must not be revived by confirming it (plan 3.6).
+    if !MemoryState::can_transition(&record.memory_state, &MemoryState::UserConfirmed) {
+        return Err(format!(
+            "Cannot confirm a {} memory (requires an active lifecycle record)",
+            record.memory_state.as_str()
+        ));
+    }
+
+    let confirmed_by = by.unwrap_or_else(|| ctx.actor_label());
     record.memory_state = MemoryState::UserConfirmed;
     record.confirmed_at = Some(Utc::now());
-    record.confirmed_by = by.or(record.confirmed_by);
+    record.confirmed_by = Some(confirmed_by.clone());
     record.touch();
     repo.update(&record).await.map_err(|e| e.to_string())?;
+    record_audit(
+        &entity_id,
+        AuditEventType::Confirmed,
+        &confirmed_by,
+        None,
+        None,
+    )
+    .await;
     Ok(MemoryDto::from(record))
 }
 
 /// Record user feedback: "useful" | "irrelevant" | "wrong".
+///
+/// Thin Tauri wrapper for the frontend (plan 4.4 — see [`memory_feedback_ctx`]).
+#[tauri::command]
+pub async fn memory_feedback(
+    id: String,
+    kind: String,
+    note: Option<String>,
+) -> Result<MemoryDto, String> {
+    memory_feedback_ctx(id, kind, note, &RequestContext::user()).await
+}
+
+/// Critical command (plan 4.4): feedback mutation REQUIRES a `RequestContext`.
 ///
 /// One-vote-per-memory logic: the first click registers the vote and records
 /// `voted = kind`; clicking the same kind again removes the vote (counter
@@ -83,12 +195,13 @@ pub async fn memory_confirm(id: String, by: Option<String>) -> Result<MemoryDto,
 /// `note` is optional free text explaining *why*. When present it is stored in
 /// `feedback.note` (the counter is left untouched) and the memory is re-indexed
 /// so the copilot / semantic search can use the explanation.
-#[tauri::command]
-pub async fn memory_feedback(
+pub async fn memory_feedback_ctx(
     id: String,
     kind: String,
     note: Option<String>,
+    ctx: &RequestContext,
 ) -> Result<MemoryDto, String> {
+    ctx.ensure_can_mutate()?;
     let repo = open_repo()?;
     let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
     let mut record = repo
@@ -115,6 +228,18 @@ pub async fn memory_feedback(
 
         // Re-index so the explanation becomes part of semantic context.
         spawn_index_with_note(&record);
+        record_audit(
+            &entity_id,
+            AuditEventType::Note,
+            &ctx.actor_label(),
+            Some(format!(
+                "Feedback note added by {}: {}",
+                ctx.actor_label(),
+                text
+            )),
+            None,
+        )
+        .await;
         return Ok(MemoryDto::from(record));
     }
 
@@ -175,6 +300,18 @@ pub async fn memory_feedback(
     }
     record.touch();
     repo.update(&record).await.map_err(|e| e.to_string())?;
+    record_audit(
+        &entity_id,
+        AuditEventType::Note,
+        &ctx.actor_label(),
+        Some(format!(
+            "Feedback '{}' recorded by {}",
+            kind,
+            ctx.actor_label()
+        )),
+        None,
+    )
+    .await;
     Ok(MemoryDto::from(record))
 }
 
@@ -199,6 +336,8 @@ fn spawn_index_with_note(record: &MemoryRecord) {
 /// The old memory is marked `Superseded` (superseded_by_id points at the new
 /// one); a new `Current` record is created. This is the explicit "decision
 /// changed" flow — the old decision is never deleted, only demoted.
+///
+/// Thin Tauri wrapper for the frontend (plan 4.4 — see [`memory_supersede_ctx`]).
 #[tauri::command]
 pub async fn memory_supersede(
     old_id: String,
@@ -206,6 +345,28 @@ pub async fn memory_supersede(
     new_content: String,
     author: Option<String>,
 ) -> Result<MemoryDto, String> {
+    memory_supersede_ctx(
+        old_id,
+        new_title,
+        new_content,
+        author,
+        &RequestContext::user(),
+    )
+    .await
+}
+
+/// Critical command (plan 4.4): supersession REQUIRES a `RequestContext`. The
+/// actor is checked for write permission; `author` falls back to the actor
+/// label. A `Superseded` event is written against the old memory, pointing at
+/// the replacement via `related_memory_id`.
+pub async fn memory_supersede_ctx(
+    old_id: String,
+    new_title: String,
+    new_content: String,
+    author: Option<String>,
+    ctx: &RequestContext,
+) -> Result<MemoryDto, String> {
+    ctx.ensure_can_mutate()?;
     let repo = open_repo()?;
     let old_entity_id = EntityId::parse(&old_id).map_err(|e| e.to_string())?;
     let mut old = repo
@@ -225,7 +386,7 @@ pub async fn memory_supersede(
     let mut replacement = MemoryRecord::new(
         new_title,
         new_content,
-        author.unwrap_or_else(|| "user".to_string()),
+        author.unwrap_or_else(|| ctx.actor_label()),
         MemorySource::Manual,
     )
     .map_err(|e| e.to_string())?;
@@ -239,6 +400,14 @@ pub async fn memory_supersede(
     old.superseded_by_id = Some(new_id.as_str().to_string());
     old.touch();
     repo.update(&old).await.map_err(|e| e.to_string())?;
+    record_audit(
+        &old_entity_id,
+        AuditEventType::Superseded,
+        &ctx.actor_label(),
+        None,
+        Some(new_id.as_str().to_string()),
+    )
+    .await;
 
     // 3. Re-index both so semantic search reflects the new state.
     crate::core::context::indexer::spawn_index_memory(

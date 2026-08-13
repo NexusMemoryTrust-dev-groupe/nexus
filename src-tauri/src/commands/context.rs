@@ -33,6 +33,8 @@ pub struct ContextDto {
     pub baseline_tokens: u32,
     pub candidate_entities: u32,
     pub candidate_memories: u32,
+    /// How many memory records were excluded as conflicted/superseded.
+    pub conflicts_excluded: u32,
     /// `"exact"` when counted with the real BPE vocabulary, `"estimated"` otherwise.
     pub token_method: String,
 }
@@ -96,6 +98,7 @@ impl From<ContextPackage> for ContextDto {
             baseline_tokens: pkg.baseline_tokens,
             candidate_entities: pkg.candidate_entities,
             candidate_memories: pkg.candidate_memories,
+            conflicts_excluded: pkg.conflicts_excluded,
             token_method: crate::core::tokenizer::method().as_str().to_string(),
         }
     }
@@ -174,6 +177,20 @@ pub async fn build_context(query: String) -> Result<ContextDto, String> {
         &query,
         &format!("{:?}", pkg.user_intent.intent_type),
     );
+
+    // Predictive Context (System 8): запоминаем запрос для предсказания
+    // следующего шага и прогрева кэша. Не роняем ответ из-за сбоя лога.
+    let entity_ids: Vec<String> = pkg
+        .entities
+        .iter()
+        .map(|e| e.id.as_str().to_string())
+        .collect();
+    let _ = crate::commands::predictive::predictive_log(
+        &query,
+        &format!("{:?}", pkg.user_intent.intent_type),
+        entity_ids,
+    )
+    .await;
 
     Ok(ContextDto::from(pkg))
 }

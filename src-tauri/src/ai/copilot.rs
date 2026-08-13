@@ -122,6 +122,16 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "memory-supersede" => cmd_memory_supersede(&cmd.args).await,
         "lifecycle" => cmd_lifecycle().await,
 
+        // ── Cognitive layer commands (System 1) ──
+        "layer-list" => cmd_layer_list().await,
+        "layer-stats" => cmd_layer_stats().await,
+        "layer-set" => cmd_layer_set(&cmd.args).await,
+        "layer-reclassify" => cmd_layer_reclassify(&cmd.args).await,
+        "layer-history" => cmd_layer_history(&cmd.args).await,
+
+        // ── Memory score (Knowledge Navigation 2.0, health panel) ──
+        "memory-score" => cmd_memory_score().await,
+
         // ── Entity resolution commands ──
         "find-duplicates" => cmd_find_duplicates(&cmd.args).await,
         "merge-entities" => cmd_merge_entities(&cmd.args).await,
@@ -163,6 +173,7 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "agents-generate" => cmd_agents_generate().await,
         "skills" => cmd_skills_list().await,
         "skill-run" => cmd_skills_run(&cmd.args).await,
+        "skill-register" => cmd_skills_register(&cmd.args).await,
 
         // ── Code graph ──
         "code-import" => cmd_code_import(&cmd.args).await,
@@ -175,6 +186,50 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "radar" => cmd_radar(&cmd.args).await,
         "radar-mark-seen" => cmd_radar_mark_seen().await,
 
+        // ── Memory rehearsal (spaced repetition, System 3) ──
+        "rehearsal" => cmd_rehearsal().await,
+        "rehearsal-plan" => cmd_rehearsal_plan().await,
+        "rehearse" => cmd_rehearse(&cmd.args).await,
+        "rehearsal-consolidate" => cmd_rehearsal_consolidate().await,
+        "canonicals" => cmd_canonicals(&cmd.args).await,
+
+        // ── Memory firewall (ingress protection, System 4) ──
+        "firewall" => cmd_firewall(&cmd.args).await,
+        "firewall-rule" => cmd_firewall_rule(&cmd.args).await,
+        "quarantine" => cmd_quarantine(&cmd.args).await,
+        "agent-policy" => cmd_agent_policy(&cmd.args).await,
+        "agent-access" => cmd_agent_access(&cmd.args).await,
+
+        // ── Flight recorder (operation black-box, System 5) ──
+        "flight" => cmd_flight(&cmd.args).await,
+        "flight-recent" => cmd_flight_recent(&cmd.args).await,
+        "flight-replay" => cmd_flight_replay(&cmd.args).await,
+        "flight-session" => cmd_flight_session(&cmd.args).await,
+        "flight-stats" => cmd_flight_stats().await,
+        "why" => cmd_why(&cmd.args).await,
+        "context-chain" => cmd_context_chain(&cmd.args).await,
+
+        // ── Agent passport (identity card, System 6) ──
+        "passport" => cmd_passport(&cmd.args).await,
+
+        // ── Context Lab (System 6: контекстные стратегии A/B/C) ──
+        "context-lab" => cmd_context_lab(&cmd.args).await,
+        "context-lab-history" => cmd_context_lab_history(&cmd.args).await,
+        "context-lab-stats" => cmd_context_lab_stats().await,
+
+        // ── Skill Genesis (System 7: скиллы из повторяющихся операций) ──
+        "skill-genesis" => cmd_skill_genesis(&cmd.args).await,
+        "skill-candidates" => cmd_skill_candidates(&cmd.args).await,
+        "skill-approve" => cmd_skill_approve(&cmd.args).await,
+        "skill-reject" => cmd_skill_reject(&cmd.args).await,
+
+        // ── Predictive Context (System 8: предсказание следующего шага) ──
+        "predict" => cmd_predict(&cmd.args).await,
+        "predict-stats" => cmd_predict_stats().await,
+
+        // ── Knowledge Map (System 9: карта знаний — AI Universe) ──
+        "map" => cmd_map(&cmd.args).await,
+
         // ── Team memory (shared trusted layer) ──
         "team-add-member" => cmd_team_add_member(&cmd.args).await,
         "team-members" => cmd_team_members().await,
@@ -184,6 +239,13 @@ pub async fn execute_command(cmd: &ParsedCommand) -> CopilotResponse {
         "audit" => cmd_audit(&cmd.args).await,
         "audit-alternative" => cmd_audit_alternative(&cmd.args).await,
         "audit-note" => cmd_audit_note(&cmd.args).await,
+
+        // ── Memory conflict engine (System 2) ──
+        "conflicts" => cmd_conflicts(&cmd.args).await,
+        "conflict-details" => cmd_conflict_details(&cmd.args).await,
+        "conflict-truth" => cmd_conflict_truth(&cmd.args).await,
+        "conflict-resolve" => cmd_conflict_resolve(&cmd.args).await,
+        "conflict-check" => cmd_conflict_check().await,
 
         // ── Unknown ──
         other => CopilotResponse::err(format!("Unknown command: /{}", other)),
@@ -277,7 +339,7 @@ async fn cmd_create_memory(args: &[String]) -> CopilotResponse {
         Ok(r) => r,
         Err(e) => return CopilotResponse::err(format!("DB error: {}", e)),
     };
-    let record = match MemoryRecord::new(
+    let mut record = match MemoryRecord::new(
         title.clone(),
         content,
         "copilot".to_string(),
@@ -286,8 +348,40 @@ async fn cmd_create_memory(args: &[String]) -> CopilotResponse {
         Ok(r) => r,
         Err(e) => return CopilotResponse::err(format!("Validation error: {}", e)),
     };
+    // Cognitive Layers: the copilot/MCP path must not bypass the classifier —
+    // every memory enters the store with a layer.
+    crate::core::memory::memory_lifecycle::auto_classify(&mut record);
+    // Memory Firewall (System 4): the copilot/MCP path must not bypass the
+    // ingress screen either. Block → error; Quarantine → parked, user decides.
+    if let Err(e) = crate::commands::firewall::screen_ingress(
+        &record.title,
+        &record.content,
+        &record.author,
+        "Manual",
+    )
+    .await
+    {
+        return CopilotResponse::err(e);
+    }
     match repo.save(&record).await {
         Ok(id) => {
+            // Memory Conflict Engine: check the new memory against the existing
+            // pool. If it says something different about the same topic, both
+            // sides are flagged Conflicted so the trust UI / MCP can ask the
+            // user to decide. Mirrors commands::memory::create_memory — the
+            // copilot path must not bypass the detector.
+            if let Err(e) =
+                crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
+                    .await
+            {
+                return CopilotResponse::err(format!("Conflict check error: {}", e));
+            }
+            // Reconcile conflict groups so a flagged contradiction becomes a
+            // resolvable open group for /conflicts and nexus_conflict_list.
+            if let Err(e) = crate::commands::conflict::sync_conflict_groups().await {
+                return CopilotResponse::err(format!("Conflict reconcile error: {}", e));
+            }
+
             // Index for semantic search off-thread. Memories created through the
             // MCP server land here rather than in `commands::memory`, so without
             // this hook anything an AI wrote stayed invisible to vector search.
@@ -617,8 +711,24 @@ async fn cmd_update_memory(args: &[String]) -> CopilotResponse {
     };
     record.content = new_content;
     record.touch();
+    // Cognitive Layers: the edited text may change what the memory *is* —
+    // re-classify unless the user pinned the layer explicitly.
+    crate::core::memory::memory_lifecycle::auto_classify(&mut record);
     match repo.update(&record).await {
         Ok(_) => {
+            // Memory Conflict Engine: the content changed, so re-check the
+            // updated record against the pool — a fresh edit can contradict
+            // an existing memory. Mirrors commands::memory::update_memory.
+            if let Err(e) =
+                crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
+                    .await
+            {
+                return CopilotResponse::err(format!("Conflict check error: {}", e));
+            }
+            // Reconcile conflict groups after the re-check.
+            if let Err(e) = crate::commands::conflict::sync_conflict_groups().await {
+                return CopilotResponse::err(format!("Conflict reconcile error: {}", e));
+            }
             // Content changed, so the stored embedding is now stale.
             crate::core::context::indexer::spawn_index_memory(
                 &record.id,
@@ -1102,6 +1212,333 @@ async fn cmd_lifecycle() -> CopilotResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  Cognitive layer commands (System 1)
+// ═══════════════════════════════════════════════════════════════
+
+/// List the six cognitive layers with meaning and promotion path.
+async fn cmd_layer_list() -> CopilotResponse {
+    let catalog = crate::core::memory::layer::LAYER_CATALOG;
+    let mut message = String::from("Six cognitive layers (Working → Strategic):\n");
+    for info in catalog {
+        message.push_str(&format!(
+            "• {} — {} | promotes: {}\n",
+            info.name, info.meaning, info.promotes
+        ));
+    }
+    CopilotResponse::ok(
+        message,
+        Some(serde_json::json!({
+            "layers": catalog.iter().map(|l| serde_json::json!({
+                "name": l.name, "meaning": l.meaning, "promotes": l.promotes,
+            })).collect::<Vec<_>>()
+        })),
+    )
+}
+
+/// Show the distribution of memories across cognitive layers.
+async fn cmd_layer_stats() -> CopilotResponse {
+    match crate::commands::memory::get_layer_stats().await {
+        Ok(stats) => {
+            let mut message = String::from("Layer distribution:\n");
+            for s in &stats {
+                message.push_str(&format!(
+                    "• {}: {} memories (mean confidence {:.2})\n",
+                    s.layer, s.count, s.mean_confidence
+                ));
+            }
+            if stats.is_empty() {
+                message.push_str("(empty pool)");
+            }
+            CopilotResponse::ok(
+                message,
+                Some(serde_json::to_value(&stats).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Layer stats error: {}", e)),
+    }
+}
+
+/// Nexus Memory Score — панель здоровья памяти проекта (Knowledge Nav 2.0).
+async fn cmd_memory_score() -> CopilotResponse {
+    match crate::commands::memory::get_memory_score().await {
+        Ok(score) => {
+            let text = crate::core::memory::memory_score::render_score(&score);
+            CopilotResponse::ok(text, Some(serde_json::to_value(&score).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Memory score error: {}", e)),
+    }
+}
+
+/// Context Lab — прогнать вопрос через все контекстные стратегии и показать
+/// победителя по предсказанной точности (System 6).
+async fn cmd_context_lab(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err(
+            "Usage: /context-lab <query> — runs the query through compact / balanced / rich context strategies and recommends the best one.",
+        );
+    }
+    let query = args.join(" ");
+    match crate::commands::context_lab::context_lab_run(query.clone()).await {
+        Ok(dto) => {
+            let summary = dto.summary.clone();
+            CopilotResponse::ok(
+                summary,
+                Some(serde_json::to_value(&dto).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Context Lab error: {}", e)),
+    }
+}
+
+/// История лабораторных экспериментов (System 6).
+async fn cmd_context_lab_history(args: &[String]) -> CopilotResponse {
+    let limit = args.first().and_then(|a| a.parse::<usize>().ok());
+    match crate::commands::context_lab::context_lab_history(limit).await {
+        Ok(list) => {
+            if list.is_empty() {
+                return CopilotResponse::ok(
+                    "No lab experiments yet — run /context-lab <query> first.".to_string(),
+                    None,
+                );
+            }
+            let mut text = format!("Context Lab history ({} experiment(s)):\n", list.len());
+            for exp in &list {
+                text.push_str(&format!(
+                    "  \"{}\" → best: {} (accuracy {:.0}%)\n",
+                    exp.query,
+                    exp.best_strategy,
+                    exp.results
+                        .iter()
+                        .find(|r| r.strategy == exp.best_strategy)
+                        .map(|r| r.accuracy * 100.0)
+                        .unwrap_or(0.0),
+                ));
+            }
+            CopilotResponse::ok(text, Some(serde_json::to_value(&list).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Context Lab history error: {}", e)),
+    }
+}
+
+/// Статистика лаборатории: сколько экспериментов, кто побеждает (System 6).
+async fn cmd_context_lab_stats() -> CopilotResponse {
+    match crate::commands::context_lab::context_lab_stats().await {
+        Ok(stats) => CopilotResponse::ok(
+            format!(
+                "Context Lab: {} experiment(s) run. Winning strategy so far: {}.",
+                stats["totalExperiments"].as_u64().unwrap_or(0),
+                stats["winningStrategy"].as_str().unwrap_or("none yet"),
+            ),
+            Some(stats),
+        ),
+        Err(e) => CopilotResponse::err(format!("Context Lab stats error: {}", e)),
+    }
+}
+
+/// Skill Genesis — отсканировать журнал полёта и предложить скиллы (System 7).
+async fn cmd_skill_genesis(args: &[String]) -> CopilotResponse {
+    let limit = args.first().and_then(|a| a.parse::<u32>().ok());
+    match crate::commands::skill_genesis::skill_genesis_scan(limit, None).await {
+        Ok(res) => {
+            let new_count = res["newProposals"].as_u64().unwrap_or(0);
+            let mut msg = format!(
+                "Skill Genesis scan: {} record(s) analyzed, {} new proposal(s).",
+                res["scannedRecords"].as_u64().unwrap_or(0),
+                new_count,
+            );
+            if let Some(proposals) = res["proposals"].as_array() {
+                for p in proposals.iter().take(5) {
+                    msg.push_str(&format!(
+                        "\n  [proposed] {} ({}× {}) — {}",
+                        p["name"].as_str().unwrap_or("?"),
+                        p["occurrences"].as_u64().unwrap_or(0),
+                        p["category"].as_str().unwrap_or("?"),
+                        p["description"]
+                            .as_str()
+                            .unwrap_or("")
+                            .chars()
+                            .take(110)
+                            .collect::<String>(),
+                    ));
+                }
+            }
+            CopilotResponse::ok(msg, Some(res))
+        }
+        Err(e) => CopilotResponse::err(format!("Skill Genesis scan error: {}", e)),
+    }
+}
+
+/// Список кандидатов в скиллы (System 7).
+async fn cmd_skill_candidates(args: &[String]) -> CopilotResponse {
+    let status = args.first().cloned();
+    match crate::commands::skill_genesis::skill_genesis_render(status).await {
+        Ok(text) => CopilotResponse::ok(
+            format!("Skill candidates:\n{text}"),
+            Some(serde_json::json!({ "rendered": text })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Skill candidates error: {}", e)),
+    }
+}
+
+/// Одобрить кандидата → создать скилл (System 7).
+async fn cmd_skill_approve(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err(
+            "Usage: /skill-approve <proposal-id> — creates the skill and marks the proposal approved.",
+        );
+    }
+    match crate::commands::skill_genesis::skill_genesis_approve(args[0].clone()).await {
+        Ok(dto) => CopilotResponse::ok(
+            format!(
+                "Skill '{}' approved and registered ({} occurrences of '{}').",
+                dto.name, dto.occurrences, dto.action
+            ),
+            Some(serde_json::to_value(&dto).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Skill approve error: {}", e)),
+    }
+}
+
+/// Отклонить кандидата (System 7).
+async fn cmd_skill_reject(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err(
+            "Usage: /skill-reject <proposal-id> — marks the proposal rejected, no skill is created.",
+        );
+    }
+    match crate::commands::skill_genesis::skill_genesis_reject(args[0].clone()).await {
+        Ok(dto) => CopilotResponse::ok(
+            format!("Skill candidate '{}' rejected.", dto.name),
+            Some(serde_json::to_value(&dto).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Skill reject error: {}", e)),
+    }
+}
+
+/// Predictive Context — предсказать следующий вопрос (System 8).
+async fn cmd_predict(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err(
+            "Usage: /predict <current question> — Nexus predicts the next question and the entities to prewarm.",
+        );
+    }
+    let query = args.join(" ");
+    match crate::commands::predictive::predictive_render(query.clone(), None).await {
+        Ok(text) => CopilotResponse::ok(
+            format!("Predictive Context for \"{}\":\n{text}", query),
+            Some(serde_json::json!({ "rendered": text })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Predictive error: {}", e)),
+    }
+}
+
+/// Статистика предсказаний (System 8).
+async fn cmd_predict_stats() -> CopilotResponse {
+    match crate::commands::predictive::predictive_stats().await {
+        Ok(stats) => CopilotResponse::ok(
+            format!(
+                "Predictive Context: {} quer(ies) in history.",
+                stats["historySize"].as_u64().unwrap_or(0)
+            ),
+            Some(stats),
+        ),
+        Err(e) => CopilotResponse::err(format!("Predictive stats error: {}", e)),
+    }
+}
+
+/// Knowledge Map — карта знаний вокруг сущности (System 9).
+async fn cmd_map(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err(
+            "Usage: /map <entity-id> [depth] — renders the AI Universe map (Mission/Relevant/Supporting/Historical rings) around an entity.",
+        );
+    }
+    let eid = args[0].clone();
+    let depth = args.get(1).and_then(|s| s.parse::<u32>().ok()).unwrap_or(1);
+    match crate::commands::navigation::knowledge_map(eid.clone(), Some(depth)).await {
+        Ok(map) => CopilotResponse::ok(
+            format!(
+                "Knowledge map for {eid}: mission {}, relevant {}, supporting {}, historical {}.\n{}",
+                map.mission.len(),
+                map.relevant.len(),
+                map.supporting.len(),
+                map.historical.len(),
+                map.rendered
+            ),
+            Some(serde_json::to_value(&map).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Knowledge map error: {}", e)),
+    }
+}
+
+/// Explicitly assign a layer to a memory (user override, records provenance).
+async fn cmd_layer_set(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err(
+            "Usage: /layer-set <id> <layer> [reason] (Working|Episodic|Semantic|Procedural|Decision|Strategic)",
+        );
+    }
+    let id = args[0].clone();
+    let layer = args[1].clone();
+    let reason = args.get(2).cloned();
+    match crate::commands::memory::set_memory_layer(id.clone(), layer.clone(), reason).await {
+        Ok(dto) => CopilotResponse::ok(
+            format!(
+                "Memory {} is now {} (user, confidence 1.0). {}",
+                id, dto.layer, dto.title
+            ),
+            Some(serde_json::to_value(&dto).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Layer set error: {}", e)),
+    }
+}
+
+/// Re-run the signature classifier on a memory (no-op if user-pinned).
+async fn cmd_layer_reclassify(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /layer-reclassify <id>");
+    }
+    let id = args[0].clone();
+    match crate::commands::memory::reclassify_memory(id.clone()).await {
+        Ok(dto) => CopilotResponse::ok(
+            format!(
+                "Memory {} reclassified to {} (confidence {:.2}). {}",
+                id, dto.layer, dto.layer_confidence, dto.title
+            ),
+            Some(serde_json::to_value(&dto).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Layer reclassify error: {}", e)),
+    }
+}
+
+/// Show the full provenance trail of a memory's layer assignments.
+async fn cmd_layer_history(args: &[String]) -> CopilotResponse {
+    if args.is_empty() {
+        return CopilotResponse::err("Usage: /layer-history <id>");
+    }
+    let id = args[0].clone();
+    match crate::commands::memory::get_layer_history(id.clone()).await {
+        Ok(history) => {
+            let mut message = format!("Layer history for {}:\n", id);
+            for e in &history {
+                message.push_str(&format!(
+                    "• {} (confidence {:.2}) by {} at {} — {}\n",
+                    e.layer, e.confidence, e.by, e.at, e.reason
+                ));
+            }
+            if history.is_empty() {
+                message.push_str("(no recorded changes)");
+            }
+            CopilotResponse::ok(
+                message,
+                Some(serde_json::to_value(&history).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Layer history error: {}", e)),
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  Entity resolution commands
 // ═══════════════════════════════════════════════════════════════
 
@@ -1343,6 +1780,31 @@ async fn cmd_skills_run(args: &[String]) -> CopilotResponse {
     }
 }
 
+/// Register (or update) a skill. Used by Skill Genesis approval flow to give a
+/// generated proposal a real command.
+async fn cmd_skills_register(args: &[String]) -> CopilotResponse {
+    if args.len() < 2 {
+        return CopilotResponse::err(
+            "Usage: /skill-register <name> <command> [description] — registers a runnable skill (command template + args appended at runtime).",
+        );
+    }
+    let name = args[0].clone();
+    let command = args[1].clone();
+    let description = args.get(2).cloned().unwrap_or_default();
+    match crate::commands::knowledge::skills_register(name.clone(), description, command, None)
+        .await
+    {
+        Ok(skill) => CopilotResponse::ok(
+            format!(
+                "Skill '{}' registered (enabled: {}). Run it with /skill-run {}.",
+                skill.name, skill.enabled, skill.name
+            ),
+            Some(serde_json::to_value(&skill).unwrap_or_default()),
+        ),
+        Err(e) => CopilotResponse::err(format!("Register error: {}", e)),
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  Code graph commands
 // ═══════════════════════════════════════════════════════════════
@@ -1546,6 +2008,1012 @@ async fn cmd_radar_mark_seen() -> CopilotResponse {
             None,
         ),
         Err(e) => CopilotResponse::err(format!("Radar error: {}", e)),
+    }
+}
+
+/// Run the full rehearsal (sleep) cycle over the memory pool.
+///
+/// Rehearses every due memory (strengthens + reschedules with a longer
+/// interval), schedules first rehearsals for fresh memories and decays old
+/// never-rehearsed ones. `/rehearsal plan` shows what is due without touching
+/// anything; `/rehearse <id>` marks a single memory as reviewed.
+async fn cmd_rehearsal() -> CopilotResponse {
+    match crate::commands::rehearsal::run_rehearsal_cycle().await {
+        Ok(report) => {
+            let msg = format!(
+                "Rehearsal cycle complete: {} rehearsed, {} scheduled for first review, {} touched, {} skipped (conflicted). Pool total: {}.",
+                report.rehearsed,
+                report.scheduled_first,
+                report.decayed,
+                report.skipped,
+                report.total
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Rehearsal error: {}", e)),
+    }
+}
+
+/// Show what is due for rehearsal right now, most important first.
+async fn cmd_rehearsal_plan() -> CopilotResponse {
+    match crate::commands::rehearsal::get_rehearsal_plan().await {
+        Ok(plan) => {
+            if plan.items.is_empty() {
+                let msg = format!(
+                    "Rehearsal plan: nothing due right now. Total memories: {}, never rehearsed: {}, scheduled: {}.",
+                    plan.counts.total, plan.counts.never_rehearsed, plan.counts.scheduled
+                );
+                return CopilotResponse::ok(
+                    msg,
+                    Some(serde_json::to_value(&plan).unwrap_or_default()),
+                );
+            }
+            let mut lines = Vec::new();
+            lines.push(format!(
+                "Rehearsal plan — {} of {} memories are due ({} never rehearsed):",
+                plan.counts.due_now, plan.counts.total, plan.counts.never_rehearsed
+            ));
+            for item in &plan.items {
+                lines.push(format!(
+                    "  [{}] {} — rehearsed {}×, overdue {}d (importance {:.2})",
+                    item.id, item.title, item.rehearsal_count, item.overdue_days, item.importance
+                ));
+            }
+            CopilotResponse::ok(
+                lines.join("\n"),
+                Some(serde_json::to_value(&plan).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Rehearsal plan error: {}", e)),
+    }
+}
+
+/// Mark a single memory as rehearsed right now.
+async fn cmd_rehearse(args: &[String]) -> CopilotResponse {
+    let id = args.first().cloned().unwrap_or_default();
+    if id.trim().is_empty() {
+        return CopilotResponse::err("Usage: /rehearse <memory_id>".to_string());
+    }
+    match crate::commands::rehearsal::rehearse_memory(id.clone()).await {
+        Ok(()) => CopilotResponse::ok(
+            format!("Memory '{}' rehearsed — strengthened and rescheduled.", id),
+            None,
+        ),
+        Err(e) => CopilotResponse::err(format!("Rehearse error: {}", e)),
+    }
+}
+
+/// Canonical consolidation: merge records that state the same fact into one
+/// Canonical Memory, keeping full provenance (System 3, sleep cycle step).
+async fn cmd_rehearsal_consolidate() -> CopilotResponse {
+    match crate::commands::rehearsal::run_canonical_consolidation().await {
+        Ok(report) => {
+            let msg = format!(
+                "Canonical consolidation: {} clusters found, {} canonical memories created, {} records merged, {} already consolidated. Total canonical: {}.",
+                report.clusters_found,
+                report.canonical_created,
+                report.merged_members,
+                report.skipped_existing,
+                report.total_canonical
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&report).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Consolidation error: {}", e)),
+    }
+}
+
+/// List the distilled canonical memories (the project's consolidated truths).
+async fn cmd_canonicals(args: &[String]) -> CopilotResponse {
+    let limit = args
+        .first()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(25);
+    match crate::commands::rehearsal::render_canonical_memories(Some(limit)).await {
+        Ok(text) => CopilotResponse::ok(text, None),
+        Err(e) => CopilotResponse::err(format!("Canonicals error: {}", e)),
+    }
+}
+
+/// Firewall status or a preview check of incoming content.
+///
+///   /firewall                     → rules + pending quarantine counts
+///   /firewall check <title> : <content>  → verdict preview (nothing stored)
+async fn cmd_firewall(args: &[String]) -> CopilotResponse {
+    let sub = args.first().cloned().unwrap_or_default();
+
+    // Preview mode: /firewall check ...
+    if sub == "check" {
+        let rest = args[1..].join(" ");
+        let (title, content) = match rest.split_once(':') {
+            Some((t, c)) => (t.trim().to_string(), c.trim().to_string()),
+            None => {
+                return CopilotResponse::err(
+                    "Usage: /firewall check <title> : <content>".to_string(),
+                );
+            }
+        };
+        if content.is_empty() {
+            return CopilotResponse::err("Usage: /firewall check <title> : <content>".to_string());
+        }
+        return match crate::commands::firewall::firewall_check(title, content).await {
+            Ok(dto) => {
+                let mut lines = vec![format!(
+                    "Firewall verdict: {} (toxicity={:.2}, spam={:.2}, injection={:.2}, pii={:.2})",
+                    dto.verdict, dto.toxicity, dto.spam, dto.injection, dto.pii
+                )];
+                if dto.reasons.is_empty() {
+                    lines.push("  no reasons — content looks clean.".to_string());
+                } else {
+                    for r in &dto.reasons {
+                        lines.push(format!("  - {}", r));
+                    }
+                }
+                CopilotResponse::ok(
+                    lines.join("\n"),
+                    Some(serde_json::to_value(dto).unwrap_or_default()),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Firewall check error: {}", e)),
+        };
+    }
+
+    // Status mode: rules + pending quarantine.
+    let rules = match crate::commands::firewall::firewall_rules().await {
+        Ok(r) => r,
+        Err(e) => return CopilotResponse::err(format!("Firewall error: {}", e)),
+    };
+    let pending =
+        match crate::commands::firewall::quarantine_list(Some("pending".to_string())).await {
+            Ok(p) => p,
+            Err(e) => return CopilotResponse::err(format!("Quarantine error: {}", e)),
+        };
+
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "Memory Firewall: {} rule(s), {} pending quarantine entrie(s).",
+        rules.len(),
+        pending.len()
+    ));
+    if rules.is_empty() {
+        lines.push("  no user rules — only built-in heuristics active.".to_string());
+    } else {
+        for r in &rules {
+            let state = if r.enabled { "on" } else { "off" };
+            lines.push(format!(
+                "  [{}] '{}' -> {} ({}, {})",
+                r.id,
+                r.pattern,
+                r.action.as_str(),
+                state,
+                r.reason
+            ));
+        }
+    }
+    if !pending.is_empty() {
+        for e in &pending {
+            lines.push(format!(
+                "  [{}] {} — {}",
+                e.id,
+                e.title,
+                e.reasons.join("; ")
+            ));
+        }
+    }
+    CopilotResponse::ok(
+        lines.join("\n"),
+        Some(serde_json::json!({
+            "rules": rules,
+            "pendingQuarantine": pending,
+        })),
+    )
+}
+
+/// Manage user-defined firewall rules.
+///
+///   /firewall-rule add <pattern> <block|quarantine> [reason]
+///   /firewall-rule list
+///   /firewall-rule delete <id>
+///   /firewall-rule enable <id>
+///   /firewall-rule disable <id>
+async fn cmd_firewall_rule(args: &[String]) -> CopilotResponse {
+    let action = args.first().cloned().unwrap_or_default();
+    match action.as_str() {
+        "add" => {
+            let pattern = args.get(1).cloned().unwrap_or_default();
+            if pattern.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /firewall-rule add <pattern> <block|quarantine> [reason]".to_string(),
+                );
+            }
+            let rule_action = args.get(2).cloned().unwrap_or_else(|| "block".to_string());
+            let reason = args.get(3).cloned();
+            match crate::commands::firewall::firewall_rule_add(pattern.clone(), rule_action, reason)
+                .await
+            {
+                Ok(rule) => CopilotResponse::ok(
+                    format!(
+                        "Firewall rule added: '{}' -> {} [{}]",
+                        rule.pattern,
+                        rule.action.as_str(),
+                        rule.id
+                    ),
+                    Some(serde_json::to_value(rule).unwrap_or_default()),
+                ),
+                Err(e) => CopilotResponse::err(format!("Firewall rule add error: {}", e)),
+            }
+        }
+        "list" => match crate::commands::firewall::firewall_rules().await {
+            Ok(rules) => {
+                if rules.is_empty() {
+                    return CopilotResponse::ok(
+                        "No firewall rules configured.".to_string(),
+                        Some(serde_json::json!([])),
+                    );
+                }
+                let mut lines = Vec::new();
+                for r in &rules {
+                    let state = if r.enabled { "on" } else { "off" };
+                    lines.push(format!(
+                        "  [{}] '{}' -> {} ({})",
+                        r.id,
+                        r.pattern,
+                        r.action.as_str(),
+                        state
+                    ));
+                }
+                CopilotResponse::ok(
+                    format!("{} firewall rule(s):\n{}", rules.len(), lines.join("\n")),
+                    Some(serde_json::to_value(rules).unwrap_or_default()),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Firewall rules error: {}", e)),
+        },
+        "delete" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /firewall-rule delete <id>".to_string());
+            }
+            match crate::commands::firewall::firewall_rule_delete(id.clone()).await {
+                Ok(()) => CopilotResponse::ok(format!("Firewall rule '{}' deleted.", id), None),
+                Err(e) => CopilotResponse::err(format!("Firewall rule delete error: {}", e)),
+            }
+        }
+        "enable" | "disable" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err(format!("Usage: /firewall-rule {} <id>", action));
+            }
+            let enabled = action == "enable";
+            match crate::commands::firewall::firewall_rule_set_enabled(id.clone(), enabled).await {
+                Ok(()) => CopilotResponse::ok(
+                    format!(
+                        "Firewall rule '{}' {}.",
+                        id,
+                        if enabled { "enabled" } else { "disabled" }
+                    ),
+                    None,
+                ),
+                Err(e) => CopilotResponse::err(format!("Firewall rule toggle error: {}", e)),
+            }
+        }
+        other => CopilotResponse::err(format!(
+            "Unknown /firewall-rule subcommand '{}' (add|list|delete|enable|disable)",
+            other
+        )),
+    }
+}
+
+/// Manage the quarantine.
+///
+///   /quarantine list [pending|approved|rejected|all]
+///   /quarantine approve <id>
+///   /quarantine reject <id>
+async fn cmd_quarantine(args: &[String]) -> CopilotResponse {
+    let action = args.first().cloned().unwrap_or_default();
+    match action.as_str() {
+        "list" => {
+            let status = args.get(1).cloned();
+            match crate::commands::firewall::quarantine_list(status).await {
+                Ok(entries) => {
+                    if entries.is_empty() {
+                        return CopilotResponse::ok(
+                            "Quarantine is empty.".to_string(),
+                            Some(serde_json::json!([])),
+                        );
+                    }
+                    let mut lines = Vec::new();
+                    for e in &entries {
+                        lines.push(format!(
+                            "  [{}] {} — {} (status: {})",
+                            e.id,
+                            e.title,
+                            e.reasons.join("; "),
+                            e.status
+                        ));
+                    }
+                    CopilotResponse::ok(
+                        format!(
+                            "{} quarantine entrie(s):\n{}",
+                            entries.len(),
+                            lines.join("\n")
+                        ),
+                        Some(serde_json::to_value(entries).unwrap_or_default()),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Quarantine list error: {}", e)),
+            }
+        }
+        "approve" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /quarantine approve <id>".to_string());
+            }
+            match crate::commands::firewall::quarantine_approve(id.clone()).await {
+                Ok(dto) => CopilotResponse::ok(
+                    format!(
+                        "Quarantine entry '{}' approved — memory created: '{}'.",
+                        id, dto.title
+                    ),
+                    Some(serde_json::json!({ "memoryId": dto.id, "title": dto.title })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Quarantine approve error: {}", e)),
+            }
+        }
+        "reject" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /quarantine reject <id>".to_string());
+            }
+            match crate::commands::firewall::quarantine_reject(id.clone()).await {
+                Ok(()) => CopilotResponse::ok(
+                    format!("Quarantine entry '{}' rejected — content discarded.", id),
+                    None,
+                ),
+                Err(e) => CopilotResponse::err(format!("Quarantine reject error: {}", e)),
+            }
+        }
+        other => CopilotResponse::err(format!(
+            "Unknown /quarantine subcommand '{}' (list|approve|reject)",
+            other
+        )),
+    }
+}
+
+/// Agent-level memory permissions (System 4, second firewall ring).
+///
+///   /agent-policy                       → list all policies
+///   /agent-policy add <agent> [vis] [layers] : <deny>
+///     vis: comma-separated public,private,restricted (empty = all)
+///     layers: comma-separated working,episodic,semantic,procedural,decision,strategic
+///     deny: comma-separated forbidden substrings (e.g. "api key,password,паспорт")
+///   /agent-policy delete <id>           → remove a policy
+async fn cmd_agent_policy(args: &[String]) -> CopilotResponse {
+    let sub = args.first().cloned().unwrap_or_default();
+    match sub.as_str() {
+        "" | "list" => match crate::commands::firewall::render_agent_policies().await {
+            Ok(text) => CopilotResponse::ok(text, None),
+            Err(e) => CopilotResponse::err(format!("Agent policy list error: {}", e)),
+        },
+        "add" => {
+            let agent = args.get(1).cloned().unwrap_or_default();
+            if agent.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /agent-policy add <agent> [vis] [layers] : <deny>".to_string(),
+                );
+            }
+            // Формат: agent vis layers : deny  (первые три токена — до ':')
+            let rest: Vec<String> = args[2..].to_vec();
+            let joined = rest.join(" ");
+            let (left, deny) = match joined.split_once(':') {
+                Some((l, d)) => (l.trim().to_string(), Some(d.trim().to_string())),
+                None => (joined.trim().to_string(), None),
+            };
+            let parts: Vec<&str> = left.split_whitespace().collect();
+            let vis = parts.first().copied().unwrap_or("").to_string();
+            let layers = parts.get(1).copied().unwrap_or("").to_string();
+            match crate::commands::firewall::agent_policy_add(
+                agent.clone(),
+                None,
+                Some(vis),
+                Some(layers),
+                deny,
+            )
+            .await
+            {
+                Ok(dto) => CopilotResponse::ok(
+                    format!(
+                        "Agent policy '{}' saved: visibility [{}], layers [{}], deny [{}], enabled {}.",
+                        dto.agent,
+                        dto.allowed_visibility.join(", "),
+                        dto.allowed_layers.join(", "),
+                        dto.deny_patterns.join(", "),
+                        dto.enabled
+                    ),
+                    Some(serde_json::to_value(&dto).unwrap_or_default()),
+                ),
+                Err(e) => CopilotResponse::err(format!("Agent policy error: {}", e)),
+            }
+        }
+        "delete" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /agent-policy delete <id>".to_string());
+            }
+            match crate::commands::firewall::agent_policy_delete(id.clone()).await {
+                Ok(()) => CopilotResponse::ok(format!("Agent policy '{}' deleted.", id), None),
+                Err(e) => CopilotResponse::err(format!("Agent policy delete error: {}", e)),
+            }
+        }
+        other => CopilotResponse::err(format!(
+            "Unknown /agent-policy subcommand '{}' (list|add|delete)",
+            other
+        )),
+    }
+}
+
+/// Check whether an agent may see a memory (System 4).
+///   /agent-access <agent> <memory-id>
+async fn cmd_agent_access(args: &[String]) -> CopilotResponse {
+    let agent = args.first().cloned().unwrap_or_default();
+    let mem = args.get(1).cloned().unwrap_or_default();
+    if agent.trim().is_empty() || mem.trim().is_empty() {
+        return CopilotResponse::err(
+            "Usage: /agent-access <agent> <memory-id> — checks whether the agent may see this memory before it reaches the LLM context.".to_string(),
+        );
+    }
+    match crate::commands::firewall::agent_access_check(agent.clone(), mem.clone()).await {
+        Ok(dto) => {
+            let msg = format!(
+                "Agent '{}' access to memory {}: {} (sensitivity {}){}{}",
+                agent,
+                mem,
+                dto.verdict,
+                dto.sensitivity,
+                if dto.categories.is_empty() {
+                    String::new()
+                } else {
+                    format!(", categories: {}", dto.categories.join(", "))
+                },
+                if dto.reasons.is_empty() {
+                    String::new()
+                } else {
+                    format!("\n  Reasons: {}", dto.reasons.join("; "))
+                }
+            );
+            CopilotResponse::ok(msg, Some(serde_json::to_value(&dto).unwrap_or_default()))
+        }
+        Err(e) => CopilotResponse::err(format!("Access check error: {}", e)),
+    }
+}
+
+/// Agent passport: идентификационная карточка агента (System 6).
+/// `/passport` — мой паспорт, `/passport list` — все, `/passport render <name>`,
+/// `/passport upsert <name> <role> <trust>`, `/passport deactivate|activate <name>`,
+/// `/passport delete <name>`.
+async fn cmd_passport(args: &[String]) -> CopilotResponse {
+    let sub = args.first().cloned().unwrap_or_default();
+    match sub.as_str() {
+        "" | "get" => {
+            let name = args
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "opencode-primary".to_string());
+            match crate::commands::passport::passport_get(name.clone()).await {
+                Ok(p) => CopilotResponse::ok(
+                    format!(
+                        "Passport '{}': role={}, scope={}, trust={}/10\nSkills: {}\nTools: {}\nConstraints: {}\n{}",
+                        p.name,
+                        p.role,
+                        p.memory_scope,
+                        p.trust_level,
+                        if p.skills.is_empty() {
+                            "-".to_string()
+                        } else {
+                            p.skills.join(", ")
+                        },
+                        if p.tools.is_empty() {
+                            "-".to_string()
+                        } else {
+                            p.tools.join(", ")
+                        },
+                        if p.constraints.is_empty() {
+                            "-".to_string()
+                        } else {
+                            p.constraints.join("; ")
+                        },
+                        if p.description.is_empty() {
+                            String::new()
+                        } else {
+                            format!("Description: {}\n", p.description)
+                        },
+                    ),
+                    Some(serde_json::to_value(p).unwrap_or_default()),
+                ),
+                Err(e) => CopilotResponse::err(format!("Passport error: {}", e)),
+            }
+        }
+        "list" => match crate::commands::passport::passport_list().await {
+            Ok(passports) => {
+                if passports.is_empty() {
+                    return CopilotResponse::ok(
+                        "No agent passports registered.".to_string(),
+                        Some(serde_json::json!([])),
+                    );
+                }
+                let lines: Vec<String> = passports
+                    .iter()
+                    .map(|p| {
+                        format!(
+                            "  {} — role={}, scope={}, trust={}/10, active={}",
+                            p.name, p.role, p.memory_scope, p.trust_level, p.is_active
+                        )
+                    })
+                    .collect();
+                CopilotResponse::ok(
+                    format!(
+                        "{} agent passport(s):\n{}",
+                        passports.len(),
+                        lines.join("\n")
+                    ),
+                    Some(serde_json::to_value(passports).unwrap_or_default()),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Passport list error: {}", e)),
+        },
+        "render" => {
+            let name = args
+                .get(1)
+                .cloned()
+                .unwrap_or_else(|| "opencode-primary".to_string());
+            match crate::commands::passport::passport_render(name).await {
+                Ok(markdown) => CopilotResponse::ok(markdown, None),
+                Err(e) => CopilotResponse::err(format!("Passport render error: {}", e)),
+            }
+        }
+        "upsert" => {
+            let name = args.get(1).cloned().unwrap_or_default();
+            if name.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /passport upsert <name> [role] [trust_level]".to_string(),
+                );
+            }
+            let role = args.get(2).cloned();
+            let trust_level = args.get(3).and_then(|t| t.parse::<u8>().ok());
+            match crate::commands::passport::passport_upsert(
+                name.clone(),
+                None,
+                role,
+                None,
+                None,
+                None,
+                None,
+                trust_level,
+                None,
+            )
+            .await
+            {
+                Ok(p) => CopilotResponse::ok(
+                    format!(
+                        "Passport '{}' saved (role={}, trust={}/10).",
+                        p.name, p.role, p.trust_level
+                    ),
+                    Some(serde_json::to_value(p).unwrap_or_default()),
+                ),
+                Err(e) => CopilotResponse::err(format!("Passport upsert error: {}", e)),
+            }
+        }
+        "deactivate" | "activate" => {
+            let name = args.get(1).cloned().unwrap_or_default();
+            if name.trim().is_empty() {
+                return CopilotResponse::err(format!("Usage: /passport {} <name>", sub));
+            }
+            let active = sub == "activate";
+            match crate::commands::passport::passport_set_active(name.clone(), active).await {
+                Ok(()) => CopilotResponse::ok(format!("Passport '{}' {}d.", name, sub), None),
+                Err(e) => CopilotResponse::err(format!("Passport set_active error: {}", e)),
+            }
+        }
+        "delete" => {
+            let name = args.get(1).cloned().unwrap_or_default();
+            if name.trim().is_empty() {
+                return CopilotResponse::err("Usage: /passport delete <name>".to_string());
+            }
+            match crate::commands::passport::passport_delete(name.clone()).await {
+                Ok(()) => CopilotResponse::ok(format!("Passport '{}' deleted.", name), None),
+                Err(e) => CopilotResponse::err(format!("Passport delete error: {}", e)),
+            }
+        }
+        other => CopilotResponse::err(format!(
+            "Unknown /passport subcommand '{}' (get|list|render|upsert|deactivate|activate|delete)",
+            other
+        )),
+    }
+}
+
+/// Flight recorder: статус самописца и произвольное логирование операции.
+/// `/flight` — сводка, `/flight log <category> <action> : <summary>` — запись.
+async fn cmd_flight(args: &[String]) -> CopilotResponse {
+    let sub = args.first().cloned().unwrap_or_default();
+    match sub.as_str() {
+        "log" => {
+            // Формат: /flight log <category> <action> : <summary>
+            let rest: Vec<String> = args.iter().skip(1).cloned().collect();
+            let joined = rest.join(" ");
+            let Some((head, summary)) = joined.split_once(':') else {
+                return CopilotResponse::err(
+                    "Usage: /flight log <category> <action> : <summary>".to_string(),
+                );
+            };
+            let mut parts = head.split_whitespace();
+            let category = parts.next().unwrap_or("system").to_string();
+            let action = parts.collect::<Vec<_>>().join("_");
+            if action.is_empty() || summary.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /flight log <category> <action> : <summary>".to_string(),
+                );
+            }
+            match crate::commands::flight::flight_log(
+                category,
+                action,
+                summary.trim().to_string(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            {
+                Ok(r) => CopilotResponse::ok(
+                    format!(
+                        "Logged to flight recorder: {} ({}) — {}.",
+                        r.action, r.category, r.outcome
+                    ),
+                    Some(serde_json::json!({
+                        "id": r.id, "category": r.category, "action": r.action, "outcome": r.outcome,
+                    })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Flight log error: {}", e)),
+            }
+        }
+        "" | "status" => match crate::commands::flight::flight_stats().await {
+            Ok(stats) => CopilotResponse::ok(
+                format!(
+                    "Flight recorder: {} records across {} sessions ({} active).\nBy category: {}.\nBy outcome: {}.",
+                    stats.total_records,
+                    stats.total_sessions,
+                    stats.active_sessions,
+                    serde_json::to_string(&stats.by_category).unwrap_or_default(),
+                    serde_json::to_string(&stats.by_outcome).unwrap_or_default(),
+                ),
+                Some(serde_json::json!({
+                    "totalRecords": stats.total_records,
+                    "totalSessions": stats.total_sessions,
+                    "activeSessions": stats.active_sessions,
+                    "byCategory": stats.by_category,
+                    "byOutcome": stats.by_outcome,
+                })),
+            ),
+            Err(e) => CopilotResponse::err(format!("Flight stats error: {}", e)),
+        },
+        other => CopilotResponse::err(format!(
+            "Unknown /flight subcommand '{}' (log|status)",
+            other
+        )),
+    }
+}
+
+/// Flight recorder: последние записи журнала. `/flight-recent [limit] [category]`.
+async fn cmd_flight_recent(args: &[String]) -> CopilotResponse {
+    let limit = args
+        .first()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(20);
+    let category = args.get(1).cloned();
+    match crate::commands::flight::flight_recent(Some(limit), category).await {
+        Ok(records) => {
+            if records.is_empty() {
+                return CopilotResponse::ok(
+                    "Flight recorder is empty.".to_string(),
+                    Some(serde_json::json!([])),
+                );
+            }
+            let mut lines = Vec::new();
+            for r in &records {
+                lines.push(format!(
+                    "  [{}] {} | {} — {} ({}:{})",
+                    r.recorded_at, r.outcome, r.category, r.summary, r.entity_type, r.entity_id
+                ));
+            }
+            CopilotResponse::ok(
+                format!(
+                    "{} recent flight record(s):\n{}",
+                    records.len(),
+                    lines.join("\n")
+                ),
+                Some(serde_json::to_value(records).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Flight recent error: {}", e)),
+    }
+}
+
+/// Flight recorder: воспроизведение цепочки операций по сущности.
+/// `/flight-replay <entity_type> <entity_id>`.
+async fn cmd_flight_replay(args: &[String]) -> CopilotResponse {
+    let entity_type = args.first().cloned().unwrap_or_default();
+    let entity_id = args.get(1).cloned().unwrap_or_default();
+    if entity_type.trim().is_empty() || entity_id.trim().is_empty() {
+        return CopilotResponse::err("Usage: /flight-replay <entity_type> <entity_id>".to_string());
+    }
+    match crate::commands::flight::flight_replay(entity_type.clone(), entity_id.clone()).await {
+        Ok(records) => {
+            if records.is_empty() {
+                return CopilotResponse::ok(
+                    format!("No flight records for {} {}.", entity_type, entity_id),
+                    Some(serde_json::json!([])),
+                );
+            }
+            let mut lines = Vec::new();
+            for r in &records {
+                lines.push(format!(
+                    "  [{}] {} — {} ({})",
+                    r.recorded_at, r.action, r.summary, r.outcome
+                ));
+            }
+            CopilotResponse::ok(
+                format!(
+                    "Flight replay for {} {} ({} step(s)):\n{}",
+                    entity_type,
+                    entity_id,
+                    records.len(),
+                    lines.join("\n")
+                ),
+                Some(serde_json::to_value(records).unwrap_or_default()),
+            )
+        }
+        Err(e) => CopilotResponse::err(format!("Flight replay error: {}", e)),
+    }
+}
+
+/// Flight recorder: управление сессиями полёта.
+/// `/flight-session` — активные; `/flight-session start <title> : <purpose>`;
+/// `/flight-session end <id>`.
+async fn cmd_flight_session(args: &[String]) -> CopilotResponse {
+    let sub = args.first().cloned().unwrap_or_default();
+    match sub.as_str() {
+        "start" => {
+            let rest: Vec<String> = args.iter().skip(1).cloned().collect();
+            let joined = rest.join(" ");
+            let (title, purpose) = match joined.split_once(':') {
+                Some((t, p)) => (t.trim().to_string(), p.trim().to_string()),
+                None => (joined.trim().to_string(), String::new()),
+            };
+            if title.is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /flight-session start <title> [: purpose]".to_string(),
+                );
+            }
+            match crate::commands::flight::flight_session_start(
+                title.clone(),
+                purpose,
+                None,
+                Some("copilot".to_string()),
+            )
+            .await
+            {
+                Ok(s) => CopilotResponse::ok(
+                    format!("Flight session '{}' started ({}).", s.title, s.id),
+                    Some(serde_json::json!({ "id": s.id, "title": s.title })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Flight session start error: {}", e)),
+            }
+        }
+        "end" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /flight-session end <id>".to_string());
+            }
+            match crate::commands::flight::flight_session_end(id.clone()).await {
+                Ok(()) => CopilotResponse::ok(format!("Flight session '{}' closed.", id), None),
+                Err(e) => CopilotResponse::err(format!("Flight session end error: {}", e)),
+            }
+        }
+        "" | "list" => match crate::commands::flight::flight_active_sessions(Some(20)).await {
+            Ok(sessions) => {
+                if sessions.is_empty() {
+                    return CopilotResponse::ok(
+                        "No active flight sessions.".to_string(),
+                        Some(serde_json::json!([])),
+                    );
+                }
+                let mut lines = Vec::new();
+                for s in &sessions {
+                    lines.push(format!(
+                        "  [{}] {} — {} (source: {}, since {})",
+                        s.id, s.title, s.purpose, s.source, s.started_at
+                    ));
+                }
+                CopilotResponse::ok(
+                    format!(
+                        "{} active flight session(s):\n{}",
+                        sessions.len(),
+                        lines.join("\n")
+                    ),
+                    Some(serde_json::to_value(sessions).unwrap_or_default()),
+                )
+            }
+            Err(e) => CopilotResponse::err(format!("Flight sessions error: {}", e)),
+        },
+        other => CopilotResponse::err(format!(
+            "Unknown /flight-session subcommand '{}' (list|start|end)",
+            other
+        )),
+    }
+}
+
+/// Flight recorder: сводная статистика журнала.
+async fn cmd_flight_stats() -> CopilotResponse {
+    match crate::commands::flight::flight_stats().await {
+        Ok(stats) => CopilotResponse::ok(
+            format!(
+                "Flight recorder stats: {} records, {} sessions ({} active), {} context chains (explainable answers).\nBy category: {}.\nBy outcome: {}.",
+                stats.total_records,
+                stats.total_sessions,
+                stats.active_sessions,
+                stats.context_chains,
+                serde_json::to_string(&stats.by_category).unwrap_or_default(),
+                serde_json::to_string(&stats.by_outcome).unwrap_or_default(),
+            ),
+            Some(serde_json::json!({
+                "totalRecords": stats.total_records,
+                "totalSessions": stats.total_sessions,
+                "activeSessions": stats.active_sessions,
+                "contextChains": stats.context_chains,
+                "byCategory": stats.by_category,
+                "byOutcome": stats.by_outcome,
+            })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Flight stats error: {}", e)),
+    }
+}
+
+/// /why <chain-id> — explain why AI answered the way it did.
+async fn cmd_why(args: &[String]) -> CopilotResponse {
+    let id = args.first().cloned().unwrap_or_default();
+    if id.trim().is_empty() {
+        return CopilotResponse::ok(
+            "Usage: /why <chain-id>\nList recent chains with /context-chain recent.".to_string(),
+            None,
+        );
+    }
+    match crate::commands::flight::context_chain_get(id.clone()).await {
+        Ok(c) => CopilotResponse::ok(
+            format!("Why did AI say this? (chain '{}'):\n\n{}", c.id, c.why),
+            Some(serde_json::json!({
+                "id": c.id,
+                "query": c.query,
+                "intent": c.intent,
+                "confidence": c.answer_confidence,
+                "totalTokens": c.total_tokens,
+                "pipeline": c.pipeline,
+            })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Why error: {}", e)),
+    }
+}
+
+/// /context-chain record|recent|get — record and browse context chains.
+async fn cmd_context_chain(args: &[String]) -> CopilotResponse {
+    let sub = args.first().map(|s| s.as_str()).unwrap_or("recent");
+    match sub {
+        "recent" | "list" => {
+            let limit = args
+                .get(1)
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(10);
+            match crate::commands::flight::context_chain_recent(Some(limit)).await {
+                Ok(chains) => {
+                    if chains.is_empty() {
+                        return CopilotResponse::ok(
+                            "No context chains recorded yet. Record one with /context-chain record \"<query>\" \"<answer>\" [confidence].".to_string(),
+                            Some(serde_json::json!({ "chains": [] })),
+                        );
+                    }
+                    let lines: Vec<String> = chains
+                        .iter()
+                        .map(|c| {
+                            format!(
+                                "- {} | \"{}\" | {} | conf {:.0}% | {} tok",
+                                c.id,
+                                c.query,
+                                c.intent,
+                                c.answer_confidence * 100.0,
+                                c.total_tokens
+                            )
+                        })
+                        .collect();
+                    CopilotResponse::ok(
+                        format!(
+                            "Recent context chains (newest first):\n{}\n\nShow the full breakdown with /why <chain-id>.",
+                            lines.join("\n")
+                        ),
+                        Some(serde_json::json!({
+                            "chains": chains.iter().map(|c| serde_json::json!({
+                                "id": c.id, "query": c.query, "intent": c.intent,
+                                "confidence": c.answer_confidence, "totalTokens": c.total_tokens
+                            })).collect::<Vec<_>>(),
+                        })),
+                    )
+                }
+                Err(e) => CopilotResponse::err(format!("Context chain list error: {}", e)),
+            }
+        }
+        "record" => {
+            let query = args.get(1).cloned().unwrap_or_default();
+            if query.trim().is_empty() {
+                return CopilotResponse::err(
+                    "Usage: /context-chain record \"<query>\" [confidence] [answer]".to_string(),
+                );
+            }
+            let confidence = args
+                .get(2)
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.5);
+            let answer = args
+                .get(3)
+                .cloned()
+                .unwrap_or_else(|| "(no answer text)".to_string());
+            match crate::commands::flight::context_chain_record(
+                query,
+                None,
+                Some(answer),
+                Some(confidence),
+                None,
+                None,
+                None,
+            )
+            .await
+            {
+                Ok(c) => CopilotResponse::ok(
+                    format!(
+                        "Context chain '{}' recorded: confidence {:.0}%, {} tokens.\nShow the breakdown with /why {}.",
+                        c.id,
+                        c.answer_confidence * 100.0,
+                        c.total_tokens,
+                        c.id
+                    ),
+                    Some(serde_json::json!({ "id": c.id })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Context chain record error: {}", e)),
+            }
+        }
+        "get" => {
+            let id = args.get(1).cloned().unwrap_or_default();
+            if id.trim().is_empty() {
+                return CopilotResponse::err("Usage: /context-chain get <chain-id>".to_string());
+            }
+            match crate::commands::flight::context_chain_get(id).await {
+                Ok(c) => CopilotResponse::ok(
+                    format!(
+                        "Chain '{}' — \"{}\" ({}):\n\n{}",
+                        c.id, c.query, c.intent, c.why
+                    ),
+                    Some(serde_json::json!({
+                        "id": c.id, "query": c.query, "intent": c.intent,
+                        "confidence": c.answer_confidence, "totalTokens": c.total_tokens,
+                        "pipeline": c.pipeline,
+                    })),
+                ),
+                Err(e) => CopilotResponse::err(format!("Context chain get error: {}", e)),
+            }
+        }
+        other => CopilotResponse::err(format!(
+            "Unknown /context-chain subcommand '{}'. Try: recent, record, get.",
+            other
+        )),
     }
 }
 
@@ -1780,6 +3248,153 @@ async fn cmd_audit_note(args: &[String]) -> CopilotResponse {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Memory conflict engine commands (System 2)
+// ═══════════════════════════════════════════════════════════════
+
+/// List conflict groups, optionally filtered by status (open|resolved).
+async fn cmd_conflicts(args: &[String]) -> CopilotResponse {
+    let status = args.first().cloned();
+    match crate::commands::conflict::get_conflicts(status).await {
+        Ok(groups) => {
+            let mut message = format!("{} conflict group(s):\n", groups.len());
+            for g in &groups {
+                let status_label = if g.status == "open" {
+                    "OPEN"
+                } else {
+                    "RESOLVED"
+                };
+                message.push_str(&format!(
+                    "• [{}] {} — {} ({} members)\n",
+                    status_label,
+                    g.id,
+                    g.topic,
+                    g.member_ids.len()
+                ));
+            }
+            CopilotResponse::ok(message, Some(serde_json::json!({ "conflicts": groups })))
+        }
+        Err(e) => CopilotResponse::err(format!("Conflicts error: {}", e)),
+    }
+}
+
+/// Full conflict group by id (topic, members, status, resolution).
+async fn cmd_conflict_details(args: &[String]) -> CopilotResponse {
+    let id = args.first().cloned().unwrap_or_default();
+    if id.trim().is_empty() {
+        return CopilotResponse::err("Usage: /conflict-details <group-id>".to_string());
+    }
+    match crate::commands::conflict::get_conflict(id).await {
+        Ok(g) => {
+            let mut message = format!(
+                "Conflict group {} [{}] — \"{}\"\nMembers ({}):\n",
+                g.id,
+                g.status,
+                g.topic,
+                g.member_ids.len()
+            );
+            for m in &g.member_ids {
+                message.push_str(&format!("  • {}\n", m));
+            }
+            if let Some(res) = &g.resolution {
+                message.push_str(&format!(
+                    "Resolved by {} at {:.0}%: {}\nReasons: {}",
+                    res.by,
+                    res.confidence * 100.0,
+                    res.winner_id,
+                    res.reasons.join(", ")
+                ));
+            }
+            CopilotResponse::ok(message, Some(serde_json::json!({ "conflict": g })))
+        }
+        Err(e) => CopilotResponse::err(format!("Conflict details error: {}", e)),
+    }
+}
+
+/// Run the Current Truth Engine over a conflict (read-only verdict).
+async fn cmd_conflict_truth(args: &[String]) -> CopilotResponse {
+    let id = args.first().cloned().unwrap_or_default();
+    if id.trim().is_empty() {
+        return CopilotResponse::err("Usage: /conflict-truth <group-id>".to_string());
+    }
+    match crate::commands::conflict::get_conflict_truth(id).await {
+        Ok(v) => CopilotResponse::ok(
+            format!(
+                "Current truth: {} at {:.0}% confidence.\nReasons: {}",
+                v.winner_id,
+                v.confidence * 100.0,
+                v.reasons.join(", ")
+            ),
+            Some(serde_json::json!({ "verdict": v })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Conflict truth error: {}", e)),
+    }
+}
+
+/// Settle a conflict: /conflict-resolve <group-id> <winner-id> [reason]
+async fn cmd_conflict_resolve(args: &[String]) -> CopilotResponse {
+    let id = args.first().cloned().unwrap_or_default();
+    let winner_id = args.get(1).cloned().unwrap_or_default();
+    if id.trim().is_empty() || winner_id.trim().is_empty() {
+        return CopilotResponse::err(
+            "Usage: /conflict-resolve <group-id> <winner-id> [reason]".to_string(),
+        );
+    }
+    let reason = args.get(2).cloned();
+    match crate::commands::conflict::resolve_conflict(id, winner_id, "user".to_string(), reason)
+        .await
+    {
+        Ok(res) => CopilotResponse::ok(
+            format!(
+                "Resolved by {}: {} wins at {:.0}% confidence.\nReasons: {}",
+                res.by,
+                res.winner_id,
+                res.confidence * 100.0,
+                res.reasons.join(", ")
+            ),
+            Some(serde_json::json!({ "resolution": res })),
+        ),
+        Err(e) => CopilotResponse::err(format!("Conflict resolve error: {}", e)),
+    }
+}
+
+/// Health check: reconcile groups with Conflicted records, then surface every
+/// open conflict with the engine's verdict.
+async fn cmd_conflict_check() -> CopilotResponse {
+    match crate::commands::conflict::sync_conflict_groups().await {
+        Ok(touched) => {
+            let mut message = format!("{} group(s) reconciled.\n", touched);
+            match crate::commands::conflict::get_conflicts(Some("open".to_string())).await {
+                Ok(open) => {
+                    message.push_str(&format!("{} open conflict(s):\n", open.len()));
+                    for g in &open {
+                        let verdict = crate::commands::conflict::get_conflict_truth(g.id.clone())
+                            .await
+                            .ok();
+                        match verdict {
+                            Some(v) => message.push_str(&format!(
+                                "  • \"{}\" — truth: {} at {:.0}% ({})\n",
+                                g.topic,
+                                v.winner_id,
+                                v.confidence * 100.0,
+                                v.reasons.join(", ")
+                            )),
+                            None => message.push_str(&format!(
+                                "  • \"{}\" — {} members, no verdict\n",
+                                g.topic,
+                                g.member_ids.len()
+                            )),
+                        }
+                    }
+                    CopilotResponse::ok(message, Some(serde_json::json!({ "openConflicts": open })))
+                }
+                Err(e) => CopilotResponse::err(format!("Conflict check error: {}", e)),
+            }
+        }
+        Err(e) => CopilotResponse::err(format!("Conflict check error: {}", e)),
+    }
+}
+
 async fn cmd_help() -> CopilotResponse {
     let help_text = r#"Nexus Copilot Commands:
 
@@ -1814,6 +3429,34 @@ Memory Lifecycle Commands:
   /memory-confirm <id> [by]          Mark a memory as confirmed by a human
   /memory-feedback <id> <kind>       Record feedback: useful|irrelevant|wrong
   /memory-supersede <old_id> <title> <content>  Replace an outdated memory
+
+Cognitive Layer Commands (System 1):
+  /layer-list                        List the six cognitive layers with meaning
+  /layer-stats                       Layer distribution across the memory pool
+  /layer-set <id> <layer> [reason]   Assign a layer: Working|Episodic|Semantic|Procedural|Decision|Strategic
+  /layer-reclassify <id>             Re-run the classifier on a memory
+  /layer-history <id>                Provenance trail of a memory's layer changes
+
+Memory Score (Knowledge Navigation 2.0):
+  /memory-score                      Health panel: coverage, freshness, consistency, trust, redundancy, conflict, context quality + MEMORY HEALTH %
+
+Context Lab (context strategy A/B/C, System 6):
+  /context-lab <query>               Run the query through compact / balanced / rich strategies; shows metrics + predicted accuracy per strategy and the winner
+  /context-lab-history [limit]       Recent lab experiments: which strategies won on which queries
+  /context-lab-stats                 How many experiments run, which strategy wins overall
+
+Skill Genesis (skills born from repetition, System 7):
+  /skill-genesis [limit]             Scan the flight log for repeated operations and propose them as skills
+  /skill-candidates [status]         List skill candidates (status: proposed|approved|rejected|all)
+  /skill-approve <proposal-id>       Approve a candidate — creates the real skill
+  /skill-reject <proposal-id>        Reject a candidate — no skill is created
+
+Predictive Context (anticipating the next question, System 8):
+  /predict <question>                Predict the next question (Markov chain of query history) + entities to prewarm
+  /predict-stats                     How many queries are in the history
+
+Knowledge Map (the AI Universe star chart, System 9):
+  /map <entity-id> [depth]           Render the mission/relevant/supporting/historical rings around an entity
 
 Entity Resolution Commands:
   /find-duplicates [min_score]       Scan graph for duplicate entities
@@ -1867,6 +3510,52 @@ Memory Radar (proactive recall):
   /radar [mark]                     Show what needs attention (conflicts, expiring, unconfirmed, new). "mark" also advances the checkpoint
   /radar-mark-seen                  Advance the radar checkpoint to now
 
+Memory Rehearsal (spaced repetition):
+  /rehearsal                        Run the rehearsal cycle: strengthen due memories, schedule fresh ones, decay forgotten
+  /rehearsal-plan                   Show which memories are due for review right now
+  /rehearse <id>                    Mark one memory as rehearsed after a review
+  /rehearsal-consolidate            Merge repeated records into one Canonical Memory (with provenance)
+  /canonicals [limit]               List the distilled canonical memories
+
+Memory Firewall (ingress protection):
+  /firewall                         Firewall status: rules + pending quarantine
+  /firewall check <title> : <content>  Preview how incoming content is screened (nothing stored)
+  /firewall-rule add <pattern> <block|quarantine> [reason]  Add a custom rule
+  /firewall-rule list               List all custom rules
+  /firewall-rule delete <id>        Delete a rule
+  /firewall-rule enable|disable <id>  Toggle a rule
+  /quarantine list [status]         List quarantine (status: pending|approved|rejected|all)
+  /quarantine approve <id>          Approve a quarantined entry — creates the memory
+  /quarantine reject <id>           Reject a quarantined entry — content is discarded
+
+Agent Permissions (who may see what memory):
+  /agent-policy                     List all agent permission policies
+  /agent-policy add <agent> [vis] [layers] : <deny>  Grant/restrict an agent (vis: public,private,restricted; layers: working..strategic; deny: forbidden substrings)
+  /agent-policy delete <id>         Remove an agent policy
+  /agent-access <agent> <memory-id>  Check whether the agent may see this memory before it reaches the LLM
+
+Flight Recorder (operation black-box):
+  /flight [status]                  Flight recorder summary: records, sessions, breakdown
+  /flight log <cat> <act> : <text>  Log one operation into the black box (cat: memory|conflict|firewall|rehearsal|skill|mcp|...)
+  /flight-recent [limit] [cat]      Latest recorded operations
+  /flight-replay <type> <id>        Replay the operation chain of one entity
+  /flight-session [list]            Active flight sessions (what is running now)
+  /flight-session start <title> : <purpose>  Open a flight session
+  /flight-session end <id>          Close a flight session
+  /flight-stats                     Flight recorder statistics
+  /context-chain recent [limit]     List recent context chains (why-chains of past answers)
+  /context-chain record "<query>" [confidence] [answer]  Record a context chain manually
+  /context-chain get <chain-id>     Show one context chain
+  /why <chain-id>                   Why did AI say this? — breakdown of seeds and pipeline
+
+Agent Passport (identity card):
+  /passport [name]                  Show an agent's identity passport (default: opencode-primary)
+  /passport list                    List all agent passports
+  /passport render <name>           Render a passport as markdown for AGENTS.md / context
+  /passport upsert <name> [role] [trust]  Create/update a passport (role: generalist|coder|researcher|reviewer|orchestrator|memory-keeper; trust: 1-10)
+  /passport activate|deactivate <name>  Enable or disable a passport
+  /passport delete <name>           Delete a passport
+
 Team Memory (shared trusted layer):
   /team-add-member <name> [role]    Add a team member (role: admin|member|viewer)
   /team-members                     List the team roster
@@ -1876,6 +3565,13 @@ Audit Memory (decision chain / compliance):
   /audit <memory-id>                Reconstruct the full decision chain: why it exists, alternatives considered, who confirmed, what replaced it
   /audit-alternative <id> <title> <reason> [actor]  Record an alternative that was considered (and rejected)
   /audit-note <id> <note> [actor]   Append a free-form note to the decision journal
+
+Memory Conflict Engine (System 2):
+  /conflicts [status]               List conflict groups (status: open|resolved)
+  /conflict-details <group-id>      Full group: topic, members, resolution
+  /conflict-truth <group-id>        Current Truth Engine verdict (winner + confidence + reasons)
+  /conflict-resolve <group-id> <winner-id> [reason]  Settle the conflict (human decides)
+  /conflict-check                   Reconcile groups + surface every open conflict with its verdict
 
 System Commands:
   /stats                             Show database statistics

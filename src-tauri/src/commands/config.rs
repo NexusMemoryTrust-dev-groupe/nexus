@@ -63,10 +63,15 @@ pub async fn get_all_config() -> Result<Vec<ConfigEntry>, String> {
 /// Set a configuration value. Creates or updates.
 #[tauri::command]
 pub async fn set_config(key: String, value: String) -> Result<(), String> {
+    set_config_sync(&key, &value)
+}
+
+/// Synchronous version — usable from non-Tauri contexts (e.g. the updater).
+pub fn set_config_sync(key: &str, value: &str) -> Result<(), String> {
     let conn = open_config_db()?;
     conn.execute(
         "INSERT OR REPLACE INTO configuration_kv (key, value) VALUES (?1, ?2)",
-        [&key, &value],
+        [key, value],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -75,8 +80,13 @@ pub async fn set_config(key: String, value: String) -> Result<(), String> {
 /// Delete a configuration value.
 #[tauri::command]
 pub async fn delete_config(key: String) -> Result<(), String> {
+    delete_config_sync(&key)
+}
+
+/// Synchronous version — usable from non-Tauri contexts.
+pub fn delete_config_sync(key: &str) -> Result<(), String> {
     let conn = open_config_db()?;
-    conn.execute("DELETE FROM configuration_kv WHERE key = ?1", [&key])
+    conn.execute("DELETE FROM configuration_kv WHERE key = ?1", [key])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -125,6 +135,19 @@ pub async fn get_db_stats() -> Result<DbStats, String> {
         snapshot_count,
         db_size_bytes: file_size,
     })
+}
+
+/// Effective state of every known feature flag (plan 7.6).
+#[tauri::command]
+pub async fn get_feature_flags() -> Result<Vec<crate::core::config::FeatureFlagStatus>, String> {
+    Ok(crate::core::config::list_flags())
+}
+
+/// Flip a feature flag ON/OFF (plan 7.6: enable → measure → rollback).
+/// Unknown keys are rejected.
+#[tauri::command]
+pub async fn set_feature_flag(key: String, enabled: bool) -> Result<(), String> {
+    crate::core::config::set_enabled(&key, enabled).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize, Deserialize)]

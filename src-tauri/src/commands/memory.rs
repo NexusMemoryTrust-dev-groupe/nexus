@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+﻿use serde::{Deserialize, Serialize};
 
 use crate::core::entity_id::EntityId;
 use crate::core::memory::memory_record::MemoryRecord;
@@ -35,6 +35,20 @@ pub struct MemoryDto {
     pub confirmed_by: Option<String>,
     pub expires_at: Option<String>,
     pub feedback: MemoryFeedback,
+    // Cognitive layer provenance (V18)
+    pub layer_confidence: f64,
+    pub layer_reason: String,
+    pub layer_updated_at: Option<String>,
+    pub layer_history: Vec<LayerHistoryDto>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LayerHistoryDto {
+    pub layer: String,
+    pub confidence: f64,
+    pub reason: String,
+    pub at: String,
+    pub by: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -96,6 +110,20 @@ impl From<MemoryRecord> for MemoryDto {
             confirmed_by: r.confirmed_by,
             expires_at: r.expires_at.map(|dt| dt.to_rfc3339()),
             feedback: r.feedback,
+            layer_confidence: r.layer_confidence,
+            layer_reason: r.layer_reason,
+            layer_updated_at: r.layer_updated_at.map(|dt| dt.to_rfc3339()),
+            layer_history: r
+                .layer_history
+                .into_iter()
+                .map(|e| LayerHistoryDto {
+                    layer: e.layer.as_str().to_string(),
+                    confidence: e.confidence,
+                    reason: e.reason,
+                    at: e.at,
+                    by: e.by.as_str().to_string(),
+                })
+                .collect(),
         }
     }
 }
@@ -103,6 +131,15 @@ impl From<MemoryRecord> for MemoryDto {
 fn open_repo() -> Result<crate::storage::sqlite::SqliteMemoryRepository, String> {
     let conn = crate::db::open_connection()?;
     crate::storage::sqlite::SqliteMemoryRepository::new(conn).map_err(|e| e.to_string())
+}
+
+/// After the conflict detector flags both sides of a contradiction, reconcile
+/// the conflict groups table so the pair becomes a resolvable open group.
+/// Best-effort: failures are logged, never fatal for the create/update call.
+async fn reconcile_conflict_groups_after_detect() {
+    if let Err(e) = crate::commands::conflict::sync_conflict_groups().await {
+        eprintln!("[nexus] conflict group reconciliation failed: {}", e);
+    }
 }
 
 /// Get all memory records.
@@ -133,13 +170,26 @@ pub async fn create_memory(
     author: Option<String>,
 ) -> Result<MemoryDto, String> {
     let repo = open_repo()?;
-    let record = MemoryRecord::new(
+    let mut record = MemoryRecord::new(
         title,
         content,
         author.unwrap_or_else(|| "user".to_string()),
         MemorySource::Manual,
     )
     .map_err(|e| e.to_string())?;
+    crate::core::memory::memory_lifecycle::auto_classify(&mut record);
+
+    // Memory Firewall (System 4): every ingress path must be screened before
+    // the content enters the store. Block → Err; Quarantine → content is parked
+    // in the quarantine table and the caller learns the id.
+    crate::commands::firewall::screen_ingress(
+        &record.title,
+        &record.content,
+        &record.author,
+        "Manual",
+    )
+    .await?;
+
     let _id = repo.save(&record).await.map_err(|e| e.to_string())?;
 
     // Memory Trust: check the new memory against the existing pool. If it says
@@ -148,6 +198,10 @@ pub async fn create_memory(
     crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
         .await
         .map_err(|e| e.to_string())?;
+
+    // The detector may have created contradictions вЂ” turn them into resolvable
+    // open conflict groups so the Conflicts view / MCP can surface them.
+    reconcile_conflict_groups_after_detect().await;
 
     // The conflict detector may have demoted this record to Conflicted in the
     // database. Re-read it so the returned DTO reflects the persisted state
@@ -207,6 +261,17 @@ pub async fn create_project_memory(
     )
     .map_err(|e| e.to_string())?;
     record.project_space_id = Some(entity_id);
+    crate::core::memory::memory_lifecycle::auto_classify(&mut record);
+
+    // Memory Firewall (System 4): screen every ingress path.
+    crate::commands::firewall::screen_ingress(
+        &record.title,
+        &record.content,
+        &record.author,
+        "Manual",
+    )
+    .await?;
+
     let _id = repo.save(&record).await.map_err(|e| e.to_string())?;
 
     crate::core::context::indexer::spawn_index_memory(
@@ -245,15 +310,21 @@ pub async fn update_memory(
         record.summary = s;
     }
     record.touch();
+    // The edited text may change what the memory *is* вЂ” re-classify unless the
+    // user pinned the layer explicitly.
+    crate::core::memory::memory_lifecycle::auto_classify(&mut record);
     // Must be update(), not save(): save() issues an INSERT and fails with a
     // UNIQUE constraint violation on the existing primary key.
     repo.update(&record).await.map_err(|e| e.to_string())?;
 
     // Memory Trust: an edited memory may now contradict something else in the
-    // pool — re-run the conflict check.
+    // pool вЂ” re-run the conflict check.
     crate::core::memory::memory_lifecycle::detect_and_mark_conflicts(&repo, &record)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Reconcile conflict groups for any newly flagged contradiction.
+    reconcile_conflict_groups_after_detect().await;
 
     // Re-index: the stored embedding describes the *old* text, so leaving it in
     // place makes semantic search return this memory for queries that no longer
@@ -292,4 +363,154 @@ pub async fn delete_memory(id: String) -> Result<(), String> {
     crate::core::context::indexer::spawn_forget_memory(&entity_id);
 
     Ok(())
+}
+
+/// Explicitly set a memory's cognitive layer (user choice). Records provenance.
+#[tauri::command]
+pub async fn set_memory_layer(
+    id: String,
+    layer: String,
+    reason: Option<String>,
+) -> Result<MemoryDto, String> {
+    let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
+    let parsed_layer = crate::core::memory::types::MemoryLayer::parse(&layer);
+    let repo = open_repo()?;
+    let mut record = repo
+        .get_by_id(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Memory {} not found", id))?;
+
+    record.layer = parsed_layer.clone();
+    record.layer_confidence = 1.0;
+    record.layer_reason = reason.unwrap_or_else(|| "user-assigned layer".to_string());
+    record.layer_updated_at = Some(chrono::Utc::now());
+    record
+        .layer_history
+        .push(crate::core::memory::types::LayerHistoryEntry {
+            layer: parsed_layer,
+            confidence: 1.0,
+            reason: record.layer_reason.clone(),
+            at: chrono::Utc::now().to_rfc3339(),
+            by: crate::core::memory::types::LayerAssignment::User,
+        });
+    record.touch();
+    repo.update(&record).await.map_err(|e| e.to_string())?;
+    Ok(MemoryDto::from(record))
+}
+
+/// Re-run the signature classifier on a memory and persist the result.
+#[tauri::command]
+pub async fn reclassify_memory(id: String) -> Result<MemoryDto, String> {
+    let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
+    let repo = open_repo()?;
+    let mut record = repo
+        .get_by_id(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Memory {} not found", id))?;
+
+    let pinned_by_user = record
+        .layer_history
+        .last()
+        .map(|e| e.by == crate::core::memory::types::LayerAssignment::User)
+        .unwrap_or(false);
+    if !pinned_by_user {
+        let classification = crate::core::memory::layer::LayerClassifier::classify(
+            &record.title,
+            &record.content,
+            record.source.clone(),
+            record.memory_state.clone(),
+            record.importance_score,
+        );
+        record.layer = classification.layer;
+        record.layer_confidence = classification.confidence;
+        record.layer_reason = classification.reason;
+        record.layer_updated_at = Some(chrono::Utc::now());
+    }
+    record.touch();
+    repo.update(&record).await.map_err(|e| e.to_string())?;
+    Ok(MemoryDto::from(record))
+}
+
+/// Full layer history of a memory, newest first.
+#[tauri::command]
+pub async fn get_layer_history(id: String) -> Result<Vec<LayerHistoryDto>, String> {
+    let entity_id = EntityId::parse(&id).map_err(|e| e.to_string())?;
+    let repo = open_repo()?;
+    let record = repo
+        .get_by_id(&entity_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Memory {} not found", id))?;
+    let mut history = record.layer_history;
+    crate::core::memory::types::LayerHistoryEntry::sort_newest_first(&mut history);
+    Ok(history
+        .into_iter()
+        .map(|e| LayerHistoryDto {
+            layer: e.layer.as_str().to_string(),
+            confidence: e.confidence,
+            reason: e.reason,
+            at: e.at,
+            by: e.by.as_str().to_string(),
+        })
+        .collect())
+}
+
+/// Distribution of cognitive layers across the memory pool.
+#[tauri::command]
+pub async fn get_layer_stats() -> Result<Vec<crate::core::memory::memory_service::LayerStat>, String>
+{
+    let repo = open_repo()?;
+    let records = repo.list(10_000, 0).await.map_err(|e| e.to_string())?;
+    let mut by_layer: std::collections::HashMap<String, (u64, f64)> =
+        std::collections::HashMap::new();
+    for r in &records {
+        let entry = by_layer
+            .entry(r.layer.as_str().to_string())
+            .or_insert((0, 0.0));
+        entry.0 += 1;
+        entry.1 += r.layer_confidence;
+    }
+    let mut stats: Vec<crate::core::memory::memory_service::LayerStat> = by_layer
+        .into_iter()
+        .map(
+            |(layer, (count, conf_sum))| crate::core::memory::memory_service::LayerStat {
+                layer,
+                count,
+                mean_confidence: if count == 0 {
+                    0.0
+                } else {
+                    conf_sum / count as f64
+                },
+            },
+        )
+        .collect();
+    stats.sort_by_key(|s| std::cmp::Reverse(s.count));
+    Ok(stats)
+}
+
+/// Nexus Memory Score — панель здоровья памяти проекта (Knowledge Nav 2.0).
+/// Считает покрытие, свежесть, согласованность, доверие, избыточность,
+/// конфликтность и зрелость знаний; итоговое здоровье 0–100%.
+#[tauri::command]
+pub async fn get_memory_score() -> Result<crate::core::memory::memory_score::MemoryScore, String> {
+    use crate::core::memory::memory_score::compute_score;
+
+    let repo = open_repo()?;
+    let records = repo.list(100_000, 0).await.map_err(|e| e.to_string())?;
+
+    // Число сущностей графа — знаменатель для coverage.
+    let entities_total = crate::db::open_connection()
+        .ok()
+        .and_then(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM graph_entities", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .ok()
+        })
+        .unwrap_or(0)
+        .max(0) as u32;
+
+    Ok(compute_score(&records, entities_total))
 }
