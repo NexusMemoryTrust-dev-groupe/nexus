@@ -18,13 +18,11 @@ use nexus::db;
 /// (`C:\Users\RunnerAdmin\...` vs `C:\Users\runneradmin\...`).
 fn same_path(a: &Path, b: &Path) -> bool {
     a.components().count() == b.components().count()
-        && a.components()
-            .zip(b.components())
-            .all(|(x, y)| {
-                x.as_os_str()
-                    .to_string_lossy()
-                    .eq_ignore_ascii_case(&y.as_os_str().to_string_lossy())
-            })
+        && a.components().zip(b.components()).all(|(x, y)| {
+            x.as_os_str()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(&y.as_os_str().to_string_lossy())
+        })
 }
 
 #[test]
@@ -63,7 +61,9 @@ fn live_policy_collects_data_dir_workspace_and_extra_roots() {
     let sb = current();
     let data_root = db_path.parent().expect("db has parent").to_path_buf();
     assert!(
-        sb.roots().iter().any(|r| same_path(Path::new(r), &data_root)),
+        sb.roots()
+            .iter()
+            .any(|r| same_path(Path::new(r), &data_root)),
         "data dir missing from roots: {:?}",
         sb.roots()
     );
