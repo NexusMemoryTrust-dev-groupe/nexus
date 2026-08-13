@@ -11,6 +11,16 @@ pub trait MemoryRepository: Send + Sync {
     /// Persist a new memory record. Returns its ID.
     async fn save(&self, record: &MemoryRecord) -> Result<EntityId>;
 
+    /// Persist many memory records. The default implementation saves them one
+    /// by one; storage backends may override this with a single transaction to
+    /// avoid one WAL commit per record (bulk import / benchmarks).
+    async fn save_many(&self, records: &[MemoryRecord]) -> Result<()> {
+        for record in records {
+            self.save(record).await?;
+        }
+        Ok(())
+    }
+
     /// Retrieve a memory record by its ID.
     async fn get_by_id(&self, id: &EntityId) -> Result<Option<MemoryRecord>>;
 

@@ -247,6 +247,77 @@ fn parse_layer(s: &str) -> MemoryLayer {
     MemoryLayer::parse(s)
 }
 
+/// Insert a single memory record with the full 36-column INSERT.
+/// Takes `&rusqlite::Connection` so it works both on a plain connection and
+/// inside a transaction (rusqlite's Transaction derefs to Connection).
+fn insert_record(conn: &Connection, record: &MemoryRecord) -> Result<()> {
+    let linked_json = serde_json::to_string(&record.linked_entity_ids)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let attached_json = serde_json::to_string(&record.attached_files)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let derived_from_json = serde_json::to_string(&record.derived_from)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let feedback_json =
+        serde_json::to_string(&record.feedback).map_err(|e| AppError::Internal(e.to_string()))?;
+    let layer_history_json = serde_json::to_string(&record.layer_history)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    conn.execute(
+        "INSERT INTO memory_records (
+            id, title, summary, content, created_at, updated_at,
+            author, source, confidence_score, importance_score,
+            visibility, capture_mode, project_space_id,
+            linked_entity_ids_json, latest_version_id, status, layer,
+            attached_files_json, derived_from_json, reason, version, updated_by,
+            memory_state, supersedes_id, superseded_by_id,
+            confirmed_at, confirmed_by, expires_at, feedback_json,
+            layer_confidence, layer_reason, layer_updated_at, layer_history_json,
+            last_rehearsed_at, rehearsal_count, next_rehearsal_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
+        params![
+            record.id.as_str(),
+            record.title,
+            record.summary,
+            record.content,
+            record.created_at.to_rfc3339(),
+            record.updated_at.to_rfc3339(),
+            record.author,
+            source_to_string(&record.source),
+            record.confidence_score,
+            record.importance_score,
+            visibility_to_string(&record.visibility),
+            capture_mode_to_string(&record.capture_mode),
+            record.project_space_id.as_ref().map(|e| e.as_str()),
+            linked_json,
+            record.latest_version_id,
+            status_to_string(&record.status),
+            layer_to_string(&record.layer),
+            attached_json,
+            derived_from_json,
+            record.reason,
+            record.version as i32,
+            record.updated_by,
+            record.memory_state.as_str(),
+            record.supersedes_id,
+            record.superseded_by_id,
+            record.confirmed_at.map(|dt| dt.to_rfc3339()),
+            record.confirmed_by,
+            record.expires_at.map(|dt| dt.to_rfc3339()),
+            feedback_json,
+            record.layer_confidence,
+            record.layer_reason,
+            record.layer_updated_at.map(|dt| dt.to_rfc3339()),
+            layer_history_json,
+            record.last_rehearsed_at.map(|dt| dt.to_rfc3339()),
+            record.rehearsal_count as i64,
+            record.next_rehearsal_at.map(|dt| dt.to_rfc3339()),
+        ],
+    )
+    .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(())
+}
+
 #[async_trait]
 impl MemoryRepository for SqliteMemoryRepository {
     async fn save(&self, record: &MemoryRecord) -> Result<EntityId> {
@@ -254,72 +325,26 @@ impl MemoryRepository for SqliteMemoryRepository {
             .conn
             .lock()
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let id = record.id.as_str().to_string();
-        let linked_json = serde_json::to_string(&record.linked_entity_ids)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let attached_json = serde_json::to_string(&record.attached_files)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let derived_from_json = serde_json::to_string(&record.derived_from)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let feedback_json = serde_json::to_string(&record.feedback)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let layer_history_json = serde_json::to_string(&record.layer_history)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        conn.execute(
-            "INSERT INTO memory_records (
-                id, title, summary, content, created_at, updated_at,
-                author, source, confidence_score, importance_score,
-                visibility, capture_mode, project_space_id,
-                linked_entity_ids_json, latest_version_id, status, layer,
-                attached_files_json, derived_from_json, reason, version, updated_by,
-                memory_state, supersedes_id, superseded_by_id,
-                confirmed_at, confirmed_by, expires_at, feedback_json,
-                layer_confidence, layer_reason, layer_updated_at, layer_history_json,
-                last_rehearsed_at, rehearsal_count, next_rehearsal_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36)",
-            params![
-                id,
-                record.title,
-                record.summary,
-                record.content,
-                record.created_at.to_rfc3339(),
-                record.updated_at.to_rfc3339(),
-                record.author,
-                source_to_string(&record.source),
-                record.confidence_score,
-                record.importance_score,
-                visibility_to_string(&record.visibility),
-                capture_mode_to_string(&record.capture_mode),
-                record.project_space_id.as_ref().map(|e| e.as_str()),
-                linked_json,
-                record.latest_version_id,
-                status_to_string(&record.status),
-                layer_to_string(&record.layer),
-                attached_json,
-                derived_from_json,
-                record.reason,
-                record.version as i32,
-                record.updated_by,
-                record.memory_state.as_str(),
-                record.supersedes_id,
-                record.superseded_by_id,
-                record.confirmed_at.map(|dt| dt.to_rfc3339()),
-                record.confirmed_by,
-                record.expires_at.map(|dt| dt.to_rfc3339()),
-                feedback_json,
-                record.layer_confidence,
-                record.layer_reason,
-                record.layer_updated_at.map(|dt| dt.to_rfc3339()),
-                layer_history_json,
-                record.last_rehearsed_at.map(|dt| dt.to_rfc3339()),
-                record.rehearsal_count as i64,
-                record.next_rehearsal_at.map(|dt| dt.to_rfc3339()),
-            ],
-        )
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
+        insert_record(&conn, record)?;
         Ok(record.id.clone())
+    }
+
+    async fn save_many(&self, records: &[MemoryRecord]) -> Result<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let mut conn = self
+            .conn
+            .lock()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        for record in records {
+            insert_record(&tx, record)?;
+        }
+        tx.commit().map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
     }
 
     async fn get_by_id(&self, id: &EntityId) -> Result<Option<MemoryRecord>> {
@@ -900,5 +925,38 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].rehearsal_count, 4);
         assert!(listed[0].next_rehearsal_at.is_some());
+    }
+
+    /// Bulk insert must persist every record in one transaction: count grows
+    /// by the batch size, all rows are searchable, and empty batches no-op.
+    #[tokio::test]
+    async fn save_many_bulk_insert() {
+        let r = repo();
+        let mut records = Vec::new();
+        for i in 0..5 {
+            let mut rec = sample_record();
+            rec.id = EntityId::new();
+            rec.title = format!("bulk title {i}");
+            rec.summary = format!("bulk summary {i}");
+            records.push(rec);
+        }
+
+        r.save_many(&records).await.unwrap();
+        assert_eq!(r.count().await.unwrap(), 5);
+
+        let listed = r.list(10, 0).await.unwrap();
+        assert_eq!(listed.len(), 5);
+
+        for rec in &records {
+            let fetched = r.get_by_id(&rec.id).await.unwrap().unwrap();
+            assert_eq!(fetched.title, rec.title);
+        }
+
+        let hits = r.search("bulk summary").await.unwrap();
+        assert_eq!(hits.len(), 5);
+
+        // Empty batch is a no-op.
+        r.save_many(&[]).await.unwrap();
+        assert_eq!(r.count().await.unwrap(), 5);
     }
 }
