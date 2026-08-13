@@ -134,7 +134,7 @@ jobs:
 
       - uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24
         with:
-          working-directory: src-tauri
+          workingDirectory: src-tauri
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
