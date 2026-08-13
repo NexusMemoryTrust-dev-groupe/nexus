@@ -74,6 +74,9 @@ src-tauri/target/criterion/
 npm-package/bin/*.exe
 npm-package/bin/nexus
 
+# Local release artifacts
+*.sig
+
 # FastEmbed model cache
 src-tauri/.fastembed_cache/
 
