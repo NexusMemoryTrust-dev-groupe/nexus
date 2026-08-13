@@ -10,28 +10,53 @@
  * English. The fallback in `localeStore.t` exists for keys added by other
  * modules; it should never be what ships here.
  *
- * A note on layer names: `Raw` / `Knowledge` / `Decision` / `Wisdom` are values
- * stored in the database, not UI labels, so they are shown verbatim in both
- * locales. What gets translated is the *meaning* line next to them — the user
- * needs to know what "Wisdom" is for, and that explanation is prose.
+ * A note on layer names: `Working` / `Episodic` / `Semantic` / `Procedural` /
+ * `Decision` / `Strategic` are values stored in the database, not UI labels, so
+ * they are shown verbatim in both locales. What gets translated is the
+ * *meaning* line next to them — the user needs to know what "Strategic" is
+ * for, and that explanation is prose.
  */
 
 export const pagesEn = {
   // ── Layer semantics ───────────────────────────────────────────────────────
   // Every layer answers two questions: what is this, and what would move it up.
-  'layer.raw.meaning': 'Captured as-is. Nothing has been checked or condensed yet.',
-  'layer.raw.promotes': 'Verify it and it becomes Knowledge.',
-  'layer.knowledge.meaning': 'A fact that held up to checking and can be reused.',
-  'layer.knowledge.promotes': 'Act on it and the choice becomes a Decision.',
+  'layer.working.meaning': 'Something active right now — a task in flight, a half-formed thought.',
+  'layer.working.promotes': 'Once it has a timestamp and a shape, it lands as Episodic.',
+  'layer.episodic.meaning': 'A concrete event that happened — when and what, tied to a moment.',
+  'layer.episodic.promotes': 'Patterns across events become Semantic facts.',
+  'layer.semantic.meaning': 'A fact that held up across contexts and can be reused.',
+  'layer.semantic.promotes': 'Add the how-to and it becomes Procedural.',
+  'layer.procedural.meaning': 'A repeatable way of doing something — steps that work.',
+  'layer.procedural.promotes': 'Choose between ways and the choice becomes a Decision.',
   'layer.decision.meaning': 'A choice that was made, with the reasoning behind it.',
-  'layer.decision.promotes': 'Hold across projects and it hardens into Wisdom.',
-  'layer.wisdom.meaning': 'A principle that outlived the case that produced it.',
-  'layer.wisdom.promotes': 'Top of the ladder — this is the durable form.',
+  'layer.decision.promotes': 'Decisions that guide direction become Strategic.',
+  'layer.strategic.meaning': 'A durable principle that outlived the case that produced it.',
+  'layer.strategic.promotes': 'Top of the ladder — this is the guiding form.',
 
   'layer.ladder': 'Maturity',
   'layer.ladder.hint':
-    'Memories climb Raw → Knowledge → Decision → Wisdom. The rung tells you how much processing has gone into a record, not how important it is.',
-  'layer.stage': 'Stage',
+    'Memories are classified into six cognitive layers: Working → Episodic → Semantic → Procedural → Decision → Strategic. The layer tells you how much processing has gone into a record and what role it plays, not how important it is.',
+  'layer.stage': 'Layer',
+  'layer.assigned': 'Assigned',
+  'layer.assigned.hint':
+    'How the layer was chosen. The signature classifier assigns it from the content; a manual choice pins it and stops reclassification.',
+  'layer.confidence': 'Confidence',
+  'layer.confidence.hint':
+    'How strongly the classifier committed to this layer. A fraction of certainty, shown like trust.',
+  'layer.reason': 'Why',
+  'layer.reason.hint': 'The signal that decided the layer.',
+  'layer.history': 'Layer history',
+  'layer.history.hint':
+    'Every assignment of this memory, newest first: who chose the layer, with what confidence and why.',
+  'layer.reclassify': 'Reclassify',
+  'layer.reclassify.hint':
+    'Run the classifier again on this memory. A layer pinned by a manual choice is not overwritten.',
+  'layer.reclassify.done': 'Reclassified',
+  'layer.by.user': 'you',
+  'layer.by.classifier': 'classifier',
+  'layer.by.migration': 'migration',
+  'layer.by.unknown': 'unknown',
+  'layer.no.history': 'No layer history recorded yet.',
 
   // ── Shared instrument vocabulary ──────────────────────────────────────────
   'inst.trust': 'Trust',
@@ -144,7 +169,8 @@ export const pagesEn = {
   'tl.heat.hint':
     'One cell per day, brighter where more was captured. Click a cell to jump to that day.',
   'tl.axis.hint':
-    'Each day is a 24-hour track running midnight to midnight. A dot sits at the hour it was captured, takes its colour from its layer, and grows with its impact.',
+    'Each day is a 24-hour track running midnight to midnight. A dot sits on the line at the hour it was captured, takes its colour from its layer, and grows with its impact — hover a dot to see what landed there.',
+  'tl.cluster': 'captured together',
   'tl.axis.morning': '06',
   'tl.axis.noon': '12',
   'tl.axis.evening': '18',
@@ -255,19 +281,43 @@ export type PagesKey = keyof typeof pagesEn;
 
 export const pagesRu: Record<PagesKey, string> = {
   // ── Семантика слоёв ───────────────────────────────────────────────────────
-  'layer.raw.meaning': 'Записано как есть. Ещё не проверено и не сжато.',
-  'layer.raw.promotes': 'Проверьте — станет Knowledge.',
-  'layer.knowledge.meaning': 'Факт, который выдержал проверку и годится для повторного использования.',
-  'layer.knowledge.promotes': 'Примите на его основе решение — станет Decision.',
+  'layer.working.meaning': 'Что-то активное прямо сейчас — задача в работе, неоформленная мысль.',
+  'layer.working.promotes': 'Получит время и форму — осядет как Episodic.',
+  'layer.episodic.meaning': 'Конкретное событие, которое произошло — когда и что, привязано к моменту.',
+  'layer.episodic.promotes': 'Повторяющиеся события кристаллизуются в Semantic-факты.',
+  'layer.semantic.meaning': 'Факт, выдержавший проверку в разных контекстах, пригодный для переиспользования.',
+  'layer.semantic.promotes': 'Добавьте «как» — станет Procedural.',
+  'layer.procedural.meaning': 'Повторяемый способ что-то делать — шаги, которые работают.',
+  'layer.procedural.promotes': 'Выбор между способами — станет Decision.',
   'layer.decision.meaning': 'Принятое решение вместе с обоснованием.',
-  'layer.decision.promotes': 'Если работает и в других проектах — затвердеет в Wisdom.',
-  'layer.wisdom.meaning': 'Принцип, переживший случай, который его породил.',
-  'layer.wisdom.promotes': 'Верх лестницы — это уже устойчивая форма.',
+  'layer.decision.promotes': 'Решения, задающие направление, становятся Strategic.',
+  'layer.strategic.meaning': 'Устойчивый принцип, переживший случай, который его породил.',
+  'layer.strategic.promotes': 'Верх лестницы — это уже направляющая форма.',
 
   'layer.ladder': 'Зрелость',
   'layer.ladder.hint':
-    'Воспоминания идут по лестнице Raw → Knowledge → Decision → Wisdom. Ступень говорит, сколько обработки прошла запись, а не насколько она важна.',
-  'layer.stage': 'Ступень',
+    'Воспоминания классифицируются по шести когнитивным слоям: Working → Episodic → Semantic → Procedural → Decision → Strategic. Слой говорит, сколько обработки прошла запись и какую роль играет, а не насколько она важна.',
+  'layer.stage': 'Слой',
+  'layer.assigned': 'Назначен',
+  'layer.assigned.hint':
+    'Как выбран слой. Сигнатурный классификатор назначает его по содержанию; ручной выбор закрепляет слой и останавливает переклассификацию.',
+  'layer.confidence': 'Уверенность',
+  'layer.confidence.hint':
+    'Насколько уверенно классификатор выбрал этот слой. Доля уверенности, показана как доверие.',
+  'layer.reason': 'Почему',
+  'layer.reason.hint': 'Сигнал, который определил слой.',
+  'layer.history': 'История слоя',
+  'layer.history.hint':
+    'Каждое назначение этой записи, новые сверху: кто выбрал слой, с какой уверенностью и почему.',
+  'layer.reclassify': 'Переклассифицировать',
+  'layer.reclassify.hint':
+    'Запустить классификатор заново для этой записи. Слой, закреплённый ручным выбором, не перезаписывается.',
+  'layer.reclassify.done': 'Переклассифицировано',
+  'layer.by.user': 'вы',
+  'layer.by.classifier': 'классификатор',
+  'layer.by.migration': 'миграция',
+  'layer.by.unknown': 'неизвестно',
+  'layer.no.history': 'История слоя ещё не записана.',
 
   // ── Общий язык приборов ───────────────────────────────────────────────────
   'inst.trust': 'Доверие',
@@ -380,7 +430,8 @@ export const pagesRu: Record<PagesKey, string> = {
   'tl.heat.hint':
     'Одна клетка — один день, ярче там, где записано больше. Нажмите на клетку, чтобы перейти к этому дню.',
   'tl.axis.hint':
-    'Каждый день — дорожка на 24 часа, от полуночи до полуночи. Точка стоит на часе записи, берёт цвет своего слоя и растёт вместе с весом.',
+    'Каждый день — дорожка на 24 часа, от полуночи до полуночи. Точка стоит на линии в час записи, берёт цвет своего слоя и растёт вместе с весом — наведите на точку, чтобы увидеть, что туда попало.',
+  'tl.cluster': 'записаны вместе',
   'tl.axis.morning': '06',
   'tl.axis.noon': '12',
   'tl.axis.evening': '18',

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   AlertTriangle, ArrowLeft, Check, CircleHelp, Copy, Eye, FileText, Fingerprint, Link2,
-  Paperclip, Quote, SendHorizontal, ShieldCheck, Terminal, ThumbsDown, ThumbsUp,
+  Paperclip, Quote, RefreshCw, SendHorizontal, ShieldCheck, Terminal, ThumbsDown, ThumbsUp,
   User, UserCheck, Wand2, X,
 } from 'lucide-react';
 import { useMemoryStore } from '../../stores/memoryStore';
@@ -30,7 +30,7 @@ const STATE_META: Record<string, { label: string; hint: string; badge: string }>
 };
 
 export function MemoryDetail() {
-  const { selectedMemory, selectMemory, memoryConfirm, memoryFeedback } = useMemoryStore();
+  const { selectedMemory, selectMemory, memoryConfirm, memoryFeedback, reclassifyMemory } = useMemoryStore();
   const { locale, t } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,6 +39,7 @@ export function MemoryDetail() {
   const [noteDraft, setNoteDraft] = useState('');
   const [noteSending, setNoteSending] = useState(false);
   const [noteSent, setNoteSent] = useState(false);
+  const [reclassified, setReclassified] = useState(false);
 
   // Sync the draft with the saved explanation when switching memories, so
   // reopening the panel shows what was already written. Keyed only on the id:
@@ -48,6 +49,7 @@ export function MemoryDetail() {
     setPendingKind(null);
     setNoteDraft(selectedMemory?.feedback?.note ?? '');
     setNoteSent(false);
+    setReclassified(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMemory?.id]);
 
@@ -90,6 +92,13 @@ export function MemoryDetail() {
       setActing(false);
     }
   }, []);
+
+  /** Re-run the classifier, then flash "Reclassified" for a beat. */
+  const runReclassify = useCallback(async () => {
+    await act(() => reclassifyMemory(selectedMemory?.id ?? ''));
+    setReclassified(true);
+    window.setTimeout(() => setReclassified(false), 1_800);
+  }, [act, reclassifyMemory, selectedMemory?.id]);
 
   /** Open the "why" panel for a verdict. The vote itself is NOT sent to the
    *  backend here — it is only recorded when the user confirms with an
@@ -151,7 +160,7 @@ export function MemoryDetail() {
           <LayerGlyph layer={memory.layer} size={38} />
           <SemanticLayerTag layer={memory.layer} />
           <span style={{ color: 'var(--muted-2)', fontFamily: 'var(--mono)', fontSize: 9 }}>
-            {t('layer.stage')} {layer.rank + 1}/4
+            {t('layer.stage')} {layer.rank + 1}/6
           </span>
           <InfoTip text={t(layerKey(memory.layer, 'meaning'))} />
         </div>
@@ -195,6 +204,76 @@ export function MemoryDetail() {
             <strong style={{ color: layer.color }}>{layer.name}.</strong>{' '}
             {t(layerKey(memory.layer, 'meaning'))} {t(layerKey(memory.layer, 'promotes'))}
           </p>
+
+          <div className="st-layer-prov">
+            <div className="st-layer-prov-head">
+              <span className="st-layer-prov-title">{t('layer.assigned')}</span>
+              <InfoTip text={t('layer.assigned.hint')} />
+              <span className="st-layer-prov-spacer" />
+              <button
+                type="button"
+                className="st-layer-reclassify"
+                disabled={acting}
+                onClick={runReclassify}
+                title={t('layer.reclassify.hint')}
+              >
+                {reclassified ? <Check size={12} /> : <RefreshCw size={12} />}
+                {reclassified ? t('layer.reclassify.done') : t('layer.reclassify')}
+              </button>
+            </div>
+
+            <div className="st-layer-prov-row">
+              <span
+                className="st-layer-prov-chip"
+                style={{ '--chip-color': layer.color, '--chip-soft': layer.soft } as CSSProperties}
+              >
+                {layer.name}
+              </span>
+              <span className="st-layer-prov-conf" title={t('layer.confidence.hint')}>
+                {t('layer.confidence')}: {Math.round((memory.layerConfidence ?? 0) * 100)}%
+              </span>
+              {memory.layerReason && (
+                <span className="st-layer-prov-reason" title={t('layer.reason.hint')}>
+                  {memory.layerReason}
+                </span>
+              )}
+            </div>
+
+            <div className="st-layer-history">
+              <div className="st-layer-history-head">
+                <span className="st-layer-history-title">{t('layer.history')}</span>
+                <InfoTip text={t('layer.history.hint')} />
+              </div>
+              {memory.layerHistory && memory.layerHistory.length > 0 ? (
+                <ul className="st-layer-history-list">
+                  {memory.layerHistory.map((entry, index) => {
+                    const EntryIcon = layerVisual(entry.layer).icon;
+                    return (
+                      <li
+                        key={`${entry.at}-${index}`}
+                        className="st-layer-history-item"
+                        style={layerVars(entry.layer)}
+                      >
+                        <EntryIcon size={11} />
+                        <span className="st-layer-history-layer">{layerVisual(entry.layer).name}</span>
+                        <span className="st-layer-history-by">
+                          {t(`layer.by.${entry.by}`)}
+                        </span>
+                        <span className="st-layer-history-conf">
+                          {Math.round(entry.confidence * 100)}%
+                        </span>
+                        <span className="st-layer-history-when" title={stamp(entry.at, locale)}>
+                          {ago(entry.at, locale)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <span className="st-layer-history-empty">{t('layer.no.history')}</span>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="st-sheet-signals">

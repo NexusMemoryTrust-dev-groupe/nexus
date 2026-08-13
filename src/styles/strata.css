@@ -221,6 +221,225 @@
   line-height: 1.55;
 }
 
+/* Section framing for the System pages: a titled block whose heading keeps its
+ * info mark on the right and a short white description underneath, then its
+ * content sits inside a unified box so rows read as one framed card. */
+.st-section {
+  margin-bottom: 18px;
+}
+.st-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 4px 0 10px;
+}
+.st-section-head .st-section-title {
+  min-width: 0;
+}
+.st-section-desc {
+  margin: 7px 0 12px;
+  color: var(--muted-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  max-width: 72ch;
+}
+.st-section-frame {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+/* Page toolbar: filter + actions with room to breathe, separated by a hairline. */
+.st-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.st-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+/* Custom select. The native listbox is replaced by an in-app dropdown so the
+ * trigger, options and pop share the app's typography, radii and easing. */
+.st-select {
+  position: relative;
+  display: inline-flex;
+}
+.st-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 96px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--st-dur) var(--st-ease),
+    background var(--st-dur) var(--st-ease),
+    box-shadow var(--st-dur) var(--st-ease);
+}
+.st-select-trigger:hover { border-color: color-mix(in srgb, var(--st-accent) 45%, transparent); background: color-mix(in srgb, var(--st-accent) 8%, var(--surface-2)); }
+.st-select-trigger:focus-visible { outline: 2px solid color-mix(in srgb, var(--st-accent) 50%, transparent); outline-offset: 1px; }
+.st-select-trigger[aria-expanded='true'] { border-color: color-mix(in srgb, var(--st-accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-accent) 12%, transparent); }
+.st-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-select-chevron {
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted-2);
+  transform: rotate(0deg);
+  transition: transform var(--st-dur) var(--st-ease);
+}
+.st-select-chevron--open { transform: rotate(180deg); }
+.st-select-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--raised);
+  box-shadow: 0 18px 44px rgba(0,0,0,.45);
+  animation: st-select-pop .18s var(--st-ease);
+  transform-origin: top left;
+}
+.st-select-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease);
+}
+/* Every option is itself interactive: hovering lifts it out of the list with a
+   left accent bar and a gentle slide toward the reader, exactly like the
+   entries on the timeline — so the whole menu reads as a set of buttons. */
+.st-select-option::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--st-accent, var(--tangerine));
+  opacity: 0;
+  transform: scaleY(.4);
+  transition: opacity var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease);
+}
+.st-select-option:hover, .st-select-option:focus-visible {
+  background: color-mix(in srgb, var(--st-accent, var(--tangerine)) 14%, transparent);
+  color: var(--bone);
+  transform: translateX(3px);
+  outline: none;
+}
+.st-select-option:hover::before, .st-select-option:focus-visible::before { opacity: 1; transform: scaleY(1); }
+.st-select-option:active { transform: translateX(1px) scale(.98); transition-duration: var(--st-dur-press); }
+.st-select-option.is-selected { background: color-mix(in srgb, var(--st-accent, var(--tangerine)) 20%, transparent); color: var(--st-accent, var(--bone)); font-weight: 700; }
+
+@keyframes st-select-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* App modal — the custom replacement for native prompt/confirm dialogs. */
+.st-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--carbon) 66%, transparent);
+  backdrop-filter: blur(5px);
+  animation: st-fade-in .18s var(--st-ease);
+}
+.st-modal-panel {
+  width: min(430px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--raised);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, .55);
+  animation: st-modal-pop .2s var(--st-ease);
+}
+.st-modal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+.st-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--bone);
+  font-family: var(--brand);
+  font-size: 15px;
+  font-weight: 700;
+}
+.st-modal-title svg { color: var(--section-color, var(--muted)); }
+.st-modal-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-2);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease);
+}
+.st-modal-x:hover { background: var(--surface-2); color: var(--bone); border-color: var(--line); }
+.st-modal-body { color: var(--muted-2); font-size: 12.5px; line-height: 1.55; }
+.st-modal-body .st-sys-input { width: 100%; margin-bottom: 8px; }
+.st-modal-label { display: block; margin: 10px 0 6px; color: var(--bone); font-size: 12.5px; font-weight: 600; }
+.st-modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@keyframes st-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes st-modal-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* A framed cluster or empty-state that directly follows a section heading
  * (no hint text in between) still needs breathing room, so the bordered box
  * never sticks to the heading. */
@@ -401,9 +620,9 @@
 .st-strata-count { margin-left: auto; color: var(--bone); font-family: var(--mono); font-size: 18px; font-weight: 650; }
 .st-strata-meaning { display: block; max-width: 25ch; margin-top: 9px; color: var(--muted-2); font-size: 11px; line-height: 1.45; }
 
-.st-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 0; overflow: hidden; }
+.st-legend { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; padding: 0; overflow: hidden; }
 
-/* The four "what the layers mean" blocks are meaningful surfaces the user
+/* The six "what the layers mean" blocks are meaningful surfaces the user
  * reads and hovers, so they take a pointer cursor and lift like the rest. */
 .st-legend-item {
   position: relative;
@@ -581,12 +800,22 @@
 
 /* Memory bento ------------------------------------------------------------- */
 
+/* A calm, uniform grid. Every tile gets the same footprint and height, so a
+ * wall of fifty memories reads as one tidy surface instead of a jumble of
+ * torn rectangles. `auto-fill` keeps the column count fluid with the pane
+ * width, and the fixed `--tile-row` keeps every row the same height. */
 .st-bento {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-flow: dense;
-  grid-auto-rows: minmax(118px, auto);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-auto-rows: 290px;
+  gap: 14px;
+}
+
+/* List view: a single column of compact rows, auto height. */
+.st-bento--list {
+  grid-template-columns: 1fr;
+  grid-auto-rows: auto;
+  gap: 8px;
 }
 
 /* The card. A single smooth lift over --st-dur: it rises, the accent rail
@@ -594,14 +823,15 @@
  * a stop on the same clock. No keyframe, no overshoot — releasing the hover
  * glides it back down the same way. */
 .st-memory-tile {
-  --tile-col: span 4;
-  --tile-row: span 2;
+  --tile-col: auto;
+  --tile-row: auto;
   position: relative;
   grid-column: var(--tile-col);
   grid-row: var(--tile-row);
   display: flex;
   flex-direction: column;
-  min-height: 232px;
+  min-height: 0;
+  height: 100%;
   padding: 17px 18px 16px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -611,12 +841,6 @@
   text-align: left;
   cursor: pointer;
   isolation: isolate;
-  /* `contain: content` walls each tile's layout and paint into itself, so a
-   * hover repaint on one card never invalidates its neighbours. Deliberately NOT
-   * `content-visibility: auto` here — this is a dense bento grid, and hiding an
-   * off-screen tile makes `grid-auto-flow: dense` re-pack the remaining ones,
-   * which is its own layout cost on every scroll. The list is dozens of items,
-   * not thousands, so containment beats skip-rendering. */
   contain: content;
   transition:
     transform var(--st-dur) var(--st-ease),
@@ -624,11 +848,6 @@
     box-shadow var(--st-dur) var(--st-ease),
     background var(--st-dur) var(--st-ease);
 }
-
-.st-memory-tile[data-size='small'] { --tile-col: span 3; --tile-row: span 1; min-height: 118px; }
-.st-memory-tile[data-size='medium'] { --tile-col: span 4; --tile-row: span 2; }
-.st-memory-tile[data-size='large'] { --tile-col: span 6; --tile-row: span 2; }
-.st-memory-tile[data-size='hero'] { --tile-col: span 8; --tile-row: span 3; min-height: 356px; }
 
 /* Cursor-tracked wash + a resting layer tint. */
 .st-memory-tile::before {
@@ -662,30 +881,28 @@
 .st-tile-sheen { position: absolute; z-index: -1; top: -30%; bottom: -30%; width: 34%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bone) 7%, transparent), transparent); transform: translateX(-120%) skewX(-18deg); pointer-events: none; }
 .st-memory-tile:hover .st-tile-sheen { animation: st-sheen 1s var(--st-ease); }
 
-.st-tile-top { display: flex; align-items: center; gap: 9px; }
+.st-tile-top { flex: none; display: flex; align-items: center; gap: 9px; }
 .st-tile-fresh { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted-2); font-size: 10px; font-weight: 650; text-transform: uppercase; }
-.st-tile-title { margin: 15px 0 0; color: var(--bone); font-family: var(--brand); font-size: 19px; font-weight: 750; line-height: 1.18; letter-spacing: 0; overflow-wrap: anywhere; }
-.st-memory-tile[data-size='small'] .st-tile-title { margin-top: 11px; font-size: 14.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.st-memory-tile[data-size='hero'] .st-tile-title { max-width: 19ch; margin-top: 26px; font-size: 31px; line-height: 1.05; }
-.st-tile-summary { margin: 11px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.st-memory-tile[data-size='small'] .st-tile-summary { display: none; }
-.st-memory-tile[data-size='hero'] .st-tile-summary { max-width: 66ch; margin-top: 14px; font-size: 14px; -webkit-line-clamp: 5; }
+/* The middle block owns all the flexible space: it grows to fill whatever the
+   fixed header and footer leave, and `min-height: 0` lets its line-clamped
+   children shrink to that space instead of pushing the footer out of the tile.
+   Result: the footer always sits flush at the bottom with identical internal
+   padding, no matter how much or how little text the memory carries. */
+.st-tile-body { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.st-tile-title { margin: 15px 0 0; color: var(--bone); font-family: var(--brand); font-size: 16.5px; font-weight: 750; line-height: 1.25; letter-spacing: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.st-tile-summary { margin: 9px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* The footer of the tile sat flush against the bottom edge with its ring and
- * blocks crammed together. A hairline separator, real top padding and a
- * centre-aligned row give the instruments room to breathe instead of looking
- * dumped at the floor. */
-.st-tile-bottom { display: flex; align-items: flex-start; gap: 18px; margin-top: auto; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
-.st-memory-tile[data-size='small'] .st-tile-bottom { padding-top: 10px; }
+/* The footer of the tile sits flush against the bottom edge. A hairline
+ * separator, real top padding and a centre-aligned row give the instruments
+ * room to breathe instead of looking dumped at the floor. */
+.st-tile-bottom { flex: none; display: flex; align-items: flex-start; gap: 18px; margin-top: auto; padding-top: 15px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
 .st-tile-signals { display: flex; align-items: flex-start; gap: 22px; }
 /* The ring prints its label with position:absolute below the disc, so it takes
  * no space in the flow. Without a reserved gap the "Trust" caption collides with
- * the tile's bottom edge — the "crammed at the floor" look. This margin is the
- * height of that caption plus air. */
+ * the tile's bottom edge. This margin is the height of that caption plus air. */
 .st-tile-signals .st-ring-wrap { margin-bottom: 22px; }
 .st-tile-impact { display: flex; flex-direction: column; gap: 8px; }
 .st-tile-signal-label { color: var(--muted-2); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.st-memory-tile[data-size='small'] .st-ring-wrap, .st-memory-tile[data-size='small'] .st-tile-impact { display: none; }
 .st-tile-meta { min-width: 0; margin-left: auto; color: var(--muted-2); font-size: 10.5px; text-align: right; }
 .st-tile-source { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-tile-time { display: block; margin-top: 4px; font-family: var(--mono); }
@@ -694,7 +911,7 @@
 .st-memory-tile:hover .st-tile-open svg { transition: transform var(--st-dur) var(--st-ease); }
 .st-memory-tile:hover .st-tile-open:hover svg { transform: translateX(3px); }
 
-.st-memory-row { --tile-col: 1 / -1; --tile-row: auto; min-height: 82px; display: grid; grid-template-columns: auto minmax(0, 1fr) 210px auto; align-items: center; gap: 14px; padding: 12px 14px; }
+.st-memory-row { --tile-col: 1 / -1; --tile-row: auto; height: auto; min-height: 82px; display: grid; grid-template-columns: auto minmax(0, 1fr) 210px auto; align-items: center; gap: 14px; padding: 12px 14px; }
 .st-memory-row:hover { transform: translate3d(0, -3px, 0); }
 .st-memory-row .st-tile-title { margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st-memory-row .st-tile-summary { margin-top: 3px; -webkit-line-clamp: 1; font-size: 12px; }
@@ -736,7 +953,7 @@
 
 .st-sheet-map { display: grid; grid-template-columns: 1.2fr .8fr; border: 1px solid var(--line); border-top: none; background: var(--surface-2); }
 .st-ladder { padding: 20px 24px; border-right: 1px solid var(--line); }
-.st-ladder-track { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
+.st-ladder-track { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 16px; }
 .st-ladder-track::before { content: ''; position: absolute; left: 10%; right: 10%; top: 15px; height: 1px; background: var(--line); }
 .st-ladder-step { position: relative; z-index: 1; text-align: center; }
 .st-ladder-node { display: grid; place-items: center; width: 30px; height: 30px; margin: 0 auto; border: 1px solid var(--line); border-radius: 9px; background: var(--carbon); color: var(--muted-2); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
@@ -744,6 +961,44 @@
 .st-ladder-name { display: block; margin-top: 7px; color: var(--muted-2); font-size: 11px; transition: color var(--st-dur) var(--st-ease); }
 .st-ladder-step.on .st-ladder-name { color: var(--step-color); font-weight: 700; }
 .st-ladder-meaning { margin: 15px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+/* Layer provenance: who assigned the layer, how sure, why, and the full trail.
+ * This is the visible answer to "why is this memory in that layer?" — the
+ * classifier's reasoning and every manual override. */
+.st-layer-prov { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.st-layer-prov-head { display: flex; align-items: center; gap: 7px; }
+.st-layer-prov-title { color: var(--bone); font-size: 11.5px; font-weight: 750; letter-spacing: .05em; }
+.st-layer-prov-spacer { flex: 1; }
+.st-layer-reclassify {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 650;
+  cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease);
+}
+.st-layer-reclassify:hover:not(:disabled) { border-color: color-mix(in srgb, var(--layer-color) 42%, transparent); color: var(--layer-color); background: color-mix(in srgb, var(--layer-color) 8%, var(--surface)); }
+.st-layer-reclassify:focus-visible { outline: 2px solid var(--layer-color); outline-offset: 2px; }
+.st-layer-reclassify:disabled { opacity: .5; cursor: wait; }
+.st-layer-prov-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.st-layer-prov-chip {
+  padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 750;
+  color: var(--chip-color); background: var(--chip-soft);
+}
+.st-layer-prov-conf { color: var(--muted); font-family: var(--mono); font-size: 10.5px; }
+.st-layer-prov-reason { color: var(--muted-2); font-size: 11px; line-height: 1.45; }
+.st-layer-history { margin-top: 12px; }
+.st-layer-history-head { display: flex; align-items: center; gap: 7px; }
+.st-layer-history-title { color: var(--muted-2); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.st-layer-history-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.st-layer-history-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 8px; border-radius: 7px; background: var(--surface-2);
+  color: var(--muted-2); font-size: 10.5px;
+}
+.st-layer-history-layer { color: var(--layer-color); font-weight: 750; }
+.st-layer-history-by { color: var(--muted-2); }
+.st-layer-history-conf { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+.st-layer-history-when { color: var(--muted-2); font-size: 10px; white-space: nowrap; }
+.st-layer-history-empty { display: block; margin-top: 8px; color: var(--muted-2); font-size: 11px; }
 
 /* Two equal signal cards, stretched to fill the panel. Each is a self-contained
  * tile with its own accent colour and a slow drifting wash behind it, so Trust
@@ -980,8 +1235,10 @@
  * which read as the whole list "bouncing". `contain: content` gives the same
  * paint/layout isolation without ever guessing a height, so scrolling stays
  * stable. */
-.st-day { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; contain: content; }
-.st-day-head { display: flex; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.st-day { position: relative; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+/* The head carries its own background, so it must round its own top corners
+   now that the day frame no longer clips (the axis hover card floats above). */
+.st-day-head { display: flex; align-items: center; gap: 11px; padding: 12px 15px; border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0; background: var(--surface-2); }
 .st-day-date { color: var(--bone); font-family: var(--brand); font-size: 14.5px; font-weight: 720; }
 .st-day-relative { padding: 3px 8px; border-radius: 999px; background: var(--tangerine-soft); color: var(--tangerine); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
 .st-day-count { margin-left: auto; color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; }
@@ -990,10 +1247,41 @@
 .st-axis-line { position: absolute; left: 0; right: 0; top: 38px; height: 1px; background: linear-gradient(90deg, var(--line), var(--muted-2), var(--line)); }
 .st-axis-tick { position: absolute; top: 31px; width: 1px; height: 15px; background: var(--line); }
 .st-axis-label { position: absolute; top: 53px; color: var(--muted-2); font-family: var(--mono); font-size: 9px; transform: translateX(-50%); }
-.st-axis-dot { --dot-size: 10px; position: absolute; top: calc(38px - var(--dot-size) / 2); left: calc(var(--at) * 100%); width: var(--dot-size); height: var(--dot-size); padding: 0; border: 2px solid var(--surface); border-radius: 50%; background: var(--layer-color); box-shadow: 0 0 10px var(--layer-glow); transform: translate3d(-50%, 0, 0); cursor: pointer; transition: transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
-/* The dot is centred by translateX(-50%), so every state carries that offset. */
-.st-axis-dot:hover, .st-axis-dot:focus-visible { z-index: 5; transform: translate3d(-50%, -2px, 0) scale(1.8); box-shadow: 0 0 22px var(--layer-glow); outline: none; }
-.st-axis-dot:active { transform: translate3d(-50%, 0, 0) scale(1.4); transition-duration: var(--st-dur-press); }
+/* Beads threaded exactly onto the axis line: every dot sits on the 24-hour
+   line at the hour it was captured, centred on it. Memories captured within
+   the same minute-slot fuse into one bead with a count badge so a crowded
+   hour reads as one dot, not a smear. */
+.st-axis-dot { --dot-size: 10px; position: absolute; top: 38px; left: calc(var(--at) * 100%); transform: translate(-50%, -50%); z-index: 60; }
+/* The dot carries a permanently high index, so the hover card inside its
+   stacking context is already above every sibling day from the moment it
+   mounts — no delayed "jump to top" on hover. Only a same-level tie-break
+   between adjacent dots on hover, applied instantly (no transition). */
+.st-axis-dot:hover, .st-axis-dot:focus-within { z-index: 80; }
+.st-axis-dot-hit { position: relative; display: grid; place-items: center; width: var(--dot-size); height: var(--dot-size); padding: 0; border: 2px solid var(--surface); border-radius: 50%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--layer-color) 82%, #fff), var(--layer-color) 58%); box-shadow: 0 0 0 3px color-mix(in srgb, var(--layer-color) 12%, transparent), 0 0 9px var(--layer-glow); cursor: pointer; transition: transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease); }
+.st-axis-dot:hover .st-axis-dot-hit, .st-axis-dot:focus-within .st-axis-dot-hit { transform: scale(1.45); box-shadow: 0 0 0 4px color-mix(in srgb, var(--layer-color) 22%, transparent), 0 0 18px var(--layer-glow); outline: none; }
+.st-axis-dot:active .st-axis-dot-hit { transform: scale(1.2); transition-duration: var(--st-dur-press); }
+.st-axis-dot-count { position: absolute; top: -8px; right: -9px; display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 4px; border: 2px solid var(--surface); border-radius: 999px; background: var(--layer-color); color: var(--carbon); font-family: var(--mono); font-size: 8px; font-weight: 800; line-height: 1; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+/* Minimal hover card: what was captured, at what time. Anchored above the
+   bead so the line and its ticks stay completely untouched. Compact: the
+   entry list scrolls on its own slim custom track when a cluster overflows. */
+.st-axis-card { position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); display: flex; flex-direction: column; width: max-content; min-width: 168px; max-width: 252px; max-height: 210px; padding: 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--raised); box-shadow: 0 22px 50px rgba(0,0,0,.5), 0 4px 14px rgba(0,0,0,.25); animation: st-card-in .18s var(--st-ease); }
+.st-axis-card-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 2px 5px; }
+.st-axis-card-time { color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; }
+.st-axis-card-count { padding: 2px 8px; border-radius: 999px; background: var(--tangerine-soft); color: var(--tangerine); font-size: 9px; font-weight: 700; white-space: nowrap; }
+/* The list scrolls internally when a cluster holds many memories. `flex: 1`
+   with `min-height: 0` lets it shrink inside the fixed card height; the slim
+   custom track is inset from the rows by the right padding, so entries never
+   glue themselves to the scrollbar. */
+.st-axis-card-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 6px 0 2px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--layer-color) 45%, transparent) transparent; }
+.st-axis-card-list::-webkit-scrollbar { width: 5px; }
+.st-axis-card-list::-webkit-scrollbar-track { background: transparent; }
+.st-axis-card-list::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--layer-color) 45%, transparent); border-radius: 999px; }
+.st-axis-card-list::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--layer-color) 70%, transparent); }
+.st-axis-card-row { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 7px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; transition: background var(--st-dur) var(--st-ease), border-color var(--st-dur) var(--st-ease); }
+.st-axis-card-row:hover, .st-axis-card-row:focus-visible { background: color-mix(in srgb, var(--row-color) 10%, transparent); border-color: color-mix(in srgb, var(--row-color) 32%, transparent); outline: none; }
+.st-axis-card-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--row-color); box-shadow: 0 0 6px var(--row-color); }
+.st-axis-card-title { color: var(--bone); font-size: 11.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes st-card-in { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
 .st-day-entries { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 12px 12px; }
 /* A row in a dense list: it slides toward the reader and lifts a little rather
@@ -1264,6 +1552,275 @@
 .st-audit-version:hover { border-color: color-mix(in srgb, var(--cyan) 30%, transparent); background: var(--surface-2); }
 .st-audit-version-badge { padding: 3px 8px; border: 1px solid; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 700; flex: none; }
 
+/* Flight Recorder (System 5) ---------------------------------------------- */
+
+.st-flight-filter { display: inline-flex; align-items: center; gap: 10px; }
+.st-flight-filter > span { color: var(--muted-2); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.st-flight-filter .st-select-trigger { min-width: 110px; font-family: var(--mono); font-size: 11px; }
+
+.st-flight-sessions, .st-flight-records { display: grid; gap: 6px; }
+
+.st-flight-session, .st-flight-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-flight-session:hover, .st-flight-row:hover { border-color: color-mix(in srgb, var(--st-accent) 30%, transparent); background: var(--surface-2); transform: translate3d(0, -1px, 0); }
+.st-flight-session-icon, .st-flight-row-cat { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.st-flight-session-head, .st-flight-row-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.st-flight-session-title, .st-flight-row-action { color: var(--bone); font-size: 12.5px; font-weight: 700; }
+.st-flight-session-meta, .st-flight-row-meta { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-flight-session-purpose { display: block; margin-top: 3px; color: var(--muted-1); font-size: 11.5px; line-height: 1.45; }
+.st-flight-row-summary { display: block; margin-top: 3px; color: var(--muted-1); font-size: 11.5px; line-height: 1.45; }
+.st-flight-row-entity { display: inline-block; margin-top: 5px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-flight-row-outcome { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid; border-radius: 999px; font-family: var(--mono); font-size: 10px; font-weight: 650; flex: none; }
+.st-flight-row-duration { color: var(--muted-2); font-family: var(--mono); font-size: 10px; flex: none; }
+.st-flight-row-replay { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted-1); cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-flight-row-replay:hover, .st-flight-row-replay:focus-visible { border-color: color-mix(in srgb, var(--cyan) 45%, transparent); color: var(--cyan); background: color-mix(in srgb, var(--cyan) 10%, transparent); outline: none; }
+
+.st-flight-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.st-flight-breakdown-col { display: grid; gap: 5px; }
+.st-flight-breakdown-label { color: var(--muted-2); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+.st-flight-breakdown-item { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted-1); font-family: var(--mono); font-size: 11px; }
+.st-flight-breakdown-count { margin-left: auto; color: var(--bone); font-weight: 700; }
+
+.st-btn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2); color: var(--bone); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--st-accent) 40%, transparent); background: color-mix(in srgb, var(--st-accent) 10%, transparent); }
+.st-btn:disabled { opacity: .5; cursor: default; }
+.st-btn--ghost { background: transparent; }
+
+/* Systems 2-4, 6-9 (Rehearsal / Firewall / Context Lab / Passport / Skills / Predictive) */
+
+.st-sys-toolbar { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; }
+.st-sys-input { flex: 1; min-width: 140px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--bone); font-family: var(--mono); font-size: 11.5px; outline: 0; transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease); }
+.st-sys-input:focus { border-color: color-mix(in srgb, var(--st-accent) 40%, transparent); background: var(--surface-2); }
+.st-sys-input::placeholder { color: var(--muted-2); }
+textarea.st-sys-input { resize: vertical; font-family: var(--mono); line-height: 1.5; }
+select.st-sys-input { cursor: pointer; }
+.st-sys-probe { display: flex; flex-direction: column; gap: 8px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.st-sys-probe--grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.st-sys-assessment { margin-top: 12px; padding: 13px; border: 1px solid; border-left-width: 4px; border-radius: 12px; background: var(--surface); }
+.st-sys-assessment-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.st-sys-verdict { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.st-sys-verdict-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: color-mix(in srgb, var(--st-accent) 15%, transparent); }
+.st-sys-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; }
+.st-sys-score { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.st-sys-score-label { color: var(--muted-2); font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.st-sys-score-track { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.st-sys-score-fill { display: block; height: 100%; border-radius: 999px; transition: width .4s var(--st-ease); }
+.st-sys-score-value { color: var(--muted-1); font-family: var(--mono); font-size: 10px; }
+.st-sys-reasons { display: grid; gap: 3px; margin: 10px 0 0; padding-left: 18px; color: var(--muted-1); font-size: 11.5px; }
+.st-sys-meta { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+
+/* Rehearsal / Consolidation (System 2-3) */
+
+/* Context Lab (System 6) */
+.st-lab-list { display: grid; gap: 14px; }
+.st-lab-exp { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); animation: st-rise .4s var(--st-ease) both; animation-delay: calc(var(--st-i, 0) * 40ms); }
+.st-lab-exp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.st-lab-exp-query { color: var(--bone); font-size: 13.5px; font-weight: 650; }
+.st-lab-exp-badge { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; font-family: var(--mono); font-size: 10.5px; font-weight: 700; }
+.st-lab-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 11px; }
+.st-lab-card { padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-lab-card.is-best { border-color: color-mix(in srgb, var(--lab-color, var(--mint)) 55%, transparent); }
+.st-lab-card-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 7px; }
+.st-lab-card-name { color: var(--bone); font-size: 12px; font-weight: 700; }
+.st-lab-card-best { padding: 2px 7px; border: 1px solid color-mix(in srgb, var(--lab-color, var(--mint)) 50%, transparent); border-radius: 999px; color: var(--lab-color, var(--mint)); font-family: var(--mono); font-size: 9px; text-transform: uppercase; }
+.st-lab-card-stats { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted-1); font-family: var(--mono); font-size: 10px; }
+.st-lab-card-bars { display: grid; gap: 4px; margin: 9px 0 6px; }
+.st-lab-bar { display: block; height: 5px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.st-lab-bar i { display: block; height: 100%; border-radius: 999px; }
+.st-lab-card-meta { color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; }
+.st-lab-summary { margin-top: 10px; padding: 8px 11px; border-left: 3px solid color-mix(in srgb, var(--st-accent) 55%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--st-accent) 7%, transparent); color: var(--muted-1); font-size: 11.5px; line-height: 1.5; }
+
+/* Passport (System 7) */
+.st-passport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.st-passport { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-passport.is-active { border-color: color-mix(in srgb, var(--mint) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--mint) 18%, transparent); }
+.st-passport:hover { transform: translate3d(0, -1px, 0); }
+.st-passport-head { display: flex; align-items: center; gap: 11px; }
+.st-passport-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--pass-color, var(--periwinkle)) 15%, transparent); color: var(--pass-color, var(--periwinkle)); flex: none; }
+.st-passport-name { display: inline-flex; align-items: center; gap: 6px; color: var(--bone); font-size: 13.5px; font-weight: 700; }
+.st-passport-meta { display: block; margin-top: 2px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-passport-trust { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-1); font-family: var(--mono); font-size: 10.5px; font-weight: 650; flex: none; }
+.st-passport-desc { margin: 9px 0 0; color: var(--muted-1); font-size: 11.5px; line-height: 1.5; }
+.st-passport-section { margin-top: 10px; }
+.st-passport-section-label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+.st-passport-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.st-passport-chip { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-1); font-family: var(--mono); font-size: 10px; }
+.st-passport-chip--empty { color: var(--muted-2); font-style: italic; }
+.st-passport-chip--constraint { border-color: color-mix(in srgb, var(--gold) 35%, transparent); color: var(--gold); }
+.st-passport-actions { display: flex; gap: 7px; margin-top: 12px; }
+
+/* Skills & Skill Genesis (System 8) */
+.st-skill-list { display: grid; gap: 6px; }
+.st-skill { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); transition: border-color var(--st-dur) var(--st-ease), background var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease); }
+.st-skill:hover { border-color: color-mix(in srgb, var(--skill-color, var(--st-accent)) 30%, transparent); background: var(--surface-2); transform: translate3d(0, -1px, 0); }
+.st-skill-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--skill-color, var(--st-accent)) 15%, transparent); color: var(--skill-color, var(--st-accent)); flex: none; }
+.st-skill-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.st-skill-name { color: var(--bone); font-size: 12.5px; font-weight: 700; }
+.st-skill-meta { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-skill-desc { display: block; margin-top: 3px; color: var(--muted-1); font-size: 11.5px; line-height: 1.45; }
+.st-skill-output { display: block; margin-top: 6px; padding: 7px 10px; border-radius: 8px; font-family: var(--mono); font-size: 10.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.st-skill-output.is-ok { background: color-mix(in srgb, var(--mint) 8%, transparent); color: var(--mint); }
+.st-skill-output.is-err { background: color-mix(in srgb, var(--rose) 8%, transparent); color: var(--rose); }
+.st-skill-output-meta { display: block; margin-top: 3px; color: var(--muted-2); }
+
+/* Predictive Context (System 9) */
+.st-pred-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.st-pred-card { padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); animation: st-rise .4s var(--st-ease) both; animation-delay: calc(var(--st-i, 0) * 45ms); }
+.st-pred-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-pred-rank { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-pred-confidence { font-family: var(--mono); font-size: 15px; font-weight: 800; }
+.st-pred-query { display: flex; align-items: baseline; gap: 7px; margin-top: 8px; color: var(--bone); font-size: 12.5px; font-weight: 650; line-height: 1.4; }
+.st-pred-track { display: block; height: 5px; margin-top: 9px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.st-pred-fill { display: block; height: 100%; border-radius: 999px; transition: width .4s var(--st-ease); }
+.st-pred-meta { margin-top: 6px; color: var(--muted-2); font-family: var(--mono); font-size: 9.5px; }
+.st-pred-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.st-pred-chip { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-1); font-family: var(--mono); font-size: 10px; }
+.st-pred-chip--prewarm { border-color: color-mix(in srgb, var(--mint) 40%, transparent); color: var(--mint); }
+.st-pred-prewarm { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--mint) 25%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--mint) 6%, transparent); }
+.st-pred-prewarm-label { display: inline-flex; align-items: center; gap: 6px; color: var(--mint); font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+
+/* Knowledge Map (System 10) */
+.st-map-picker { display: grid; gap: 4px; margin-top: 4px; }
+.st-map-picker-item { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--bone); text-align: left; cursor: pointer; transition: background var(--st-dur) var(--st-ease); }
+.st-map-picker-item:hover, .st-map-picker-item:focus-visible { background: color-mix(in srgb, var(--st-accent) 10%, transparent); outline: none; }
+.st-map-picker-title { display: block; font-size: 12.5px; font-weight: 650; line-height: 1.35; }
+.st-map-picker-meta { display: block; margin-top: 2px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-map { margin-top: 14px; }
+.st-map-head { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.st-map-title { color: var(--bone); font-size: 13.5px; font-weight: 700; }
+.st-map-rings { display: grid; gap: 12px; margin-top: 12px; }
+.st-map-ring { padding: 13px; border: 1px solid var(--line); border-left: 3px solid var(--ring-color, var(--cyan)); border-radius: 11px; background: var(--surface); }
+.st-map-ring-head { display: flex; align-items: center; gap: 8px; }
+.st-map-ring-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; flex: none; }
+.st-map-ring-label { color: var(--bone); font-size: 12px; font-weight: 700; }
+.st-map-ring-count { margin-left: auto; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-map-ring-empty { margin: 8px 0 0; color: var(--muted-2); font-size: 11px; font-style: italic; }
+.st-map-ring-list { display: grid; gap: 5px; margin-top: 9px; }
+.st-map-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: baseline; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.st-map-item-kind { padding: 2px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted-2); font-family: var(--mono); font-size: 9px; text-transform: uppercase; }
+.st-map-item-title { color: var(--bone); font-size: 12px; font-weight: 650; line-height: 1.35; }
+.st-map-item-meta { color: var(--muted-2); font-family: var(--mono); font-size: 10px; }
+.st-map-rendered { margin-top: 12px; }
+.st-map-rendered summary { cursor: pointer; color: var(--muted-2); font-family: var(--mono); font-size: 10.5px; }
+.st-map-rendered pre { margin: 8px 0 0; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted-1); font-family: var(--mono); font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+
+/* Why-chain details (System 5) */
+.st-chain-details { margin-top: 6px; }
+.st-chain-details summary { cursor: pointer; color: var(--periwinkle); font-family: var(--mono); font-size: 10.5px; }
+.st-chain-details pre { margin: 7px 0 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--muted-1); font-family: var(--mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow-y: auto; }
+.st-chain-pipeline { margin-top: 6px !important; border-color: color-mix(in srgb, var(--periwinkle) 30%, transparent) !important; color: var(--bone) !important; }
+
+/* Diagnostics (System 11) --------------------------------------------------- */
+
+.st-dx-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 14px;
+}
+
+/* Toolbar buttons: the primary "Run checks" gets the accent fill, the export
+ * stays as the neutral surface button. Both share the strata button motion. */
+.st-dx-toolbar .st-dx-run {
+  border-color: color-mix(in srgb, var(--st-accent) 55%, transparent);
+  background: color-mix(in srgb, var(--st-accent) 16%, var(--surface-2));
+  color: var(--st-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-accent) 8%, transparent);
+}
+.st-dx-toolbar .st-dx-run:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--st-accent) 75%, transparent);
+  background: color-mix(in srgb, var(--st-accent) 24%, var(--surface-2));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--st-accent) 22%, transparent);
+}
+.st-dx-toolbar .st-dx-export {
+  background: var(--surface);
+}
+
+.st-dx-list {
+  display: grid;
+  gap: 7px;
+}
+
+/* One health check row: icon bubble · name · status pill, then the measured
+ * message underneath spanning the full row. The status colour is injected via
+ * `--st-dx-color` (mint/gold/rose) so the pill, the icon and the left accent
+ * always agree with each other. */
+.st-dx-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 11px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  transition: border-color var(--st-dur) var(--st-ease), transform var(--st-dur) var(--st-ease), box-shadow var(--st-dur) var(--st-ease);
+}
+.st-dx-check:hover {
+  border-color: color-mix(in srgb, var(--st-dx-color, var(--st-accent)) 32%, transparent);
+  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .18);
+}
+.st-dx-check-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: none;
+}
+.st-dx-check-name {
+  min-width: 0;
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.st-dx-check-status {
+  justify-self: end;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--st-dx-color, var(--st-accent)) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--st-dx-color, var(--st-accent)) 10%, transparent);
+  color: var(--st-dx-color, var(--st-accent));
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.st-dx-check-message {
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-top: 2px;
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.st-dx-healthy {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--mint) 30%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--mint) 7%, transparent);
+  color: var(--mint);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
 /* Responsive --------------------------------------------------------------- */
 
 @media (max-width: 1050px) {
@@ -1286,7 +1843,7 @@
   .st-legend-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .st-strata { flex-direction: column; }
   .st-strata-segment { flex: none; width: 100%; }
-  .st-bento { grid-template-columns: repeat(6, 1fr); }
+  .st-bento { grid-template-columns: repeat(6, 1fr); grid-auto-rows: 232px; }
   .st-memory-tile[data-size='small'], .st-memory-tile[data-size='medium'], .st-memory-tile[data-size='large'], .st-memory-tile[data-size='hero'] { --tile-col: span 6; --tile-row: span 2; min-height: 220px; }
   .st-memory-row { display: flex; min-height: 0; }
   .st-memory-row .st-tile-signals { display: none; }
@@ -1306,6 +1863,9 @@
   .st-radar-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-radar-row { grid-template-columns: auto minmax(0, 1fr); }
   .st-radar-row-impact { display: none; }
+  .st-flight-row { grid-template-columns: auto minmax(0, 1fr); }
+  .st-flight-row-outcome, .st-flight-row-duration, .st-flight-row-replay { display: none; }
+  .st-flight-breakdown { grid-template-columns: 1fr; }
   .st-team-roster-row { grid-template-columns: auto minmax(0, 1fr); }
   .st-team-role { display: none; }
   .st-team-decision { grid-template-columns: auto minmax(0, 1fr); }
@@ -1382,7 +1942,9 @@
   .st-radar-row:hover,
   .st-team-roster-row:hover,
   .st-team-decision:hover,
-  .st-audit-alternative:hover {
+  .st-audit-alternative:hover,
+  .st-flight-session:hover,
+  .st-flight-row:hover {
     transform: none !important;
   }
 

@@ -153,11 +153,13 @@ export function AuditView() {
 
       {/* Memory picker */}
       <section className="st-audit-picker">
-        <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
-          <Scale size={14} /> {t('audit.picker.title')}
+        <div className="st-section-head">
+          <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
+            <Scale size={14} /> {t('audit.picker.title')}
+          </h2>
           <InfoTip text={t('audit.picker.hint')} />
-        </h2>
-        <p className="st-section-hint">{t('audit.picker.sub')}</p>
+        </div>
+        <p className="st-section-desc">{t('audit.picker.sub')}</p>
 
         <div className="st-audit-search">
           <Search size={14} className="st-audit-search-icon" />
@@ -274,10 +276,13 @@ export function AuditView() {
 
           {/* Alternatives considered */}
           <section>
-            <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
-              <Scale size={14} /> {t('audit.alternatives.title')}
+            <div className="st-section-head">
+              <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
+                <Scale size={14} /> {t('audit.alternatives.title')}
+              </h2>
               <InfoTip text={t('audit.alternatives.hint')} />
-            </h2>
+            </div>
+            <p className="st-section-desc">{t('audit.alternatives.hint')}</p>
             {trail.alternatives.length === 0 ? (
               <StrataVoid icon={Scale} title={t('audit.alternatives.empty.title')} accent="var(--periwinkle)">
                 {t('audit.alternatives.empty.desc')}
@@ -300,10 +305,13 @@ export function AuditView() {
 
           {/* Decision journal */}
           <section>
-            <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
-              <ClipboardList size={14} /> {t('audit.journal.title')}
+            <div className="st-section-head">
+              <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
+                <ClipboardList size={14} /> {t('audit.journal.title')}
+              </h2>
               <InfoTip text={t('audit.journal.hint')} />
-            </h2>
+            </div>
+            <p className="st-section-desc">{t('audit.journal.hint')}</p>
             {trail.events.length === 0 ? (
               <StrataVoid icon={ClipboardList} title={t('audit.journal.empty.title')} accent="var(--periwinkle)">
                 {t('audit.journal.empty.desc')}
@@ -330,10 +338,13 @@ export function AuditView() {
 
           {/* Version history */}
           <section>
-            <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
-              <History size={14} /> {t('audit.versions.title')}
+            <div className="st-section-head">
+              <h2 className="st-section-title" style={{ '--section-color': 'var(--periwinkle)' } as CSSProperties}>
+                <History size={14} /> {t('audit.versions.title')}
+              </h2>
               <InfoTip text={t('audit.versions.hint')} />
-            </h2>
+            </div>
+            <p className="st-section-desc">{t('audit.versions.hint')}</p>
             {trail.versions.length === 0 ? (
               <StrataVoid icon={History} title={t('audit.versions.empty.title')} accent="var(--periwinkle)">
                 {t('audit.versions.empty.desc')}

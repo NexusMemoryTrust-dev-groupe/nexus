@@ -1,4 +1,4 @@
-import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown, Layers, Radar, Users, Scale } from 'lucide-react';
+import { Brain, Network, Clock, Settings, PanelLeftClose, PanelLeft, Command, FolderOpen, TrendingDown, Layers, Radar, Users, Scale, Zap, Plane, BookOpenCheck, ShieldAlert, FlaskConical, CreditCard, Wrench, TrendingUp, Map as MapIcon, HeartPulse } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
 import { NexusLogo } from './NexusLogo';
@@ -16,7 +16,23 @@ export function Sidebar() {
     { icon: Radar, labelKey: 'sidebar.radar', view: 'radar', shortcut: 'Ctrl+7' },
     { icon: Users, labelKey: 'sidebar.team', view: 'team', shortcut: 'Ctrl+8' },
     { icon: Scale, labelKey: 'sidebar.audit', view: 'audit', shortcut: 'Ctrl+9' },
+    { icon: Zap, labelKey: 'sidebar.conflict', view: 'conflict', shortcut: 'Ctrl+0' },
+    { icon: Plane, labelKey: 'sidebar.flight', view: 'flight', shortcut: '' },
     { icon: FolderOpen, labelKey: 'sidebar.projects', view: 'projects', shortcut: 'Ctrl+4' },
+  ];
+
+  // Systems 2-4, 6-9: rehearsal/consolidation, firewall, context lab,
+  // passports, skills and predictive context. Kept compact — these views open
+  // a specific system rather than a primary workspace.
+  const systemItems: { icon: typeof Brain; labelKey: string; view: ActiveView }[] = [
+    { icon: BookOpenCheck, labelKey: 'sidebar.rehearsal', view: 'rehearsal' },
+    { icon: ShieldAlert, labelKey: 'sidebar.firewall', view: 'firewall' },
+    { icon: FlaskConical, labelKey: 'sidebar.contextlab', view: 'contextlab' },
+    { icon: CreditCard, labelKey: 'sidebar.passport', view: 'passport' },
+    { icon: Wrench, labelKey: 'sidebar.skills', view: 'skills' },
+    { icon: TrendingUp, labelKey: 'sidebar.predictive', view: 'predictive' },
+    { icon: MapIcon, labelKey: 'sidebar.knowledge', view: 'knowledge' },
+    { icon: HeartPulse, labelKey: 'sidebar.diagnostics', view: 'diagnostics' },
   ];
 
   return (
@@ -65,6 +81,20 @@ export function Sidebar() {
                   <Icon size={16} className="sidebar-item-icon" />
                   <span className="sidebar-item-text">{t(labelKey)}</span>
                   <span className="sidebar-item-shortcut">{shortcut}</span>
+                </button>
+              ))}
+            </div>
+            <div className="sidebar-section-label">Systems</div>
+            <div className="sidebar-nav-list">
+              {systemItems.map(({ icon: Icon, labelKey, view }) => (
+                <button
+                  key={view}
+                  onClick={() => setActiveView(view)}
+                  className={`sidebar-item ${activeView === view ? 'active' : ''}`}
+                >
+                  <div className={`sidebar-item-indicator ${activeView === view ? 'active' : ''}`} />
+                  <Icon size={16} className="sidebar-item-icon" />
+                  <span className="sidebar-item-text">{t(labelKey)}</span>
                 </button>
               ))}
             </div>

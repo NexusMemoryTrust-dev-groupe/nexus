@@ -22,29 +22,11 @@ interface MemoryCardProps {
   index?: number;
 }
 
-type TileSize = 'small' | 'medium' | 'large' | 'hero';
-
-/**
- * Importance controls geometry, not colour or decoration.
- *
- * A user can read the wall before reading a title: large surfaces are the
- * records the system considers consequential. Index is only a tie-breaker for
- * the top band so a wall of 0.9 memories does not become a monotonous grid of
- * hero tiles.
- */
-function tileSize(importance: number, index: number): TileSize {
-  if (importance >= .86 && index < 2) return 'hero';
-  if (importance >= .68) return 'large';
-  if (importance >= .36) return 'medium';
-  return 'small';
-}
-
 export function MemoryCard({ memory, layout = 'bento', index = 0 }: MemoryCardProps) {
   const { selectMemory } = useMemoryStore();
   const { locale, t } = useLocale();
   const fresh = freshness(memory.createdAt);
   const files = memory.attachedFiles?.length ?? 0;
-  const size = layout === 'list' ? 'medium' : tileSize(memory.importanceScore, index);
 
   // Cursor wash stays outside React state: this is visual feedback at pointer
   // frequency, not application data. Re-rendering a tile on every mouse move
@@ -65,7 +47,7 @@ export function MemoryCard({ memory, layout = 'bento', index = 0 }: MemoryCardPr
     <button
       type="button"
       className={`st-memory-tile st-rise${layout === 'list' ? ' st-memory-row' : ''}`}
-      data-size={size}
+      data-size="medium"
       style={{ ...layerVars(memory.layer), '--st-i': index } as CSSProperties}
       onClick={() => selectMemory(memory)}
       onMouseMove={onMove}
@@ -85,7 +67,7 @@ export function MemoryCard({ memory, layout = 'bento', index = 0 }: MemoryCardPr
         </span>
       </div>
 
-      <div style={{ minWidth: 0 }}>
+      <div className="st-tile-body">
         <h3 className="st-tile-title">{memory.title}</h3>
         <p className="st-tile-summary">{memory.summary || memory.content}</p>
       </div>
@@ -95,7 +77,7 @@ export function MemoryCard({ memory, layout = 'bento', index = 0 }: MemoryCardPr
           <SignalRing
             value={memory.confidenceScore}
             label={t('inst.trust')}
-            size={layout === 'list' ? 43 : size === 'hero' ? 66 : 54}
+            size={layout === 'list' ? 43 : 54}
           />
           <div className="st-tile-impact">
             <span className="st-tile-signal-label">{t('inst.impact')}</span>

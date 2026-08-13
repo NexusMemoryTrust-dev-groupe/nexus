@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -21,6 +21,7 @@ import {
   CheckSquare, Table as TableIcon, CodeSquare, Undo2, Redo2,
   Highlighter,
 } from 'lucide-react';
+import { StrataModal } from '../ui/Instruments';
 
 interface TiptapEditorProps {
   content: string;
@@ -30,6 +31,8 @@ interface TiptapEditorProps {
 
 export function TiptapEditor({ content, onChange, editable = true }: TiptapEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const [urlDialog, setUrlDialog] = useState<null | { kind: 'image' | 'link' }>(null);
+  const [urlValue, setUrlValue] = useState('');
 
   const editor = useEditor({
     extensions: [
@@ -104,19 +107,25 @@ export function TiptapEditor({ content, onChange, editable = true }: TiptapEdito
   const ToolbarSep = () => <div className="nx-toolbar-sep" />;
 
   const addImage = useCallback(() => {
-    const url = window.prompt('Image URL:');
-    if (url && editor) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
-  }, [editor]);
+    setUrlValue('');
+    setUrlDialog({ kind: 'image' });
+  }, []);
 
   const addLink = useCallback(() => {
-    if (!editor) return;
-    const url = window.prompt('Link URL:');
-    if (url) {
+    setUrlValue('');
+    setUrlDialog({ kind: 'link' });
+  }, []);
+
+  const submitUrl = useCallback(() => {
+    if (!editor || !urlDialog || !urlValue.trim()) return;
+    const url = urlValue.trim();
+    if (urlDialog.kind === 'image') {
+      editor.chain().focus().setImage({ src: url }).run();
+    } else {
       editor.chain().focus().setLink({ href: url }).run();
     }
-  }, [editor]);
+    setUrlDialog(null);
+  }, [editor, urlDialog, urlValue]);
 
   const addTable = useCallback(() => {
     if (editor) {
@@ -205,6 +214,37 @@ export function TiptapEditor({ content, onChange, editable = true }: TiptapEdito
       <div className="nx-editor-scroll" ref={editorRef}>
         <EditorContent editor={editor} />
       </div>
+
+      {urlDialog && (
+        <StrataModal
+          title={urlDialog.kind === 'image' ? 'Insert image' : 'Insert link'}
+          icon={urlDialog.kind === 'image' ? ImageIcon : Link2}
+          accent="var(--mint)"
+          onClose={() => setUrlDialog(null)}
+          footer={
+            <>
+              <button type="button" className="st-btn st-btn--ghost" onClick={() => setUrlDialog(null)}>
+                Cancel
+              </button>
+              <button type="button" className="st-btn" disabled={!urlValue.trim()} onClick={submitUrl}>
+                {urlDialog.kind === 'image' ? 'Add image' : 'Apply link'}
+              </button>
+            </>
+          }
+        >
+          <label className="st-modal-label">{urlDialog.kind === 'image' ? 'Image URL' : 'Link URL'}</label>
+          <input
+            className="st-sys-input"
+            placeholder="https://…"
+            value={urlValue}
+            onChange={(event) => setUrlValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && urlValue.trim()) submitUrl();
+            }}
+            autoFocus
+          />
+        </StrataModal>
+      )}
     </div>
   );
 }

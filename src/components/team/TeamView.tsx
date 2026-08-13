@@ -178,10 +178,13 @@ export function TeamView() {
 
       {/* Roster */}
       <section>
-        <h2 className="st-section-title" style={{ '--section-color': 'var(--mint)' } as CSSProperties}>
-          <Users size={14} /> {t('team.roster.title')}
-        </h2>
-        <p className="st-section-hint">{t('team.roster.hint')}</p>
+        <div className="st-section-head">
+          <h2 className="st-section-title" style={{ '--section-color': 'var(--mint)' } as CSSProperties}>
+            <Users size={14} /> {t('team.roster.title')}
+          </h2>
+          <InfoTip text={t('team.roster.tip')} />
+        </div>
+        <p className="st-section-desc">{t('team.roster.hint')}</p>
         {overview.members.length === 0 ? (
           <StrataVoid icon={UserPlus} title={t('team.roster.empty.title')} accent="var(--mint)">
             {t('team.roster.empty.desc')}
@@ -222,10 +225,13 @@ export function TeamView() {
 
       {/* Trusted decisions */}
       <section>
-        <h2 className="st-section-title" style={{ '--section-color': 'var(--mint)' } as CSSProperties}>
-          <CheckCircle2 size={14} /> {t('team.decisions.title')}
-        </h2>
-        <p className="st-section-hint">{t('team.decisions.hint')}</p>
+        <div className="st-section-head">
+          <h2 className="st-section-title" style={{ '--section-color': 'var(--mint)' } as CSSProperties}>
+            <CheckCircle2 size={14} /> {t('team.decisions.title')}
+          </h2>
+          <InfoTip text={t('team.decisions.tip')} />
+        </div>
+        <p className="st-section-desc">{t('team.decisions.hint')}</p>
         {overview.confirmedDecisions.length === 0 &&
           overview.supersededDecisions.length === 0 &&
           overview.conflicted.length === 0 ? (

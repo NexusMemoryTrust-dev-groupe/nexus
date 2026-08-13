@@ -12,7 +12,7 @@ import { useLocale } from '../../stores/localeStore';
  * Shared readouts for the three content pages.
  *
  * A memory is a measured object — it has a confidence, an importance, a rung on
- * the Raw→Wisdom ladder — and the previous UI printed those numbers as plain
+ * the Working→Strategic ladder — and the previous UI printed those numbers as plain
  * text next to a label. These components render each measurement as an
  * instrument instead, and because Memories, Timeline and Context all import the
  * same ones, a confidence of 0.5 looks identical wherever it appears.
@@ -298,7 +298,7 @@ export function SemanticLayerTag({ layer }: { layer: string }) {
   );
 }
 
-/** The four definitions stay visible: layer meaning must never require memory. */
+/** All six definitions stay visible: layer meaning must never require memory. */
 export function LayerLegend() {
   const { t } = useLocale();
   return (
@@ -457,5 +457,149 @@ export function StrataSkeletons() {
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Custom dropdown. The platform `<select>` is unstylable beyond the trigger
+ * itself — its listbox pops up in the OS chrome with a foreign font and look.
+ * This renders the same semantics (listbox / option) with the app's typography
+ * and a smooth pop, and closes on outside click, Escape, blur or scroll.
+ */
+export function StrataSelect({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  onClose,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+  /** Called when the dropdown closes without committing a value (outside click, Escape, scroll). */
+  onClose?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  const close = useCallback(() => {
+    setOpen(false);
+    onClose?.();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    // Scrolling the menu itself (it is a scrollable listbox) must not dismiss
+    // it — only scrolls outside the select close the dropdown.
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target && rootRef.current?.contains(target)) return;
+      close();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, close]);
+
+  return (
+    <div className="st-select" ref={rootRef}>
+      <button
+        type="button"
+        className="st-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        <span className="st-select-value">{selected?.label ?? value}</span>
+        <span className={`st-select-chevron${open ? ' st-select-chevron--open' : ''}`} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open && (
+        <ul className="st-select-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => (
+            <li key={option.value} role="option" aria-selected={option.value === value}>
+              <button
+                type="button"
+                className={`st-select-option${option.value === value ? ' is-selected' : ''}`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * App-modal dialog rendered through a portal into `document.body`. This is the
+ * replacement for every native `prompt`/`confirm`: same fixed positioning, a
+ * blurred backdrop, Escape / backdrop / ✕ to close, and the app's own chrome —
+ * nothing foreign, nothing in the OS window chrome.
+ */
+export function StrataModal({
+  title,
+  icon: Icon,
+  accent = 'var(--tangerine)',
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  icon?: LucideIcon;
+  accent?: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="st-modal"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="st-modal-panel" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="st-modal-head">
+          <h3 className="st-modal-title" style={{ '--section-color': accent } as CSSProperties}>
+            {Icon && <Icon size={14} />} {title}
+          </h3>
+          <button type="button" className="st-modal-x" aria-label="Close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        <div className="st-modal-body">{children}</div>
+        {footer && <div className="st-modal-foot">{footer}</div>}
+      </div>
+    </div>,
+    document.body,
   );
 }

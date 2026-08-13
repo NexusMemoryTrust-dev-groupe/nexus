@@ -1,34 +1,47 @@
 /**
  * Memory layer identity and semantics — single source of truth.
  *
- * Raw → Knowledge → Decision → Wisdom is a maturation ladder: a memory starts as
- * whatever was captured and climbs as it is confirmed, reasoned about and
- * generalised. The palette climbs with it — cool and unprocessed at the bottom,
- * warm and settled at the top — so a wall of cards shows the shape of the
- * collection before a single title is read.
+ * Six cognitive layers replace the old four-rung ladder. A memory is no longer
+ * just "Raw/Knowledge/Decision/Wisdom" — it is *classified*: the signature
+ * classifier (backend) assigns Working / Episodic / Semantic / Procedural /
+ * Decision / Strategic and records *why* (layer_reason) and *how sure*
+ * (layer_confidence). The UI paints that provenance, not a guess.
  *
- * The layer name alone told the user nothing. `Wisdom` is not self-explanatory,
- * and nothing on screen said what earns it. So each rung now carries locale key
- * stems for three questions the UI answers inline:
+ * The palette still climbs with the layer — cool and raw at the bottom, warm
+ * and settled at the top — so a wall of cards shows the shape of the
+ * collection before a single title is read. Each rung carries locale key stems
+ * for two questions the UI answers inline:
  *
  *   meaning  — what this layer *is*
  *   promotes — what moves a memory to the next rung
  *
- * Copy lives in `localeStore`, not here, so `en` and `ru` stay in one place and
- * this module keeps no strings to translate.
+ * Copy lives in `localeStore`, not here, so `en` and `ru` stay in one place.
  */
 
 import type { CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { BookOpen, GitBranch, Gem, Inbox } from 'lucide-react';
+import {
+  BookOpen,
+  Gem,
+  GitBranch,
+  Inbox,
+  ListOrdered,
+  Zap,
+} from 'lucide-react';
 
-export type LayerName = 'Raw' | 'Knowledge' | 'Decision' | 'Wisdom';
+export type LayerName =
+  | 'Working'
+  | 'Episodic'
+  | 'Semantic'
+  | 'Procedural'
+  | 'Decision'
+  | 'Strategic';
 
 export interface LayerVisual {
   /** Canonical name, safe to render. */
   name: LayerName;
-  /** Token stem: `var(--{tint})` and `var(--{tint}-soft)` both resolve. */
-  tint: 'blue' | 'cyan' | 'periwinkle' | 'gold';
+  /** Token stem: `var(--{tint})` and `var(--{tint}-soft})` both resolve. */
+  tint: 'blue' | 'cyan' | 'mint' | 'steel' | 'periwinkle' | 'gold';
   /** Solid accent. */
   color: string;
   /** ~12% wash of the accent, for fills. */
@@ -41,36 +54,66 @@ export interface LayerVisual {
   icon: LucideIcon;
   /** Two-letter code, for places too small for an icon. */
   code: string;
-  /** Locale key stem: `layer.raw.meaning`, `.promotes`. */
-  key: 'raw' | 'knowledge' | 'decision' | 'wisdom';
+  /** Locale key stem: `layer.working.meaning`, `.promotes`. */
+  key:
+    | 'working'
+    | 'episodic'
+    | 'semantic'
+    | 'procedural'
+    | 'decision'
+    | 'strategic';
   /** 0-based rung, for ordering and the ladder UI. */
-  rank: 0 | 1 | 2 | 3;
+  rank: 0 | 1 | 2 | 3 | 4 | 5;
 }
 
 const LAYERS: Record<LayerName, LayerVisual> = {
-  Raw: {
-    name: 'Raw',
+  Working: {
+    name: 'Working',
     tint: 'blue',
     color: 'var(--blue)',
     soft: 'var(--blue-soft)',
     glow: 'rgba(120, 169, 255, 0.4)',
     gradient: 'linear-gradient(135deg, rgba(120, 169, 255, 0.13), transparent 68%)',
-    icon: Inbox,
-    code: 'RW',
-    key: 'raw',
+    icon: Zap,
+    code: 'WK',
+    key: 'working',
     rank: 0,
   },
-  Knowledge: {
-    name: 'Knowledge',
+  Episodic: {
+    name: 'Episodic',
     tint: 'cyan',
     color: 'var(--cyan)',
     soft: 'var(--cyan-soft)',
     glow: 'rgba(99, 216, 210, 0.4)',
     gradient: 'linear-gradient(135deg, rgba(99, 216, 210, 0.13), transparent 68%)',
-    icon: BookOpen,
-    code: 'KN',
-    key: 'knowledge',
+    icon: Inbox,
+    code: 'EP',
+    key: 'episodic',
     rank: 1,
+  },
+  Semantic: {
+    name: 'Semantic',
+    tint: 'mint',
+    color: 'var(--mint)',
+    soft: 'var(--mint-soft)',
+    glow: 'rgba(117, 212, 161, 0.4)',
+    gradient: 'linear-gradient(135deg, rgba(117, 212, 161, 0.13), transparent 68%)',
+    icon: BookOpen,
+    code: 'SM',
+    key: 'semantic',
+    rank: 2,
+  },
+  Procedural: {
+    name: 'Procedural',
+    tint: 'steel',
+    color: 'var(--steel)',
+    soft: 'var(--steel-soft)',
+    glow: 'rgba(147, 197, 253, 0.4)',
+    gradient: 'linear-gradient(135deg, rgba(147, 197, 253, 0.13), transparent 68%)',
+    icon: ListOrdered,
+    code: 'PR',
+    key: 'procedural',
+    rank: 3,
   },
   Decision: {
     name: 'Decision',
@@ -82,38 +125,58 @@ const LAYERS: Record<LayerName, LayerVisual> = {
     icon: GitBranch,
     code: 'DC',
     key: 'decision',
-    rank: 2,
+    rank: 4,
   },
-  Wisdom: {
-    name: 'Wisdom',
+  Strategic: {
+    name: 'Strategic',
     tint: 'gold',
     color: 'var(--gold)',
     soft: 'var(--gold-soft)',
     glow: 'rgba(221, 187, 101, 0.4)',
     gradient: 'linear-gradient(135deg, rgba(221, 187, 101, 0.13), transparent 68%)',
     icon: Gem,
-    code: 'WS',
-    key: 'wisdom',
-    rank: 3,
+    code: 'ST',
+    key: 'strategic',
+    rank: 5,
   },
 };
 
 /** Ladder order. Drives the legend, the strata bar and the filter chips. */
-export const LAYER_ORDER: readonly LayerName[] = ['Raw', 'Knowledge', 'Decision', 'Wisdom'];
+export const LAYER_ORDER: readonly LayerName[] = [
+  'Working',
+  'Episodic',
+  'Semantic',
+  'Procedural',
+  'Decision',
+  'Strategic',
+];
 
 /** Every layer in ladder order, ready to map over. */
 export const LAYER_LIST: readonly LayerVisual[] = LAYER_ORDER.map((n) => LAYERS[n]);
 
 /**
+ * Legacy ladder names that the V18 migration rewrote in the database. A stale
+ * row can still carry them, so the resolver maps them onto their modern
+ * cognitive slots before falling back.
+ */
+const LEGACY_REMAP: Record<string, LayerName> = {
+  Raw: 'Episodic',
+  Knowledge: 'Semantic',
+  Wisdom: 'Strategic',
+};
+
+/**
  * Resolve a backend layer string to its visuals.
  *
  * `Memory.layer` is a plain `string`, so an unknown or missing value is a real
- * possibility. Falling back to `Raw` keeps the card painted instead of punching
- * a colourless hole into the grid.
+ * possibility — including legacy ladder names (Raw/Knowledge/Wisdom) that the
+ * V18 migration should have remapped but a stale row could still carry.
+ * Falling back to `Episodic` (raw capture is an event) keeps the card painted
+ * instead of punching a colourless hole into the grid.
  */
 export function layerVisual(layer: string | null | undefined): LayerVisual {
-  if (!layer) return LAYERS.Raw;
-  return LAYERS[layer as LayerName] ?? LAYERS.Raw;
+  if (!layer) return LAYERS.Episodic;
+  return LAYERS[layer as LayerName] ?? LAYERS[LEGACY_REMAP[layer]] ?? LAYERS.Episodic;
 }
 
 /**
@@ -132,7 +195,7 @@ export function layerVars(layer: string | null | undefined): CSSProperties {
   } as CSSProperties;
 }
 
-/** Locale key for one of the three explanations. */
+/** Locale key for one of the two explanations. */
 export function layerKey(layer: string | null | undefined, field: 'meaning' | 'promotes'): string {
   return `layer.${layerVisual(layer).key}.${field}`;
 }

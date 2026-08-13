@@ -27,7 +27,7 @@ const SORTS: { id: Sort; labelKey: string; icon: typeof ArrowDownAZ }[] = [
 /**
  * Memories is a collection map, not a folder of identical cards.
  *
- * The distribution bar tells users what the four colours mean, the legend keeps
+ * The distribution bar tells users what the six colours mean, the legend keeps
  * the definitions visible, and the bento wall encodes impact spatially. Search,
  * sort and filters remain client-side because the complete memory set is already
  * in Zustand and the interaction should feel instant.
@@ -213,7 +213,7 @@ export function MemoryExplorer() {
           </button>
         </StrataVoid>
       ) : (
-        <div className="st-bento">
+        <div className={`st-bento${layout === 'list' ? ' st-bento--list' : ''}`}>
           {filtered.map((memory, index) => (
             <MemoryCard key={memory.id} memory={memory} layout={layout} index={index} />
           ))}

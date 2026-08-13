@@ -22,6 +22,11 @@ interface TimelineDay {
   counts: Map<string, number>;
 }
 
+interface DotCluster {
+  at: number;
+  memories: Memory[];
+}
+
 function localKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -31,6 +36,29 @@ function localKey(date: Date): string {
 function dayAtOffset(offset: number): Date {
   const today = new Date();
   return new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset);
+}
+
+/**
+ * Cluster dots that land within a hair of each other (same minute slot) into a
+ * single bead with a count badge, so a crowded hour reads as one dot instead
+ * of a smear of overlapping circles. The line itself stays clean.
+ */
+const CLUSTER_GAP = 1.15; // percent of the axis width — dots closer than this fuse
+
+function clusterDots(memories: Memory[]): DotCluster[] {
+  const sorted = memories
+    .map((memory) => ({ memory, at: dayFraction(memory.createdAt) }))
+    .sort((a, b) => a.at - b.at);
+  const clusters: DotCluster[] = [];
+  for (const { memory, at } of sorted) {
+    const last = clusters[clusters.length - 1];
+    if (last && at - last.at < CLUSTER_GAP) {
+      last.memories.push(memory);
+    } else {
+      clusters.push({ at, memories: [memory] });
+    }
+  }
+  return clusters;
 }
 
 function HeatMap({
@@ -63,28 +91,66 @@ function HeatMap({
 }
 
 function AxisDot({
-  memory,
+  cluster,
   onOpen,
   locale,
+  clusterLabel,
 }: {
-  memory: Memory;
+  cluster: DotCluster;
   onOpen: (memory: Memory) => void;
   locale: 'en' | 'ru';
+  clusterLabel: string;
 }) {
-  const size = 8 + steps(memory.importanceScore) * 1.8;
+  const [hovered, setHovered] = useState(false);
+  const memories = cluster.memories;
+  const primary = memories[0];
+  const size = 7 + Math.max(...memories.map((m) => steps(m.importanceScore))) * 1.4;
+  const count = memories.length;
   return (
-    <button
-      type="button"
+    <span
       className="st-axis-dot"
       style={{
-        ...layerVars(memory.layer),
-        '--at': dayFraction(memory.createdAt),
+        ...layerVars(primary.layer),
+        '--at': cluster.at,
         '--dot-size': `${size}px`,
       } as CSSProperties}
-      onClick={() => onOpen(memory)}
-      aria-label={`${memory.title}, ${clock(memory.createdAt, locale)}`}
-      title={`${memory.title} · ${clock(memory.createdAt, locale)}`}
-    />
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        type="button"
+        className="st-axis-dot-hit"
+        onClick={() => onOpen(primary)}
+        aria-label={`${count > 1 ? `${count} memories · ` : ''}${primary.title}, ${clock(primary.createdAt, locale)}`}
+        title={`${count > 1 ? `${count} memories · ` : ''}${primary.title} · ${clock(primary.createdAt, locale)}`}
+      >
+        {count > 1 && <span className="st-axis-dot-count">{count}</span>}
+      </button>
+
+      {hovered && (
+        <div className="st-axis-card">
+          <div className="st-axis-card-head">
+            <span className="st-axis-card-time">{clock(primary.createdAt, locale)}</span>
+            {count > 1 && <span className="st-axis-card-count">{count} · {clusterLabel}</span>}
+          </div>
+          <div className="st-axis-card-list">
+            {memories.map((memory) => (
+              <button
+                type="button"
+                key={memory.id}
+                className="st-axis-card-row"
+                style={{ '--row-color': layerVisual(memory.layer).color } as CSSProperties}
+                onClick={() => onOpen(memory)}
+              >
+                <span className="st-axis-card-dot" />
+                <span className="st-axis-card-title">{memory.title}</span>
+                <span className="st-axis-card-time">{clock(memory.createdAt, locale)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -262,7 +328,15 @@ export function TimelineView() {
                       <span className="st-axis-label">{String(hour).padStart(2, '0')}</span>
                     </span>
                   ))}
-                  {day.memories.map((memory) => <AxisDot key={memory.id} memory={memory} onOpen={open} locale={locale} />)}
+                  {clusterDots(day.memories).map((cluster) => (
+                    <AxisDot
+                      key={cluster.memories[0].id}
+                      cluster={cluster}
+                      onOpen={open}
+                      locale={locale}
+                      clusterLabel={t('tl.cluster')}
+                    />
+                  ))}
                 </div>
 
                 <div className="st-day-entries">

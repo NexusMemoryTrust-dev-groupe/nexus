@@ -3,10 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   Database, HardDrive, Brain, GitBranch, Layers, Clock,
   Settings2, Save, RotateCcw, RefreshCw, Check, AlertCircle,
-  Key, Shield,
+  Key, Shield, Archive, Download, Trash2, History as HistoryIcon,
+  FolderOpen, Loader2,
 } from 'lucide-react';
 import { useUiStore } from '../../stores/uiStore';
 import { useLocale } from '../../stores/localeStore';
+import { StrataSelect } from '../ui/Instruments';
 
 interface ConfigEntry {
   key: string;
@@ -30,6 +32,11 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+/** Fill `{name}` placeholders in a locale template. */
+function format(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
+}
+
 interface SettingDef {
   key: string;
   labelKey: string;
@@ -37,6 +44,35 @@ interface SettingDef {
   type: 'toggle' | 'text' | 'number' | 'select';
   options?: string[];
   apply?: (value: string) => void;
+}
+
+interface BackupInfo {
+  path: string;
+  fileName: string;
+  createdAt: string;
+  sizeBytes: number;
+  schemaVersion: number;
+  memoryCount: number;
+  sha256: string;
+  verified: boolean;
+}
+
+interface BackupHistoryEntry {
+  path: string;
+  createdAt: string;
+  schemaVersion: number;
+  sizeBytes: number;
+  sha256: string;
+  status: string;
+  restoredAt: string | null;
+}
+
+interface RestoreReport {
+  restoredFrom: string;
+  restoredAt: string;
+  schemaVersion: number;
+  memoryCount: number;
+  preRestoreBackup: string;
 }
 
 const defaultSettings: SettingDef[] = [
@@ -83,11 +119,16 @@ export function SettingsView() {
   const loadConfig = useCallback(async () => {
     try {
       const entries = await invoke<ConfigEntry[]>('get_all_config');
+      // The model selector and API key live outside `defaultSettings` (their
+      // values are stored under `ai.model` / `ai.opencode_api_key`), so merge
+      // every persisted key into state — not just the defaults with a UI row.
+      const known = new Set(defaultSettings.map((d) => d.key));
       const merged = defaultSettings.map((def) => {
         const found = entries.find((e) => e.key === def.key);
         return { key: def.key, value: found ? found.value : def.defaultValue };
       });
-      setConfig(merged);
+      const rest = entries.filter((e) => !known.has(e.key));
+      setConfig([...merged, ...rest]);
 
       // Apply all side effects on load
       for (const entry of merged) {
@@ -121,7 +162,14 @@ export function SettingsView() {
   const saveConfig = useCallback(async (key: string, value: string) => {
     try {
       await invoke('set_config', { key, value });
-      setConfig((prev) => prev.map((e) => (e.key === key ? { ...e, value } : e)));
+      // Keys outside `defaultSettings` (ai.model, ai.opencode_api_key) are not
+      // in the array yet — append them instead of silently dropping the update.
+      setConfig((prev) => {
+        const exists = prev.some((e) => e.key === key);
+        return exists
+          ? prev.map((e) => (e.key === key ? { ...e, value } : e))
+          : [...prev, { key, value }];
+      });
 
       // Apply side effects
       const def = defaultSettings.find((d) => d.key === key);
@@ -203,6 +251,106 @@ export function SettingsView() {
       setCheckingHealth(false);
     }
   }, []);
+
+  // ── Backup state ──
+  const [backups, setBackups] = useState<BackupInfo[]>([]);
+  const [backupHistory, setBackupHistory] = useState<BackupHistoryEntry[]>([]);
+  const [backupDir, setBackupDir] = useState('');
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupNote, setBackupNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [verifyingPath, setVerifyingPath] = useState<string | null>(null);
+
+  const loadBackups = useCallback(async () => {
+    try {
+      const [list, history, dir] = await Promise.all([
+        invoke<BackupInfo[]>('backup_list'),
+        invoke<BackupHistoryEntry[]>('backup_history'),
+        invoke<string>('backup_default_dir'),
+      ]);
+      setBackups(list);
+      setBackupHistory(history);
+      setBackupDir(dir);
+    } catch (err) {
+      setBackupNote({ ok: false, text: String(err) });
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBackups();
+  }, [loadBackups]);
+
+  const createBackup = useCallback(async () => {
+    setBackupBusy(true);
+    setBackupNote(null);
+    try {
+      const info = await invoke<BackupInfo>('backup_create');
+      setBackupNote({
+        ok: true,
+        text: format(t('settings.backup.note.created'), {
+          file: info.fileName,
+          count: String(info.memoryCount),
+          size: formatBytes(info.sizeBytes),
+        }),
+      });
+      await loadBackups();
+    } catch (err) {
+      setBackupNote({ ok: false, text: String(err) });
+    } finally {
+      setBackupBusy(false);
+    }
+  }, [loadBackups, t]);
+
+  const verifyOne = useCallback(async (path: string) => {
+    setVerifyingPath(path);
+    setBackupNote(null);
+    try {
+      const info = await invoke<BackupInfo>('backup_verify', { path });
+      setBackupNote({
+        ok: info.verified,
+        text: info.verified
+          ? format(t('settings.backup.note.verifiedOk'), { sha: info.sha256.slice(0, 12) })
+          : format(t('settings.backup.note.verifiedFail'), { file: info.fileName }),
+      });
+      await loadBackups();
+    } catch (err) {
+      setBackupNote({ ok: false, text: String(err) });
+    } finally {
+      setVerifyingPath(null);
+    }
+  }, [loadBackups, t]);
+
+  const deleteOne = useCallback(async (path: string) => {
+    if (!window.confirm(t('settings.backup.confirmDelete'))) return;
+    setBackupNote(null);
+    try {
+      await invoke('backup_delete', { path });
+      setBackupNote({ ok: true, text: t('settings.backup.note.deleted') });
+      await loadBackups();
+    } catch (err) {
+      setBackupNote({ ok: false, text: String(err) });
+    }
+  }, [loadBackups, t]);
+
+  const restoreOne = useCallback(async (path: string) => {
+    if (!window.confirm(t('settings.backup.confirmRestore'))) return;
+    setBackupBusy(true);
+    setBackupNote(null);
+    try {
+      const report = await invoke<RestoreReport>('backup_restore', { path });
+      setBackupNote({
+        ok: true,
+        text: format(t('settings.backup.note.restored'), {
+          count: String(report.memoryCount),
+          file: report.restoredFrom.split(/[\\/]/).pop() ?? report.restoredFrom,
+        }),
+      });
+      await loadBackups();
+    } catch (err) {
+      setBackupNote({ ok: false, text: String(err) });
+    } finally {
+      setBackupBusy(false);
+    }
+  }, [loadBackups, t]);
 
   const statItems = stats
     ? [
@@ -368,25 +516,16 @@ export function SettingsView() {
                         </>
                       ) : isEditing && def.type === 'select' ? (
                         /* Select dropdown */
-                        <select
+                        <StrataSelect
                           value={value}
-                          onChange={(e) => {
-                            saveConfig(def.key, e.target.value);
+                          onChange={(next) => {
+                            saveConfig(def.key, next);
                             setEditingKey(null);
                           }}
-                          onBlur={() => setEditingKey(null)}
-                          autoFocus
-                          style={{
-                            background: 'var(--carbon)', border: '1px solid var(--tangerine)',
-                            borderRadius: 'var(--radius-xs)', padding: '4px 8px',
-                            fontSize: '13px', color: 'var(--bone)', outline: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {def.options?.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
+                          onClose={() => setEditingKey(null)}
+                          ariaLabel={`Edit ${def.key}`}
+                          options={(def.options ?? []).map((opt) => ({ value: opt, label: opt }))}
+                        />
                       ) : def.type === 'toggle' ? (
                         /* Toggle button */
                         <button
@@ -578,11 +717,28 @@ export function SettingsView() {
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--tangerine)')}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--line)')}
                 >
-                  {models.length === 0 && !modelsLoading && (
-                    <option value="opencode/deepseek-v4-flash-free">
-                      opencode/deepseek-v4-flash-free (default)
-                    </option>
-                  )}
+                  {/* The configured model must always be selectable, even when the
+                      FREE filter hides it or `opencode models` fails — otherwise
+                      the dropdown silently resets to the hardcoded default. */}
+                  {(() => {
+                    const current = getValue('ai.model');
+                    const known = new Set(models.map((m) => m.id));
+                    if (current && !known.has(current)) {
+                      return (
+                        <option value={current}>
+                          {current} {current.includes('free') ? '(free)' : ''}
+                        </option>
+                      );
+                    }
+                    if (models.length === 0 && !modelsLoading) {
+                      return (
+                        <option value="opencode/deepseek-v4-flash-free">
+                          opencode/deepseek-v4-flash-free (default)
+                        </option>
+                      );
+                    }
+                    return null;
+                  })()}
                   {models.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.id} {m.is_free ? '(free)' : ''}
@@ -657,6 +813,182 @@ export function SettingsView() {
               <span style={{ fontSize: '10px', color: 'var(--muted-2)', fontFamily: 'var(--mono)' }}>
                 {models.length} model{models.length !== 1 ? 's' : ''} available
               </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Backup */}
+      <div style={{ marginBottom: '28px' }}>
+        <h2 style={{
+          fontSize: '13px', fontWeight: 600, color: 'var(--muted-2)',
+          textTransform: 'uppercase', letterSpacing: '0.08em',
+          marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <Archive size={14} />
+          {t('settings.backup')}
+        </h2>
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-sm)', overflow: 'hidden',
+        }}>
+          {/* Header row: dir + create */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px', borderBottom: '1px solid var(--line)',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--bone)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FolderOpen size={14} style={{ color: 'var(--periwinkle)' }} />
+                {t('settings.backupDir')}
+              </div>
+              <div style={{
+                fontSize: '10px', color: 'var(--muted-2)', marginTop: '3px',
+                fontFamily: 'var(--mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }} title={backupDir}>
+                {backupDir || '…'}
+              </div>
+            </div>
+            <button
+              onClick={createBackup}
+              disabled={backupBusy}
+              className="settings-action-btn"
+              style={{
+                ...(backupBusy ? { opacity: 0.6, pointerEvents: 'none' as const } : {}),
+                display: 'flex', alignItems: 'center', gap: '6px',
+                background: 'var(--tangerine)', border: 'none',
+                borderRadius: 'var(--radius-xs)', padding: '7px 14px',
+                cursor: 'pointer', fontWeight: 600, color: 'var(--carbon)',
+              }}
+            >
+              {backupBusy ? <Loader2 size={13} className="spinning" /> : <Save size={13} />}
+              {t('settings.backupCreate')}
+            </button>
+          </div>
+
+          {/* Status note */}
+          {backupNote && (
+            <div style={{
+              padding: '10px 18px', borderBottom: '1px solid var(--line)',
+              background: backupNote.ok ? 'rgba(117, 212, 161, 0.04)' : 'rgba(255, 112, 133, 0.04)',
+              fontSize: '12px', fontFamily: 'var(--mono)',
+              color: backupNote.ok ? 'var(--mint)' : 'var(--rose)',
+            }}>
+              {backupNote.ok ? <Check size={12} style={{ verticalAlign: 'text-bottom', marginRight: '6px' }} /> : <AlertCircle size={12} style={{ verticalAlign: 'text-bottom', marginRight: '6px' }} />}
+              {backupNote.text}
+            </div>
+          )}
+
+          {/* Backup list */}
+          {backups.length === 0 ? (
+            <div style={{ padding: '18px', fontSize: '12px', color: 'var(--muted-2)' }}>
+              {t('settings.backupEmpty')}
+            </div>
+          ) : (
+            backups.map((b) => (
+              <div key={b.path} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 18px', borderBottom: '1px solid var(--line)', gap: '12px',
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--bone)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.fileName}</span>
+                    <span style={{
+                      fontSize: '9px', padding: '2px 8px', borderRadius: '999px',
+                      background: b.verified ? 'rgba(117, 212, 161, 0.1)' : 'rgba(255, 112, 133, 0.1)',
+                      color: b.verified ? 'var(--mint)' : 'var(--rose)',
+                      border: '1px solid',
+                      borderColor: b.verified ? 'rgba(117, 212, 161, 0.2)' : 'rgba(255, 112, 133, 0.2)',
+                      whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>
+                      {b.verified ? t('settings.backup.verified') : t('settings.backup.unverified')}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--muted-2)', marginTop: '3px', fontFamily: 'var(--mono)' }}>
+                    {new Date(b.createdAt).toLocaleString()} · {formatBytes(b.sizeBytes)} · {b.memoryCount} memories
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    onClick={() => verifyOne(b.path)}
+                    disabled={verifyingPath === b.path}
+                    className="settings-action-btn"
+                    title={t('settings.backup.verify')}
+                    style={verifyingPath === b.path ? { opacity: 0.5, pointerEvents: 'none' as const } : undefined}
+                  >
+                    {verifyingPath === b.path ? <Loader2 size={13} className="spinning" /> : <RefreshCw size={13} className="settings-action-icon" />}
+                  </button>
+                  <button
+                    onClick={() => restoreOne(b.path)}
+                    disabled={backupBusy}
+                    className="settings-action-btn"
+                    title={t('settings.backup.restore')}
+                    style={{ ...(backupBusy ? { opacity: 0.5, pointerEvents: 'none' as const } : {}), color: 'var(--periwinkle)' }}
+                  >
+                    <Download size={13} />
+                  </button>
+                  <button
+                    onClick={() => deleteOne(b.path)}
+                    className="settings-action-btn"
+                    title={t('settings.backup.delete')}
+                    style={{ color: 'var(--rose)' }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* History journal */}
+          {backupHistory.length > 0 && (
+            <div>
+              <div style={{
+                padding: '10px 18px', borderBottom: '1px solid var(--line)',
+                fontSize: '10px', color: 'var(--muted-2)', textTransform: 'uppercase', letterSpacing: '0.05em',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <HistoryIcon size={12} /> {t('settings.backupHistory')}
+              </div>
+              {backupHistory.slice(0, 8).map((h, idx) => {
+                const statusClass =
+                  h.status === 'restored' ? 'restored'
+                  : h.status === 'deleted' ? 'deleted'
+                  : 'active';
+                const statusLabel =
+                  h.status === 'restored' ? t('settings.backup.status.restored')
+                  : h.status === 'deleted' ? t('settings.backup.status.deleted')
+                  : t('settings.backup.status.active');
+                return (
+                  <div key={h.path + h.createdAt} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 18px', gap: '12px',
+                    borderBottom: idx < Math.min(backupHistory.length, 8) - 1 ? '1px solid var(--line)' : 'none',
+                  }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '12px', fontWeight: 600, color: h.status === 'deleted' ? 'var(--muted-2)' : 'var(--bone)',
+                        fontFamily: 'var(--mono)',
+                        textDecoration: h.status === 'deleted' ? 'line-through' : 'none',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={h.path}>
+                        {h.path.split(/[\\/]/).pop()}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--muted-2)', marginTop: '3px', fontFamily: 'var(--mono)' }}>
+                        {new Date(h.createdAt).toLocaleString()} · {formatBytes(h.sizeBytes)} · v{h.schemaVersion}
+                        {h.restoredAt && (
+                          <span style={{ color: 'var(--periwinkle)' }}>
+                            {' · '}{new Date(h.restoredAt).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`backup-status-badge backup-status-badge--${statusClass}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
