@@ -12,4 +12,7 @@ pub trait AuditRepository: Send + Sync {
 
     /// All events for one memory, chronological.
     async fn list_events(&self, memory_id: &EntityId) -> Result<Vec<AuditEvent>>;
+
+    /// All events in the journal, chronological (used by project export).
+    async fn list_all_events(&self) -> Result<Vec<AuditEvent>>;
 }

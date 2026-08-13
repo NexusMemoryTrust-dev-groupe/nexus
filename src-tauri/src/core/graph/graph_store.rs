@@ -45,6 +45,12 @@ pub trait GraphStore: Send + Sync {
 
     /// Get the total number of relationships in the graph.
     async fn count_relationships(&self) -> Result<u64>;
+
+    /// All entities in the graph, unordered (used by project export).
+    async fn list_all_entities(&self) -> Result<Vec<Entity>>;
+
+    /// All relationships in the graph, unordered (used by project export).
+    async fn list_all_relationships(&self) -> Result<Vec<Relationship>>;
 }
 
 #[cfg(test)]

@@ -85,6 +85,15 @@ pub struct ContextPackage {
     // the context itself. Absent when the project has not defined one.
     #[serde(default)]
     pub agent_instructions: Option<String>,
+
+    // ── Conflict firewall (Система 2) ──
+    //
+    // How many memory records the builder excluded because they participate in
+    // an unresolved contradiction (Conflicted) or were superseded by a resolved
+    // conflict (Superseded). The package carries only the Current Truth; this
+    // counter keeps the exclusion observable instead of silent.
+    #[serde(default)]
+    pub conflicts_excluded: u32,
 }
 
 impl ContextPackage {
@@ -106,6 +115,7 @@ impl ContextPackage {
             candidate_memories: 0,
             provenance: crate::core::context::provenance::Provenance::new(),
             agent_instructions: None,
+            conflicts_excluded: 0,
         }
     }
 

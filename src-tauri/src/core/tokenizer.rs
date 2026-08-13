@@ -421,24 +421,37 @@ pub fn count(text: &str) -> u32 {
         return 0;
     }
 
-    let Some(engine) = active_engine() else {
-        return estimate(text);
+    let raw = {
+        let Some(engine) = active_engine() else {
+            // The heuristic already enforces a 1-token floor for real content.
+            return estimate(text);
+        };
+
+        if text.len() <= CHUNK_BYTES {
+            count_with_engine(&engine, text)
+        } else {
+            // Chunk on character boundaries so multi-byte text is never split mid-char.
+            let mut total: u32 = 0;
+            let mut rest = text;
+            while !rest.is_empty() {
+                let take = crate::core::text::floor_char_boundary(rest, CHUNK_BYTES).max(1);
+                let (head, tail) = rest.split_at(take);
+                total = total.saturating_add(count_with_engine(&engine, head));
+                rest = tail;
+            }
+            total
+        }
     };
 
-    if text.len() <= CHUNK_BYTES {
-        return count_with_engine(&engine, text);
+    // Non-empty content that contains any non-whitespace character always
+    // reports at least one token. Exact vocabularies can legitimately map an
+    // out-of-vocabulary script to zero tokens; reporting "0 tokens" for real
+    // content would silently under-count every context budget, so floor it.
+    if text.trim().is_empty() {
+        0
+    } else {
+        raw.max(1)
     }
-
-    // Chunk on character boundaries so multi-byte text is never split mid-char.
-    let mut total: u32 = 0;
-    let mut rest = text;
-    while !rest.is_empty() {
-        let take = crate::core::text::floor_char_boundary(rest, CHUNK_BYTES).max(1);
-        let (head, tail) = rest.split_at(take);
-        total = total.saturating_add(count_with_engine(&engine, head));
-        rest = tail;
-    }
-    total
 }
 
 /// Count with provenance attached.
@@ -586,5 +599,94 @@ mod tests {
             }
             _ => panic!("expected tiktoken engine"),
         }
+    }
+
+    // ── Coverage: display strings and the shared active-state transitions ────
+
+    #[test]
+    fn target_as_str_returns_lowercase_names() {
+        for (t, s) in [
+            (Target::Claude, "claude"),
+            (Target::Gpt, "gpt"),
+            (Target::Gemini, "gemini"),
+            (Target::Local, "local"),
+            (Target::Embedding, "embedding"),
+        ] {
+            assert_eq!(t.as_str(), s);
+        }
+    }
+
+    // ── Coverage: vocabulary location and fallbacks ─────────────────────────
+
+    #[test]
+    fn cache_roots_honors_fastembed_and_corrupt_tokenizer_returns_none() {
+        // One test (not two): both halves redirect FASTEMBED_CACHE_DIR and
+        // would race each other's env var in parallel execution.
+        let dir = std::env::temp_dir().join(format!("nexus-fastembed-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("tokenizer.json"), r#"{ "not": "a tokenizer" }"#).unwrap();
+
+        let prev = std::env::var("FASTEMBED_CACHE_DIR").ok();
+        // Rust 2024: set_var/remove_var are unsafe.
+        unsafe { std::env::set_var("FASTEMBED_CACHE_DIR", &dir) };
+
+        let roots = cache_roots();
+        assert!(
+            roots.iter().any(|r| r.as_path() == dir.as_path()),
+            "custom cache dir missing: {:?}",
+            roots
+        );
+
+        // The corrupt tokenizer.json must be found and rejected → no engine.
+        assert!(
+            build_hf_engine().is_none(),
+            "corrupt tokenizer must produce no engine"
+        );
+
+        match prev {
+            Some(v) => unsafe { std::env::set_var("FASTEMBED_CACHE_DIR", v) },
+            None => unsafe { std::env::remove_var("FASTEMBED_CACHE_DIR") },
+        }
+    }
+
+    #[test]
+    fn find_tokenizer_json_stops_early() {
+        let probe = std::env::temp_dir().join("nexus-tokenizer-probe.txt");
+        std::fs::write(&probe, "not json").unwrap();
+        // Not a directory.
+        assert!(find_tokenizer_json(&probe, 5).is_none());
+        // Depth exhausted.
+        assert!(find_tokenizer_json(probe.parent().unwrap(), 0).is_none());
+        let _ = std::fs::remove_file(&probe);
+    }
+
+    #[test]
+    fn tiktoken_falls_back_to_default_vocabulary_for_unknown_models() {
+        let engine = build_tiktoken_engine("definitely-not-a-real-model")
+            .expect("fallback tokenizer must load");
+        match &*engine {
+            Engine::Tiktoken(bpe) => {
+                assert!(!bpe.encode_ordinary("hi").is_empty());
+            }
+            _ => panic!("expected tiktoken engine"),
+        }
+    }
+
+    // ── Coverage: heuristic breadth ──────────────────────────────────────────
+
+    #[test]
+    fn estimate_counts_cjk_characters() {
+        // CJK is ~1 token per character and must not fall into the
+        // alphanumeric/symbol arms.
+        let cjk = "中文测试텍스트한국어";
+        let chars = cjk.chars().count() as u32;
+        assert!(
+            estimate(cjk) >= chars,
+            "estimate({cjk}) = {}",
+            estimate(cjk)
+        );
+        // Whitespace boundaries add a little overhead, never reduce.
+        let spaced = "中文 测试 텍스트";
+        assert!(estimate(spaced) > 0);
     }
 }

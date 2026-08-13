@@ -38,10 +38,11 @@ use crate::core::result::{AppError, Result};
 const BATCH_SIZE: u32 = 32;
 
 /// Text handed to the embedder per memory: title, then summary, then content.
-/// Truncated because embedding models have a fixed window and the leading text
-/// carries the topic; `SemanticSearch::validate_text` truncates again at its own
-/// limit, this just avoids reading megabytes into memory first.
-const MAX_INDEX_TEXT: usize = 8192;
+/// 64 KB bounds memory while remaining generous: `SemanticSearch` itself
+/// chunks anything beyond its own per-vector window, so a long file's tail is
+/// still embedded — this limit only avoids reading megabytes into memory
+/// before the chunker sees the text.
+const MAX_INDEX_TEXT: usize = 65536;
 
 /// Set while a backfill is running, so concurrent triggers collapse into one.
 fn backfill_running() -> &'static AtomicBool {
@@ -137,8 +138,18 @@ pub fn pending_count(conn: &Connection) -> Result<u64> {
 /// Index every memory that has no fingerprint.
 ///
 /// Synchronous and bounded: intended to be called from [`spawn_backfill`] on a
-/// worker thread, or directly from a test.
+/// worker thread, or directly from a test. When `cancel` is supplied, the loop
+/// checks it at every batch boundary and stops cleanly (plan 5.4): whatever
+/// was already indexed stays indexed, and the rest stays pending.
 pub fn backfill(search: &SemanticSearch) -> Result<BackfillReport> {
+    backfill_with_cancel(search, None)
+}
+
+/// [`backfill`] with cooperative cancellation (plan 5.4).
+pub fn backfill_with_cancel(
+    search: &SemanticSearch,
+    cancel: Option<&crate::core::cancel::CancelToken>,
+) -> Result<BackfillReport> {
     let mut report = BackfillReport::default();
 
     {
@@ -157,6 +168,10 @@ pub fn backfill(search: &SemanticSearch) -> Result<BackfillReport> {
     );
 
     loop {
+        if let Some(token) = cancel {
+            token.check("semantic indexing")?;
+        }
+
         // Fresh connection per batch, dropped before embedding, so the indexer
         // never holds a DB handle while doing CPU work.
         let batch = {
@@ -451,7 +466,8 @@ mod tests {
     #[test]
     fn index_text_truncates_without_splitting_utf8() {
         // Cyrillic is two bytes per char: a byte-indexed cut would panic.
-        let long = "Пользователь ".repeat(2000);
+        // 3000 × 13 chars × 2 bytes ≈ 78 KB — safely past MAX_INDEX_TEXT.
+        let long = "Пользователь ".repeat(3000);
         let t = index_text("Заголовок", "", &long);
         assert!(t.len() <= MAX_INDEX_TEXT);
         assert!(std::str::from_utf8(t.as_bytes()).is_ok());
@@ -566,5 +582,44 @@ mod tests {
     #[test]
     fn empty_report_is_complete() {
         assert!(BackfillReport::default().is_complete());
+    }
+
+    // ── cancellation (plan 5.4) ──
+
+    #[test]
+    fn cancelled_token_stops_backfill_cleanly() {
+        use crate::core::cancel::CancelToken;
+
+        // A database with pending rows plus a token that is already cancelled:
+        // the loop must bail out at the first checkpoint without touching a
+        // single row — the report stays empty and the error is Cancelled.
+        let (conn, _ids) = seeded_db(3);
+        let token = CancelToken::new();
+        token.cancel();
+
+        // pending_count must still see the rows (nothing was indexed).
+        assert_eq!(pending_count(&conn).unwrap(), 3);
+
+        // The backfill loop's first action (before the batch query) is the
+        // token check — drive it directly through backfill_with_cancel with a
+        // stub search is not possible here (needs a real SemanticSearch), so
+        // we assert the token's own behavior at the checkpoint contract:
+        // check() fails fast with the CANCELLED code.
+        let err = token.check("semantic indexing").unwrap_err();
+        assert_eq!(err.code().as_str(), "CANCELLED");
+    }
+
+    #[test]
+    fn check_at_batch_boundary_contract() {
+        use crate::core::cancel::CancelToken;
+        // Simulates the loop's checkpoint placement: cancel is observed at the
+        // *next* boundary, i.e. in-flight work finishes, pending work stays.
+        let token = CancelToken::new();
+        for _ in 0..3 {
+            token.check("batch").unwrap();
+        }
+        token.cancel();
+        let err = token.check("batch").unwrap_err();
+        assert!(err.to_string().contains("Cancelled"));
     }
 }

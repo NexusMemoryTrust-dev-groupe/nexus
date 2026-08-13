@@ -221,6 +221,76 @@ pub fn generate_agents_file() -> String {
         "- File dependencies: `/code-deps <path>`; dependents: `/code-dependents <target>`\n\n",
     );
 
+    // ── Agent passports ──
+    out.push_str("## Agents\n\n");
+    out.push_str("Agent identity passports (who you are, what you may do):\n\n");
+    if let Ok(conn) = crate::db::open_connection() {
+        let mut passports_found = false;
+        if let Ok(mut stmt) = conn.prepare(
+            "SELECT name, display_name, role, description,
+                    skills_json, tools_json, constraints_json,
+                    trust_level, memory_scope, is_active
+             FROM agent_passports WHERE is_active = 1 ORDER BY name",
+        ) && let Ok(rows) = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, i64>(7)?,
+                row.get::<_, String>(8)?,
+            ))
+        }) {
+            for row in rows.flatten() {
+                passports_found = true;
+                let (name, display, role, desc, skills, tools, cons, trust, scope) = row;
+                out.push_str(&format!(
+                    "- **{name}** ({display}) — role `{role}`, scope `{scope}`, trust {trust}/10",
+                ));
+                if !desc.is_empty() {
+                    out.push_str(&format!(" — {desc}"));
+                }
+                out.push('\n');
+                let parse_list = |s: String| -> Vec<String> {
+                    serde_json::from_str::<Vec<String>>(&s).unwrap_or_default()
+                };
+                let skills = parse_list(skills);
+                let tools = parse_list(tools);
+                let cons = parse_list(cons);
+                if !skills.is_empty() {
+                    out.push_str(&format!("  - skills: {}\n", skills.join(", ")));
+                }
+                if !tools.is_empty() {
+                    out.push_str(&format!("  - tools: {}\n", tools.join(", ")));
+                }
+                if !cons.is_empty() {
+                    out.push_str(&format!("  - constraints: {}\n", cons.join("; ")));
+                }
+            }
+        }
+        if !passports_found {
+            let primary = crate::core::knowledge::default_primary_passport();
+            out.push_str(&format!(
+                "- **{}** ({}) — role `{}`, scope `{}`, trust {}/10 — {}\n",
+                primary.name,
+                primary.display_name,
+                primary.role.as_str(),
+                primary.memory_scope.as_str(),
+                primary.trust_level,
+                primary.description
+            ));
+            out.push_str(&format!("  - skills: {}\n", primary.skills.join(", ")));
+        }
+    } else {
+        out.push_str(
+            "- database unavailable — passports not loaded; assume generalist role, project scope\n",
+        );
+    }
+    out.push('\n');
+
     // ── Storage stats ──
     if let Ok(conn) = crate::db::open_connection() {
         let count = |table: &str| -> u64 {
@@ -288,5 +358,10 @@ mod tests {
         assert!(text.contains("# AGENTS.md"));
         assert!(text.contains("memory"));
         assert!(text.contains("nexus_copilot_command"));
+        assert!(text.contains("## Agents"));
+        assert!(
+            text.contains("trust "),
+            "passport section renders trust level"
+        );
     }
 }

@@ -109,6 +109,30 @@ impl SkillRepository {
         self.get(&id).map(|o| o.expect("just upserted"))
     }
 
+    /// Insert a skill with an explicit ID (used by project import so exported
+    /// skills round-trip with their original identity). Fails if the ID or
+    /// name already exists.
+    pub fn insert_with_id(&self, skill: &Skill) -> Result<()> {
+        self.conn
+            .execute(
+                "INSERT INTO skills
+                 (id, name, description, command, script_path, enabled, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    skill.id.as_str(),
+                    skill.name,
+                    skill.description,
+                    skill.command,
+                    skill.script_path,
+                    skill.enabled,
+                    skill.created_at,
+                    skill.updated_at,
+                ],
+            )
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        Ok(())
+    }
+
     pub fn get(&self, id: &EntityId) -> Result<Option<Skill>> {
         self.conn
             .query_row(

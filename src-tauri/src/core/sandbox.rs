@@ -556,4 +556,114 @@ mod tests {
             err
         );
     }
+
+    // ── Error display and verbs ──────────────────────────────────────────────
+
+    #[test]
+    fn no_roots_error_displays_verb_and_path() {
+        let sb = Sandbox::from_roots(Vec::<String>::new());
+        let msg = sb
+            .check(r"C:\x\y.txt", Access::Read)
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("read"), "missing verb: {}", msg);
+        assert!(
+            msg.contains("no workspace folders are registered yet"),
+            "missing reason: {}",
+            msg
+        );
+        let msg = sb
+            .check(r"C:\x\y.txt", Access::Write)
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("write to"), "missing verb: {}", msg);
+    }
+
+    #[test]
+    fn outside_error_with_empty_roots_lists_none() {
+        // check() can never produce Outside with zero roots (NoRoots wins), so
+        // render the variant directly to cover the "(none)" branch.
+        let err = SandboxError::Outside {
+            attempted: r"C:\a".to_string(),
+            resolved: r"C:\a".to_string(),
+            access: Access::Read,
+            roots: Vec::new(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("(none)"), "got: {}", msg);
+        assert!(msg.contains("read"), "missing verb: {}", msg);
+    }
+
+    #[test]
+    fn unresolvable_error_displays_reason() {
+        // An empty path has no parent directory at all.
+        let err = resolve(Path::new("")).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("no existing parent directory"), "got: {}", msg);
+        assert!(msg.starts_with("Cannot resolve path"), "got: {}", msg);
+    }
+
+    #[test]
+    fn not_absolute_and_reserved_errors_display() {
+        let sb = Sandbox::from_roots(Vec::<String>::new());
+        let msg = sb.check("notes.md", Access::Write).unwrap_err().to_string();
+        assert!(msg.contains("not absolute"), "got: {}", msg);
+
+        let root = tmp("reserveddisplay");
+        let sb = Sandbox::from_roots([root.display().to_string()]);
+        let msg = sb
+            .check(&root.join("CON").display().to_string(), Access::Write)
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("reserved Windows device name"), "got: {}", msg);
+    }
+
+    // ── strip_verbatim branches ──────────────────────────────────────────────
+
+    #[test]
+    fn strip_verbatim_handles_unc_drive_and_plain_paths() {
+        assert_eq!(
+            strip_verbatim(Path::new(r"\\?\UNC\server\share\folder")),
+            PathBuf::from(r"\\server\share\folder")
+        );
+        assert_eq!(
+            strip_verbatim(Path::new(r"\\?\C:\foo\bar")),
+            PathBuf::from(r"C:\foo\bar")
+        );
+        assert_eq!(
+            strip_verbatim(Path::new(r"C:\plain\path")),
+            PathBuf::from(r"C:\plain\path")
+        );
+    }
+
+    // ── resolve() edge cases ─────────────────────────────────────────────────
+
+    #[test]
+    fn empty_root_strings_are_skipped() {
+        let root = tmp("emptyskips");
+        let sb =
+            Sandbox::from_roots([String::new(), "   ".to_string(), root.display().to_string()]);
+        assert_eq!(sb.roots().len(), 1, "roots: {:?}", sb.roots());
+    }
+
+    #[test]
+    fn dot_dot_escape_that_resolves_lands_outside() {
+        // `sub\..\outside.txt` resolves through the existing ancestor `sub` to
+        // the *parent* dir, which is not a root → Outside, not Unresolvable.
+        let base = tmp("dotdotoutside");
+        let sub = base.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        let sb = Sandbox::from_roots([sub.display().to_string()]);
+        let escape = sub.join("..").join("outside.txt");
+        let err = sb
+            .check(&escape.display().to_string(), Access::Write)
+            .unwrap_err();
+        assert!(matches!(err, SandboxError::Outside { .. }), "got {:?}", err);
+    }
+
+    // ── Live policy (collect_roots / current / guard) ────────────────────────
+    // Exercised in `tests/sandbox_live_policy.rs` — a separate test binary:
+    // the policy reads `db::db_path()` (process-env) and redirecting
+    // LOCALAPPDATA inside the lib test process races every other test that
+    // touches the global database.
 }

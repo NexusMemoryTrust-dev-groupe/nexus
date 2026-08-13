@@ -17,14 +17,26 @@
 //!   so an agent can answer "what depends on X?" without dumping code into
 //!   semantic memory.
 
+pub mod agent_passport;
 pub mod agents;
 pub mod code_graph;
 pub mod documents;
+pub mod knowledge_map;
+pub mod skill_genesis;
 pub mod skills;
 
+pub use agent_passport::{
+    AgentPassport, AgentRole, MemoryScope, PassportRepository, authorized_categories, can_use_tool,
+    default_primary_passport, is_authorized, render_passport, trust_score,
+};
 pub use agents::{AgentsFile, AgentsRepository, generate_agents_file};
 pub use code_graph::{CodeDependency, CodeFile, CodeGraphRepository, CodeSymbol};
 pub use documents::{ImportReport, ProjectDocument, ProjectDocumentRepository};
+pub use knowledge_map::{KnowledgeMap, MapItem, MapRing, render_map, ring_for_layer};
+pub use skill_genesis::{
+    Pattern, PatternSignature, ProposalStatus, SkillProposal, detect_patterns, filter_existing,
+    propose, render_proposals,
+};
 pub use skills::{Skill, SkillOutput, SkillRepository, SkillRunner};
 
 /// Small stable checksum for change detection on re-import.

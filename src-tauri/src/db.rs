@@ -42,7 +42,15 @@ fn configure(conn: &Connection) -> Result<(), String> {
 
 /// Open a new SQLite connection to the canonical database.
 pub fn open_connection() -> Result<Connection, String> {
-    let conn = Connection::open(db_path()).map_err(|e| format!("Failed to open DB: {}", e))?;
+    open_connection_at(&db_path())
+}
+
+/// Open a SQLite connection to an explicit database path with the same
+/// pragmas (busy timeout, WAL, foreign keys). Used by backup/restore and the
+/// doctor so they can target arbitrary databases without touching the global
+/// data-dir env — and by tests for full isolation.
+pub fn open_connection_at(path: &std::path::Path) -> Result<Connection, String> {
+    let conn = Connection::open(path).map_err(|e| format!("Failed to open DB: {}", e))?;
     configure(&conn)?;
     Ok(conn)
 }

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::entity_id::EntityId;
 use crate::core::memory::types::{
-    MemoryCaptureMode, MemoryFeedback, MemoryLayer, MemorySource, MemoryState, MemoryStatus,
-    MemoryVisibility,
+    LayerAssignment, LayerHistoryEntry, MemoryCaptureMode, MemoryFeedback, MemoryLayer,
+    MemorySource, MemoryState, MemoryStatus, MemoryVisibility,
 };
 use crate::core::result::{AppError, Result};
 
@@ -43,6 +43,15 @@ pub struct MemoryRecord {
     pub confirmed_by: Option<String>, // Who confirmed it
     pub expires_at: Option<DateTime<Utc>>, // When this memory should be re-checked
     pub feedback: MemoryFeedback,  // useful / irrelevant / wrong counters
+    // Memory Rehearsal (V20) — spaced-repetition cycle (Система 3)
+    pub last_rehearsed_at: Option<DateTime<Utc>>, // когда память последний раз «освежали»
+    pub rehearsal_count: u32,                     // сколько раз повторяли (для интервала повтора)
+    pub next_rehearsal_at: Option<DateTime<Utc>>, // когда нужно повторить снова
+    // Cognitive layer provenance (V18)
+    pub layer_confidence: f64, // 0.0–1.0 classifier score; 1.0 for user picks
+    pub layer_reason: String,  // short human-readable explanation (RU/EN)
+    pub layer_updated_at: Option<DateTime<Utc>>, // last layer change
+    pub layer_history: Vec<LayerHistoryEntry>, // newest-first change log
 }
 
 /// A file attached to a memory record.
@@ -88,7 +97,7 @@ impl MemoryRecord {
             linked_entity_ids: Vec::new(),
             latest_version_id: None,
             status: MemoryStatus::Active,
-            layer: MemoryLayer::Raw,
+            layer: MemoryLayer::Episodic,
             attached_files: Vec::new(),
             // Memory Trust defaults
             derived_from: Vec::new(),
@@ -103,6 +112,18 @@ impl MemoryRecord {
             confirmed_by: None,
             expires_at: None,
             feedback: MemoryFeedback::default(),
+            // Memory Rehearsal defaults (V20): fresh memory has never been
+            // rehearsed; the cycle schedules its first review.
+            last_rehearsed_at: None,
+            rehearsal_count: 0,
+            next_rehearsal_at: None,
+            // Cognitive layer provenance defaults (V18): a fresh record is a
+            // raw event captured in the Episodic layer until the classifier
+            // (or the user) refines it.
+            layer_confidence: 0.5,
+            layer_reason: String::new(),
+            layer_updated_at: Some(now),
+            layer_history: Vec::new(),
         })
     }
 
@@ -168,13 +189,18 @@ mod tests {
         assert!(r.linked_entity_ids.is_empty());
         assert!(r.latest_version_id.is_none());
         assert_eq!(r.status, MemoryStatus::Active);
-        assert_eq!(r.layer, MemoryLayer::Raw);
+        assert_eq!(r.layer, MemoryLayer::Episodic);
         assert!(r.attached_files.is_empty());
         // Memory Trust defaults
         assert!(r.derived_from.is_empty());
         assert!(r.reason.is_none());
         assert_eq!(r.version, 1);
         assert!(r.updated_by.is_none());
+        // Layer provenance defaults
+        assert_eq!(r.layer_confidence, 0.5);
+        assert_eq!(r.layer_reason, "");
+        assert!(r.layer_updated_at.is_some());
+        assert!(r.layer_history.is_empty());
     }
 
     #[test]

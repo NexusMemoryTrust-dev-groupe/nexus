@@ -113,6 +113,23 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilderImpl<G, M> {
         package.agent_instructions = crate::core::knowledge::agents::active_agents_content();
     }
 
+    /// Conflict firewall (Система 2): records entangled in an unresolved
+    /// contradiction (`Conflicted`) or already replaced by a resolved conflict
+    /// (`Superseded`) must not reach the model silently. The package carries
+    /// only the Current Truth; the number of excluded records is recorded so
+    /// the exclusion stays observable.
+    fn apply_conflict_firewall(package: &mut ContextPackage) {
+        let before = package.memory_records.len();
+        package.memory_records.retain(|m| {
+            !matches!(
+                m.memory_state,
+                crate::core::memory::types::MemoryState::Conflicted
+                    | crate::core::memory::types::MemoryState::Superseded
+            )
+        });
+        package.conflicts_excluded = (before - package.memory_records.len()) as u32;
+    }
+
     /// Collect relationships for all given entity IDs from the graph store.
     /// Deduplicates by relationship ID.
     async fn collect_relationships(&self, entity_ids: &[EntityId]) -> Result<Vec<Relationship>> {
@@ -273,6 +290,11 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
         package.memory_records = memory_records;
         package.provenance = prov;
 
+        // Conflict firewall: drop Conflicted/Superseded records before the
+        // baseline is measured, so the model only ever sees Current Truth and
+        // the token figures are honest.
+        Self::apply_conflict_firewall(&mut package);
+
         // Measure the baseline *before* compression, while the full candidate
         // set is still present: this is what the model would have consumed had
         // it read everything we found. Comparing it with the post-compression
@@ -357,6 +379,8 @@ impl<G: GraphStore, M: MemoryRepository> ContextBuilder for ContextBuilderImpl<G
         package.relationships = relationships;
         package.memory_records = memory_records;
         package.provenance = prov;
+
+        Self::apply_conflict_firewall(&mut package);
 
         Self::record_baseline(&mut package);
 
@@ -516,5 +540,61 @@ mod tests {
         };
         let result = builder.build(&request).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn conflict_firewall_drops_conflicted_and_superseded() {
+        use crate::core::context::context_package::{ContextPackage, IntentType, UserIntent};
+        use crate::core::memory::memory_record::MemoryRecord;
+        use crate::core::memory::types::{MemorySource, MemoryState};
+
+        let mut package = ContextPackage::new(UserIntent {
+            query: "database".to_string(),
+            intent_type: IntentType::Exploration,
+            confidence: 0.8,
+            keywords: vec!["database".to_string()],
+            temporal: None,
+        });
+
+        let make = |state: MemoryState| {
+            let mut r = MemoryRecord::new(
+                "Database".to_string(),
+                "Use PostgreSQL for the primary database".to_string(),
+                "alice".to_string(),
+                MemorySource::Manual,
+            )
+            .unwrap();
+            r.memory_state = state;
+            r
+        };
+        let current = make(MemoryState::Current);
+        let conflicted = make(MemoryState::Conflicted);
+        let superseded = make(MemoryState::Superseded);
+        let confirmed = make(MemoryState::UserConfirmed);
+        package.memory_records = vec![
+            current.clone(),
+            conflicted.clone(),
+            superseded.clone(),
+            confirmed.clone(),
+        ];
+
+        ContextBuilderImpl::<SqliteGraphRepository, SqliteMemoryRepository>::apply_conflict_firewall(
+            &mut package,
+        );
+
+        let remaining: Vec<MemoryState> = package
+            .memory_records
+            .iter()
+            .map(|m| m.memory_state.clone())
+            .collect();
+        assert_eq!(
+            remaining,
+            vec![MemoryState::Current, MemoryState::UserConfirmed],
+            "only Current Truth (Current/UserConfirmed) may reach the model"
+        );
+        assert_eq!(
+            package.conflicts_excluded, 2,
+            "the firewall must count what it excluded"
+        );
     }
 }

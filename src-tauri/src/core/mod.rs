@@ -3,11 +3,16 @@
 #![allow(unused_imports)]
 
 pub mod audit;
+pub mod backup;
+pub mod cancel;
 pub mod config;
 pub mod context;
+pub mod doctor;
 pub mod domain_event;
 pub mod entity_id;
 pub mod event_bus;
+pub mod export;
+pub mod flight;
 pub mod graph;
 pub mod interpreter;
 pub mod knowledge;

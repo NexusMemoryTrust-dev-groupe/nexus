@@ -380,11 +380,15 @@ pub fn search_docs(query: &str, limit: u32) -> Result<Vec<DocumentHit>> {
         .map(|w| w.to_string())
         .collect();
 
-    // Semantic scores keyed by document id, when fingerprints exist.
+    // Semantic scores keyed by document id, when fingerprints exist. Uses the
+    // hybrid retriever so an exact path/keyword match (e.g. "Button.js") can
+    // rank above semantically look-alike files — the pure-cosine retriever
+    // collapsed on homogeneous corpora (many files about "React component",
+    // "style", "import React" score near-identically).
     let mut semantic: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
     if let Ok(conn) = crate::db::open_connection()
         && let Ok(search) = crate::core::context::semantic_search::SemanticSearch::new(conn)
-        && let Ok(hits) = search.search_documents(query, limit as u32 * 3)
+        && let Ok(hits) = search.search_documents_hybrid(query, limit as u32 * 3)
     {
         for (id, score) in hits {
             semantic.insert(id.as_str().to_string(), score);

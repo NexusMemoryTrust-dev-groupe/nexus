@@ -46,6 +46,12 @@ pub enum AuditEventType {
     Superseded,
     /// A free-form note attached to the decision trail.
     Note,
+    /// A permission policy was created/modified/removed (plan 4.5).
+    /// `detail` holds the JSON `{ "agent_id": ..., "change": ... }`.
+    PermissionChanged,
+    /// The firewall denied a request (plan 4.5).
+    /// `detail` holds the JSON `{ "pattern": ..., "memory_id": ... }`.
+    FirewallDenied,
 }
 
 impl AuditEventType {
@@ -56,6 +62,8 @@ impl AuditEventType {
             AuditEventType::Confirmed => "Confirmed",
             AuditEventType::Superseded => "Superseded",
             AuditEventType::Note => "Note",
+            AuditEventType::PermissionChanged => "PermissionChanged",
+            AuditEventType::FirewallDenied => "FirewallDenied",
         }
     }
 
@@ -65,6 +73,8 @@ impl AuditEventType {
             "Confirmed" => AuditEventType::Confirmed,
             "Superseded" => AuditEventType::Superseded,
             "Note" => AuditEventType::Note,
+            "PermissionChanged" => AuditEventType::PermissionChanged,
+            "FirewallDenied" => AuditEventType::FirewallDenied,
             _ => AuditEventType::Created,
         }
     }
@@ -291,6 +301,8 @@ mod tests {
             AuditEventType::Confirmed,
             AuditEventType::Superseded,
             AuditEventType::Note,
+            AuditEventType::PermissionChanged,
+            AuditEventType::FirewallDenied,
         ] {
             assert_eq!(AuditEventType::parse(t.as_str()), t);
         }

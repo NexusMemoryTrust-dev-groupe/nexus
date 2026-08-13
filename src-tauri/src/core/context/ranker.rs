@@ -2,6 +2,10 @@ use chrono::Utc;
 
 use crate::core::context::context_package::{ContextPackage, UserIntent};
 use crate::core::context::provenance::ScorePart;
+use crate::core::context::semantic_search::HybridBreakdownHit;
+use crate::core::entity_id::EntityId;
+use crate::core::graph::graph_traversal::GraphTraversal;
+use crate::core::result::Result;
 
 /// Ranks entities and memory records by relevance to the user's intent.
 /// Now with enhanced recency scoring and importance weighting.
@@ -211,6 +215,124 @@ impl ContextRanker {
     }
 }
 
+/// Decay applied to a graph neighbor's inherited seed score.
+///
+/// A neighbor is never ranked above the seed that pulled it in, but stays
+/// high enough to surface related-but-otherwise-invisible files.
+const GRAPH_EXPANSION_DECAY: f64 = 0.85;
+
+/// How many seeds the graph expansion starts from (the hybrid top-N).
+const GRAPH_EXPANSION_SEEDS: usize = 20;
+
+/// Boost applied per additional graph link a candidate has to other top
+/// candidates — a file that is *connected* to the retrieved set is more
+/// likely to be part of the same feature than an isolated file.
+const GRAPH_RERANK_LINK_BONUS: f64 = 0.04;
+
+/// Multi-stage reranker (plan item 1.3): takes the hybrid top-K with its
+/// per-channel breakdown, sharpens the ordering with graph evidence, and
+/// returns a re-ranked `(entity_id, score)` list.
+///
+/// Stage 1 (hybrid retrieval) is done by the caller via
+/// [`SemanticSearch::search_hybrid_breakdown`]; this type implements stage 2:
+/// graph-aware reranking. Pure hybrid search can be fooled on homogeneous
+/// corpora (hundreds of files scoring ≈0.6); the graph link density breaks
+/// those ties by asking "which candidate is actually *connected* to the rest
+/// of the retrieved set?"
+pub struct HybridReranker;
+
+impl HybridReranker {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Rerank hybrid hits (each `(id, cosine, lexical, filename, total)`)
+    /// using per-candidate graph link density as a tie-breaker.
+    ///
+    /// `neighbors_of` returns the entity ids reachable from a candidate in one
+    /// step; candidates with more links to the other top candidates get a
+    /// small additive bonus. The `total` channel from hybrid scoring is kept
+    /// as the primary signal, so the reranker never *invents* relevance — it
+    /// only re-orders near-ties.
+    pub fn rerank<F>(&self, hits: &[HybridBreakdownHit], neighbors_of: F) -> Vec<(EntityId, f64)>
+    where
+        F: Fn(&EntityId) -> Vec<EntityId>,
+    {
+        let top_ids: Vec<EntityId> = hits.iter().map(|(id, _, _, _, _)| id.clone()).collect();
+        let mut scored: Vec<(EntityId, f64)> = Vec::with_capacity(hits.len());
+
+        for (id, _cos, _lex, _file, total) in hits {
+            let links = neighbors_of(id)
+                .iter()
+                .filter(|n| top_ids.contains(*n))
+                .count();
+            scored.push((id.clone(), total + GRAPH_RERANK_LINK_BONUS * links as f64));
+        }
+
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored
+    }
+}
+
+impl Default for HybridReranker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Graph expansion (plan item 1.2): query → seeds → neighborhood → candidates.
+///
+/// Takes the hybrid top-N as seeds, walks one hop through the knowledge graph
+/// for each seed, and merges the neighbors into the candidate list with a
+/// decayed score (`seed_score * GRAPH_EXPANSION_DECAY`). A file that the
+/// hybrid stage misses but that sits next to a strong seed (e.g. a component's
+/// companion test or its style module) still becomes visible.
+///
+/// The graph is passed as [`GraphTraversal`]; the returned list is sorted by
+/// score descending and truncated to `limit`.
+pub async fn graph_expand(
+    graph: &dyn GraphTraversal,
+    seeds: &[(EntityId, f64)],
+    limit: usize,
+) -> Result<Vec<(EntityId, f64)>> {
+    let mut candidates: Vec<(EntityId, f64)> = Vec::new();
+    let mut best: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+
+    let seed_count = seeds.len().min(GRAPH_EXPANSION_SEEDS);
+    for (seed_id, seed_score) in seeds.iter().take(seed_count) {
+        // The seed itself always participates.
+        best.entry(seed_id.as_str().to_string())
+            .and_modify(|s| *s = s.max(*seed_score))
+            .or_insert(*seed_score);
+
+        // One-hop neighborhood. A seed that has no graph node (e.g. a plain
+        // memory record or a benchmark file) simply contributes no neighbors;
+        // the seed itself stays a candidate.
+        let Ok(neighborhood) = graph.get_neighbors(seed_id, 1).await else {
+            continue;
+        };
+        for neighbor in &neighborhood.entities {
+            if neighbor.id == *seed_id {
+                continue;
+            }
+            let inherited = seed_score * GRAPH_EXPANSION_DECAY;
+            best.entry(neighbor.id.as_str().to_string())
+                .and_modify(|s| *s = s.max(inherited))
+                .or_insert(inherited);
+        }
+    }
+
+    for (id, score) in best {
+        candidates.push((
+            EntityId::parse(&id).unwrap_or_else(|_| EntityId::new()),
+            score,
+        ));
+    }
+    candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    candidates.truncate(limit);
+    Ok(candidates)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +445,133 @@ mod tests {
         };
         let score = r.calculate_memory_score(&memory, &intent);
         assert!(score > 0.0); // Should have some score
+    }
+
+    // ── HybridReranker ─────────────────────────────────────────────────────
+
+    #[test]
+    fn reranker_keeps_hybrid_order_when_no_links() {
+        let reranker = HybridReranker::new();
+        let id_a = EntityId::new();
+        let id_b = EntityId::new();
+        let hits: Vec<HybridBreakdownHit> = vec![
+            (id_a.clone(), 0.6, 0.2, 0.8, 0.9),
+            (id_b.clone(), 0.5, 0.1, 0.2, 0.5),
+        ];
+        let ranked = reranker.rerank(&hits, |_| vec![]);
+        assert_eq!(ranked[0].0, id_a);
+        assert_eq!(ranked[1].0, id_b);
+    }
+
+    #[test]
+    fn reranker_breaks_ties_with_graph_links() {
+        let reranker = HybridReranker::new();
+        let id_a = EntityId::new();
+        let id_b = EntityId::new();
+        let id_c = EntityId::new();
+        let id_d = EntityId::new();
+        // a and b are near-ties; a is connected to c and d, b to nobody.
+        let hits: Vec<HybridBreakdownHit> = vec![
+            (id_a.clone(), 0.6, 0.2, 0.5, 0.62),
+            (id_b.clone(), 0.6, 0.2, 0.5, 0.62),
+            (id_c.clone(), 0.5, 0.1, 0.2, 0.5),
+            (id_d.clone(), 0.5, 0.1, 0.2, 0.5),
+        ];
+        let links: Vec<EntityId> = vec![id_c.clone(), id_d.clone()];
+        let ranked = reranker.rerank(&hits, |id| if *id == id_a { links.clone() } else { vec![] });
+        assert_eq!(ranked[0].0, id_a, "graph-linked candidate must win the tie");
+    }
+
+    #[test]
+    fn reranker_returns_all_hits() {
+        let reranker = HybridReranker::new();
+        let ids: Vec<EntityId> = (0..4).map(|_| EntityId::new()).collect();
+        let hits: Vec<HybridBreakdownHit> = ids
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(i, id)| (id, 0.5, 0.2, 0.4, 0.4 + 0.1 * i as f64))
+            .collect();
+        let ranked = reranker.rerank(&hits, |_| vec![]);
+        assert_eq!(ranked.len(), 4);
+    }
+
+    // ── graph_expand ───────────────────────────────────────────────────────
+
+    /// In-memory graph with a center entity and one neighbor.
+    #[tokio::test]
+    async fn graph_expand_adds_neighbors_with_decayed_score() {
+        use crate::core::graph::GraphStore;
+        use crate::core::graph::relationship::Relationship;
+        use crate::core::graph::relationship_types::RelationshipType;
+        use crate::storage::sqlite::SqliteGraphRepository;
+
+        let conn = crate::db::open_connection_at(
+            &std::env::temp_dir().join(format!("nexus-rank-test-{}.db", std::process::id())),
+        )
+        .expect("conn");
+        crate::storage::sqlite::schema::apply_migrations(&conn).expect("migrate");
+        let repo = SqliteGraphRepository::new(conn).expect("repo");
+        let center = Entity::new(EntityType::Document, "Button.js".into(), "button".into());
+        let neighbor = Entity::new(EntityType::Document, "Button.test.js".into(), "test".into());
+        let other = Entity::new(EntityType::Document, "App.js".into(), "app".into());
+        repo.add_entity(&center).await.unwrap();
+        repo.add_entity(&neighbor).await.unwrap();
+        repo.add_entity(&other).await.unwrap();
+        let rel = Relationship::new(
+            center.id.clone(),
+            neighbor.id.clone(),
+            RelationshipType::RelatedTo,
+            0.9,
+        )
+        .unwrap();
+        repo.add_relationship(&rel).await.unwrap();
+
+        let seeds = vec![(center.id.clone(), 0.8)];
+        let expanded = graph_expand(&repo, &seeds, 10).await.unwrap();
+        assert!(expanded.len() >= 2, "neighbor must be pulled in");
+        let neighbor_found = expanded.iter().any(|(id, _)| *id == neighbor.id);
+        assert!(
+            neighbor_found,
+            "neighbor must appear in expanded candidates"
+        );
+        let neighbor_score = expanded
+            .iter()
+            .find(|(id, _)| *id == neighbor.id)
+            .map(|(_, s)| *s)
+            .unwrap();
+        assert!(
+            (neighbor_score - 0.8 * GRAPH_EXPANSION_DECAY).abs() < 1e-9,
+            "neighbor score must be seed * decay"
+        );
+        // The unrelated entity is never expanded to.
+        assert!(
+            !expanded.iter().any(|(id, _)| *id == other.id),
+            "unrelated entity must stay out"
+        );
+        let _ = std::fs::remove_file(
+            std::env::temp_dir().join(format!("nexus-rank-test-{}.db", std::process::id())),
+        );
+    }
+
+    #[tokio::test]
+    async fn graph_expand_keeps_seed_even_without_graph() {
+        use crate::storage::sqlite::SqliteGraphRepository;
+
+        let conn = crate::db::open_connection_at(
+            &std::env::temp_dir().join(format!("nexus-rank-test-empty-{}.db", std::process::id())),
+        )
+        .expect("conn");
+        crate::storage::sqlite::schema::apply_migrations(&conn).expect("migrate");
+        let repo = SqliteGraphRepository::new(conn).expect("repo");
+        let seed_id = EntityId::new();
+        let expanded = graph_expand(&repo, &[(seed_id.clone(), 0.7)], 10)
+            .await
+            .unwrap();
+        assert_eq!(expanded.len(), 1);
+        assert_eq!(expanded[0].0, seed_id);
+        let _ = std::fs::remove_file(
+            std::env::temp_dir().join(format!("nexus-rank-test-empty-{}.db", std::process::id())),
+        );
     }
 }
