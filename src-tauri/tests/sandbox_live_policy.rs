@@ -11,18 +11,23 @@ use std::path::Path;
 use nexus::core::sandbox::{Access, EXTRA_ROOTS_KEY, current, guard};
 use nexus::db;
 
-/// Compare two paths per component, case-insensitively on Windows, mirroring
-/// the sandbox's own `components_match`. `std::fs::canonicalize` resolves the
-/// real on-disk casing of the data dir, while `db::db_path()` builds it from
-/// the `LOCALAPPDATA` env var — the two differ in case on CI runners
-/// (`C:\Users\RunnerAdmin\...` vs `C:\Users\runneradmin\...`).
+/// Compare two paths case-insensitively on Windows after normalizing the
+/// things `std::fs::canonicalize` introduces: the `\\?\` verbatim prefix, a
+/// trailing separator, and the real on-disk casing (which differs from the
+/// `LOCALAPPDATA` env var on CI runners: `C:\Users\RunnerAdmin\...` vs
+/// `C:\Users\runneradmin\...`).
 fn same_path(a: &Path, b: &Path) -> bool {
-    a.components().count() == b.components().count()
-        && a.components().zip(b.components()).all(|(x, y)| {
-            x.as_os_str()
-                .to_string_lossy()
-                .eq_ignore_ascii_case(&y.as_os_str().to_string_lossy())
-        })
+    let norm = |p: &Path| {
+        let mut s = p.display().to_string();
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            s = rest.to_string();
+        }
+        while s.ends_with('/') || s.ends_with('\\') {
+            s.pop();
+        }
+        s
+    };
+    norm(a).eq_ignore_ascii_case(&norm(b))
 }
 
 #[test]
@@ -57,28 +62,34 @@ fn live_policy_collects_data_dir_workspace_and_extra_roots() {
         .expect("insert extra roots");
     }
 
-    // The data directory itself is always a root.
+    // The data directory itself is always a root. The sandbox resolves every
+    // root through `std::fs::canonicalize` (long names, real casing), so the
+    // expected value is canonicalised the same way — a raw `LOCALAPPDATA`
+    // string can differ in casing or carry an 8.3 short name on CI runners.
     let sb = current();
-    let data_root = db_path.parent().expect("db has parent").to_path_buf();
+    let data_root_raw = db_path.parent().expect("db has parent");
+    let data_root =
+        std::fs::canonicalize(data_root_raw).unwrap_or_else(|_| data_root_raw.to_path_buf());
     assert!(
         sb.roots()
             .iter()
             .any(|r| same_path(Path::new(r), &data_root)),
-        "data dir missing from roots: {:?}",
-        sb.roots()
+        "data dir missing from roots: {:?}; expected: {:?}",
+        sb.roots(),
+        data_root
     );
     // The seeded workspace/extra roots do not exist on disk, so from_roots
     // drops them — the DB reads themselves are what we exercise here.
 
-    // guard() allows paths inside the data dir.
+    // guard() allows paths inside the data dir. The target file does not
+    // exist, so guard resolves it against the canonicalised data root; build
+    // the expected value from the same canonicalised root.
     let target = data_root.join("live.txt");
     let ok = guard(&target.display().to_string(), Access::Read);
     assert!(ok.is_ok(), "got {:?}", ok);
+    let expected = data_root.join("live.txt");
     assert!(
-        same_path(
-            &ok.unwrap(),
-            &db::db_path().parent().unwrap().join("live.txt")
-        ),
+        same_path(&ok.unwrap(), &expected),
         "resolved path differs from expected data-dir path"
     );
 
