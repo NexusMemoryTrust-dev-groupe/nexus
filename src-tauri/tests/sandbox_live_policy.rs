@@ -11,6 +11,22 @@ use std::path::Path;
 use nexus::core::sandbox::{Access, EXTRA_ROOTS_KEY, current, guard};
 use nexus::db;
 
+/// Compare two paths per component, case-insensitively on Windows, mirroring
+/// the sandbox's own `components_match`. `std::fs::canonicalize` resolves the
+/// real on-disk casing of the data dir, while `db::db_path()` builds it from
+/// the `LOCALAPPDATA` env var — the two differ in case on CI runners
+/// (`C:\Users\RunnerAdmin\...` vs `C:\Users\runneradmin\...`).
+fn same_path(a: &Path, b: &Path) -> bool {
+    a.components().count() == b.components().count()
+        && a.components()
+            .zip(b.components())
+            .all(|(x, y)| {
+                x.as_os_str()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&y.as_os_str().to_string_lossy())
+            })
+}
+
 #[test]
 fn live_policy_collects_data_dir_workspace_and_extra_roots() {
     let tmp = std::env::temp_dir().join(format!("nexus-sandbox-live-{}", std::process::id()));
@@ -47,7 +63,7 @@ fn live_policy_collects_data_dir_workspace_and_extra_roots() {
     let sb = current();
     let data_root = db_path.parent().expect("db has parent").to_path_buf();
     assert!(
-        sb.roots().iter().any(|r| Path::new(r) == data_root),
+        sb.roots().iter().any(|r| same_path(Path::new(r), &data_root)),
         "data dir missing from roots: {:?}",
         sb.roots()
     );
@@ -58,9 +74,12 @@ fn live_policy_collects_data_dir_workspace_and_extra_roots() {
     let target = data_root.join("live.txt");
     let ok = guard(&target.display().to_string(), Access::Read);
     assert!(ok.is_ok(), "got {:?}", ok);
-    assert_eq!(
-        ok.unwrap(),
-        db::db_path().parent().unwrap().join("live.txt")
+    assert!(
+        same_path(
+            &ok.unwrap(),
+            &db::db_path().parent().unwrap().join("live.txt")
+        ),
+        "resolved path differs from expected data-dir path"
     );
 
     // guard() rejects paths outside with a user-facing message.
