@@ -1,12 +1,24 @@
-// Skill: version-history <memory_id>
+// Skill: version-history [<memory_id>]
 // Full version history of one memory (automatic_commits rows): who changed
 // what, when, and why (change_reason). The audit trail of the content itself.
+// Without an argument, lists the most recent memories (id + title).
 import { open, fail } from './db.js';
 
 const id = process.argv[2];
-if (!id) fail('usage: version-history <memory_id>');
-
 const { db } = open();
+
+if (!id) {
+  const recent = db
+    .prepare('SELECT id, title, status, created_at FROM memory_records ORDER BY created_at DESC LIMIT 20')
+    .all();
+  if (recent.length === 0) fail('No memories found in the database');
+  const out = ['RECENT MEMORIES — pick one and run: node version-history.js <memory_id>', ''];
+  for (const m of recent) {
+    out.push(`  ${m.id}  ${m.title}  (${m.status} · ${m.created_at})`);
+  }
+  console.log(out.join('\n'));
+  process.exit(0);
+}
 
 const mem = db
   .prepare('SELECT id, title FROM memory_records WHERE id = ?')

@@ -13,6 +13,12 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  # Least privilege: the whole workflow only reads the repository. The one
+  # exception is the `security` job, which overrides this with `actions: write`
+  # so the SBOM artifact can be uploaded.
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -24,13 +30,13 @@ jobs:
     name: Rust
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
         with:
           components: clippy, rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
           workspaces: src-tauri
 
@@ -45,17 +51,24 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
 
-      - name: Test
+      # Production Gate 10.2, Gates 1-3 (Correctness/Security/Reliability) run
+      # as one full suite: unit + integration + MCP e2e + physical e2e +
+      # proptest (19 targets) + security (10) + network allowlist (5) + fuzz
+      # smoke (5 targets). The fuzz budget is 10 s/target here: the full 60 s
+      # plan acceptance ran locally and is documented in plan 8.3 + gate 1.4.
+      - name: Gates 1-3 - Test suite
         run: cargo test --all-targets
         working-directory: src-tauri
+        env:
+          NEXUS_FUZZ_SECONDS: "10"
 
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 24
           cache: npm
@@ -80,9 +93,9 @@ jobs:
     name: Installer scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 20
 
@@ -103,3 +116,72 @@ jobs:
       # Asset-name resolution lives here. If it regresses, every install 404s.
       - name: Unit tests
         run: node npm-package/scripts/nexus-install-lib.test.js
+
+  # Plan 7.4: dependency security + SBOM. cargo-audit fails on known Rust
+  # *vulnerabilities*; its warnings (e.g. unmaintained GTK3 bindings pulled in
+  # by tauri for the Linux target) are allowed and visible — they never compile
+  # on this Windows-only app. npm audit fails on high/critical only, so a
+  # moderate advisory in a dev tool does not block unrelated PRs. An SBOM
+  # (CycloneDX) of the whole tree is generated and uploaded as an artifact.
+  security:
+    name: Dependency security + SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24
+        with:
+          working-directory: src-tauri
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: npm audit (fail on high/critical)
+        run: npm audit --audit-level=high
+
+      # ONNX embedding model is not vendored; its pinned SHA-256 hashes live in
+      # docs/BUILD_REPRODUCIBILITY.md — that is the supply-chain record for the
+      # runtime-downloaded artifact.
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610
+        with:
+          path: .
+          format: cyclonedx-json
+          artifact-name: sbom-nexus.cdx.json
+
+  # Production Gate 10.2, Gate 4 (Performance): build the four benchmark
+  # binaries in release mode and run scripts/perf-gate.ps1, which parses their
+  # NEXUS_METRIC lines and fails the PR when any metric regresses more than
+  # tolerance (25%) vs benchmarks/baseline.json. The benches enforce their own
+  # absolute GATE (SLA ms / load rec/s / conflict detection) via exit code and
+  # fall back to deterministic hash embeddings when the ONNX model is not
+  # cached, so this job needs no network beyond the checkout. One retry per
+  # bench absorbs shared-runner noise (antivirus, CPU steal); a hung bench is
+  # killed after 600 s and counts as a failure.
+  perf:
+    name: Gate 4 - Performance regression
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: src-tauri
+
+      - name: Build release benchmarks
+        run: cargo build --release --bin nexus_sla_bench --bin nexus_load_bench --bin nexus_conflict_bench --bin nexus_long_horizon_bench
+        working-directory: src-tauri
+
+      - name: Run regression gate
+        run: powershell -File scripts/perf-gate.ps1 -BinaryDir src-tauri\target\release

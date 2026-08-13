@@ -1,13 +1,26 @@
-// Skill: audit-trail <memory_id>
+// Skill: audit-trail [<memory_id>]
 // Reconstructs the full decision chain for one memory — the compliance answer
 // to "why did we decide this?". Reads memory_records, audit_events and
 // automatic_commits directly from the Nexus database (read-only).
+// Without an argument, lists the most recent memories (id + title) so the
+// caller can pick one.
 import { open, fail } from './db.js';
 
 const id = process.argv[2];
-if (!id) fail('usage: audit-trail <memory_id>');
-
 const { db } = open();
+
+if (!id) {
+  const recent = db
+    .prepare('SELECT id, title, status, created_at FROM memory_records ORDER BY created_at DESC LIMIT 20')
+    .all();
+  if (recent.length === 0) fail('No memories found in the database');
+  const out = ['RECENT MEMORIES — pick one and run: node audit-trail.js <memory_id>', ''];
+  for (const m of recent) {
+    out.push(`  ${m.id}  ${m.title}  (${m.status} · ${m.created_at})`);
+  }
+  console.log(out.join('\n'));
+  process.exit(0);
+}
 
 const mem = db
   .prepare('SELECT id, title, summary, status, layer, author, created_at, updated_at, reason FROM memory_records WHERE id = ?')

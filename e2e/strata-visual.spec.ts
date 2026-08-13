@@ -10,17 +10,17 @@ const days = (n: number, hour = 11) => {
 
 const memories = [
   ['m1', 'Context assembly should explain itself', 'The package pipeline needs to show what was gathered, ranked, cut, and exported.', 'Decision', .95, .94, hours(2)],
-  ['m2', 'Nexus page redesign direction', 'Keep the carbon palette, but change the information architecture completely.', 'Wisdom', .91, .89, hours(5)],
-  ['m3', 'Authentication research notes', 'A verified summary of session rotation, refresh tokens, and secure storage.', 'Knowledge', .84, .71, days(1, 15)],
-  ['m4', 'Raw meeting transcript', 'Unprocessed notes from the design review with unresolved questions and quotes.', 'Raw', .48, .24, days(1, 9)],
-  ['m5', 'Prefer semantic motion', 'Pulse only when freshness is meaningful; decorative loops create noise.', 'Wisdom', .96, .82, days(2, 18)],
+  ['m2', 'Nexus page redesign direction', 'Keep the carbon palette, but change the information architecture completely.', 'Strategic', .91, .89, hours(5)],
+  ['m3', 'Authentication research notes', 'A verified summary of session rotation, refresh tokens, and secure storage.', 'Semantic', .84, .71, days(1, 15)],
+  ['m4', 'Raw meeting transcript', 'Unprocessed notes from the design review with unresolved questions and quotes.', 'Episodic', .48, .24, days(1, 9)],
+  ['m5', 'Prefer semantic motion', 'Pulse only when freshness is meaningful; decorative loops create noise.', 'Strategic', .96, .82, days(2, 18)],
   ['m6', 'Timeline uses spatial time', 'A dot position on the twenty-four-hour axis should replace repeated time labels.', 'Decision', .88, .76, days(3, 13)],
-  ['m7', 'Parser benchmark result', 'The new tokenizer reduced context scaffolding by nineteen percent.', 'Knowledge', .79, .62, days(5, 20)],
-  ['m8', 'Loose idea: project heatmap', 'Consider a ninety-day capture heatmap above the daily time tracks.', 'Raw', .42, .31, days(7, 8)],
+  ['m7', 'Parser benchmark result', 'The new tokenizer reduced context scaffolding by nineteen percent.', 'Semantic', .79, .62, days(5, 20)],
+  ['m8', 'Loose idea: project heatmap', 'Consider a ninety-day capture heatmap above the daily time tracks.', 'Working', .42, .31, days(7, 8)],
   ['m9', 'Bento hierarchy rule', 'Tile area maps to impact while trust remains a continuous ring.', 'Decision', .9, .86, days(12, 16)],
-  ['m10', 'Database backup path', 'The local database lives under the Nexus application data directory.', 'Knowledge', .99, .45, days(20, 10)],
-  ['m11', 'Do not redesign navigation chrome', 'Sidebar and topbar are stable context. Redesign content pages only.', 'Wisdom', .93, .78, days(33, 14)],
-  ['m12', 'Unsorted capture', 'A rough capture that still needs verification and a useful summary.', 'Raw', .33, .16, days(48, 19)],
+  ['m10', 'Database backup path', 'The local database lives under the Nexus application data directory.', 'Semantic', .99, .45, days(20, 10)],
+  ['m11', 'Do not redesign navigation chrome', 'Sidebar and topbar are stable context. Redesign content pages only.', 'Strategic', .93, .78, days(33, 14)],
+  ['m12', 'Unsorted capture', 'A rough capture that still needs verification and a useful summary.', 'Episodic', .33, .16, days(48, 19)],
 ].map(([id, title, summary, layer, confidence, importance, createdAt]) => ({
   id, title, summary, content: `${summary}\n\nThis is longer verbatim content used to exercise the reading surface and prove the information hierarchy under realistic text lengths.`,
   layer, confidenceScore: confidence, importanceScore: importance, createdAt, updatedAt: createdAt,
@@ -86,13 +86,13 @@ test.beforeEach(async ({ page }) => {
 
 test('Memories Strata bento and detail', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1050 });
-  await expect(page.locator('.st-strata-segment')).toHaveCount(4);
+  await expect(page.locator('.st-strata-segment')).toHaveCount(6);
   await expect(page.locator('.st-memory-tile')).toHaveCount(memories.length);
   await page.screenshot({ path: 'test-results/visual/memories-strata.png', fullPage: true });
 
   await page.locator('.st-memory-tile').first().click();
   await expect(page.locator('.st-sheet')).toBeVisible();
-  await expect(page.locator('.st-ladder-step')).toHaveCount(4);
+  await expect(page.locator('.st-ladder-step')).toHaveCount(6);
   await page.screenshot({ path: 'test-results/visual/memory-detail.png', fullPage: true });
 });
 
@@ -106,7 +106,7 @@ test('Timeline heatmap and 24-hour tracks', async ({ page }) => {
 
 test('Context Assembly pipeline explains all stages', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1200 });
-  await page.locator('.sidebar').getByRole('button', { name: /^Context/ }).click();
+  await page.locator('.sidebar').getByRole('button', { name: /^Context(?! Lab)/ }).click();
   await expect(page.locator('.st-stage')).toHaveCount(7);
   await page.locator('.st-ask-field input').fill('How should context assembly work?');
   await page.locator('.st-run').click();
