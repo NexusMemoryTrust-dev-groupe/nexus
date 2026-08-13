@@ -13,11 +13,17 @@ use nexus::core::graph::entity::Entity;
 use nexus::core::graph::entity_types::EntityType;
 use nexus::core::graph::relationship::Relationship;
 use nexus::core::graph::relationship_types::RelationshipType;
+use nexus::core::memory::memory_compression::SimpleCompressionService;
 use nexus::core::memory::memory_record::MemoryRecord;
-use nexus::core::memory::types::MemorySource;
-use nexus::storage::sqlite::SqliteGraphRepository;
+use nexus::core::memory::memory_service::MemoryService;
+use nexus::core::memory::types::{LayerAssignment, MemoryLayer, MemorySource};
+use nexus::core::security::RequestContext;
 use nexus::storage::sqlite::schema;
+use nexus::storage::sqlite::{
+    InMemoryRecallService, SqliteGraphRepository, SqliteMemoryRepository,
+};
 use rusqlite::Connection;
+use std::sync::Arc;
 
 fn setup_db() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -304,4 +310,209 @@ fn integration_full_memory_lifecycle() {
         !results.iter().any(|(id, _)| *id == memories[0].0),
         "Deleted memory should not appear in search"
     );
+}
+
+// ── 5. System 1: Cognitive Memory Layers (end-to-end proof) ──
+//
+// The plan's acceptance scenario: six records whose content drives the
+// signature classifier to each of the six cognitive layers, then provenance
+// (set/reclassify/history/stats) against a real SQLite database.
+
+fn test_service_with_db() -> MemoryService {
+    let repo = Arc::new(SqliteMemoryRepository::new(setup_db()).unwrap());
+    let recall = Arc::new(InMemoryRecallService::new(repo.clone()));
+    MemoryService::new(repo, recall, Arc::new(SimpleCompressionService))
+}
+
+fn test_ctx() -> RequestContext {
+    RequestContext::new(
+        "user-1".to_string(),
+        "session-1".to_string(),
+        "device-1".to_string(),
+    )
+}
+
+#[test]
+fn integration_layers_classify_all_six_from_content() {
+    let svc = test_service_with_db();
+    let ctx = test_ctx();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    // Content → expected layer, mirroring the classifier's own unit tests.
+    let samples: [(MemoryLayer, &str, &str); 6] = [
+        (
+            MemoryLayer::Working,
+            "Auth bug",
+            "Сейчас исправляем authentication bug",
+        ),
+        (
+            MemoryLayer::Episodic,
+            "Yesterday's experiment",
+            "Вчера пробовали менять middleware",
+        ),
+        (
+            MemoryLayer::Semantic,
+            "Auth design",
+            "Auth реализован через JWT",
+        ),
+        (
+            MemoryLayer::Procedural,
+            "Token refresh",
+            "Сначала проверить, затем обновить: шаги 1-3",
+        ),
+        (
+            MemoryLayer::Decision,
+            "Redis",
+            "3 августа отказались от Redis",
+        ),
+        (
+            MemoryLayer::Strategic,
+            "Architecture",
+            "Архитектура должна быть локальной, принцип №1",
+        ),
+    ];
+
+    rt.block_on(async {
+        let mut ids = Vec::new();
+        for (expected, title, content) in &samples {
+            let record = MemoryRecord::new(
+                title.to_string(),
+                content.to_string(),
+                "author".to_string(),
+                MemorySource::Manual,
+            )
+            .unwrap();
+            let id = svc.create_memory(record, &ctx).await.unwrap();
+            let saved = svc.get_memory(&id).await.unwrap();
+            assert_eq!(
+                saved.layer, *expected,
+                "auto-classification for '{}'",
+                title
+            );
+            assert!(saved.layer_confidence >= 0.5, "confidence recorded");
+            assert!(!saved.layer_reason.is_empty(), "reason recorded");
+            assert_eq!(
+                saved.layer_history.len(),
+                1,
+                "provenance recorded on create"
+            );
+            assert_eq!(
+                saved.layer_history[0].by,
+                LayerAssignment::Classifier,
+                "auto-classification tagged as classifier"
+            );
+            ids.push(id);
+        }
+
+        // Stats: six records spread across the layers, mean confidence sane.
+        let stats = svc.get_layer_stats().await.unwrap();
+        let total: u64 = stats.iter().map(|s| s.count).sum();
+        assert_eq!(total, 6, "stats count all six memories");
+        for stat in &stats {
+            assert!(stat.mean_confidence >= 0.0 && stat.mean_confidence <= 1.0);
+        }
+    });
+}
+
+#[test]
+fn integration_layers_user_override_pins_and_reclassify_respects() {
+    let svc = test_service_with_db();
+    let ctx = test_ctx();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let record = MemoryRecord::new(
+            "Auth bug".to_string(),
+            "Сейчас исправляем authentication bug".to_string(),
+            "author".to_string(),
+            MemorySource::Manual,
+        )
+        .unwrap();
+        let id = svc.create_memory(record, &ctx).await.unwrap();
+        assert_eq!(
+            svc.get_memory(&id).await.unwrap().layer,
+            MemoryLayer::Working
+        );
+
+        // Manual override: pinned, confidence 1.0, provenance tagged `user`.
+        svc.set_layer(
+            &id,
+            MemoryLayer::Strategic,
+            Some("user knows best".into()),
+            &ctx,
+        )
+        .await
+        .unwrap();
+        let saved = svc.get_memory(&id).await.unwrap();
+        assert_eq!(saved.layer, MemoryLayer::Strategic);
+        assert_eq!(saved.layer_confidence, 1.0);
+        assert_eq!(
+            saved.layer_history.last().unwrap().by,
+            LayerAssignment::User
+        );
+
+        // Reclassify must NOT overwrite a user-pinned layer, and must not add
+        // a history entry for a result that never got applied.
+        let result = svc.reclassify(&id, &ctx).await.unwrap();
+        assert_eq!(
+            result.layer,
+            MemoryLayer::Strategic,
+            "pin wins over classifier"
+        );
+        let saved = svc.get_memory(&id).await.unwrap();
+        assert_eq!(saved.layer, MemoryLayer::Strategic);
+        assert_eq!(
+            saved.layer_history.len(),
+            2,
+            "no entry for the blocked reclassify"
+        );
+        assert_eq!(
+            saved.layer_history.last().unwrap().by,
+            LayerAssignment::User
+        );
+    });
+}
+
+#[test]
+fn integration_layers_history_newest_first_and_reclassify_appends() {
+    let svc = test_service_with_db();
+    let ctx = test_ctx();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let record = MemoryRecord::new(
+            "Auth bug".to_string(),
+            "Сейчас исправляем authentication bug".to_string(),
+            "author".to_string(),
+            MemorySource::Manual,
+        )
+        .unwrap();
+        let id = svc.create_memory(record, &ctx).await.unwrap();
+        assert_eq!(svc.get_memory(&id).await.unwrap().layer_history.len(), 1);
+
+        // Reclassify on an unpinned (classifier-owned) memory appends a new
+        // classifier entry and re-applies the classification.
+        svc.reclassify(&id, &ctx).await.unwrap();
+        let saved = svc.get_memory(&id).await.unwrap();
+        assert_eq!(saved.layer_history.len(), 2, "unpinned reclassify appends");
+        assert_eq!(
+            saved.layer_history.last().unwrap().by,
+            LayerAssignment::Classifier
+        );
+
+        // Then a manual choice pins it.
+        svc.set_layer(&id, MemoryLayer::Episodic, Some("pinned".into()), &ctx)
+            .await
+            .unwrap();
+
+        let history = svc.get_layer_history(&id).await.unwrap();
+        assert_eq!(history.len(), 3);
+        // Newest first.
+        assert!(history[0].at >= history[1].at);
+        assert!(history[1].at >= history[2].at);
+        // Assignment order preserved.
+        assert_eq!(history[0].by, LayerAssignment::User);
+        assert_eq!(history[1].by, LayerAssignment::Classifier);
+        assert_eq!(history[2].by, LayerAssignment::Classifier);
+    });
 }

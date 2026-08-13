@@ -141,11 +141,11 @@ fn mcp_stdio_full_flow() {
         init["serverInfo"]["name"], init["serverInfo"]["version"]
     );
 
-    // ── tools/list: must advertise all 95 tools ─────────────────────
+    // ── tools/list: must advertise all 143 tools ────────────────────
     let list = client.call("tools/list", serde_json::json!({}));
     let tools = list["tools"].as_array().expect("tools array");
     println!("[mcp] tools/list -> {} tools", tools.len());
-    assert_eq!(tools.len(), 95, "exactly 95 tools must be advertised");
+    assert_eq!(tools.len(), 143, "exactly 143 tools must be advertised");
 
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
     for expected in [
@@ -179,6 +179,36 @@ fn mcp_stdio_full_flow() {
         "nexus_audit_trail",
         "nexus_audit_add_event",
         "nexus_audit_alternative",
+        "nexus_layers_list",
+        "nexus_layer_stats",
+        "nexus_layer_set",
+        "nexus_layer_reclassify",
+        "nexus_layer_history",
+        "nexus_conflict_list",
+        "nexus_conflict_details",
+        "nexus_conflict_truth",
+        "nexus_conflict_resolve",
+        "nexus_conflict_check",
+        "nexus_rehearsal_plan",
+        "nexus_rehearsal_cycle",
+        "nexus_rehearse_memory",
+        "nexus_firewall_check",
+        "nexus_firewall_rules",
+        "nexus_firewall_rule_add",
+        "nexus_firewall_rule_delete",
+        "nexus_quarantine_list",
+        "nexus_quarantine_approve",
+        "nexus_quarantine_reject",
+        "nexus_flight_log",
+        "nexus_flight_recent",
+        "nexus_flight_replay",
+        "nexus_flight_active_sessions",
+        "nexus_flight_stats",
+        "nexus_passport_get",
+        "nexus_passport_list",
+        "nexus_passport_upsert",
+        "nexus_passport_render",
+        "nexus_memory_score",
     ] {
         assert!(names.contains(&expected), "missing tool {expected}");
     }
@@ -568,6 +598,93 @@ fn mcp_stdio_full_flow() {
         "trail reports alternatives: {text}"
     );
     println!("[mcp] nexus_audit_trail -> {text}");
+
+    // ── memory conflict engine (System 2) ────────────────────────────
+    // Two contradicting facts about the same topic: the detector flags both
+    // sides Conflicted, the check tool reconciles them into an open group and
+    // reports the engine's current verdict.
+    let (text, err) = client.call_tool(
+        "nexus_create_memory",
+        serde_json::json!({
+            "title": "e2e DB engine",
+            "content": "We use PostgreSQL for the database",
+        }),
+    );
+    assert!(!err, "create_memory A: {text}");
+    let mem_a = memory_id_from_text(&text);
+
+    let (text, err) = client.call_tool(
+        "nexus_create_memory",
+        serde_json::json!({
+            "title": "e2e DB engine",
+            "content": "We use SQLite for the database",
+        }),
+    );
+    assert!(!err, "create_memory B: {text}");
+    let mem_b = memory_id_from_text(&text);
+    println!("[mcp] conflict pair created: {mem_a} vs {mem_b}");
+
+    let (text, err) = client.call_tool("nexus_conflict_check", serde_json::json!({}));
+    assert!(!err, "conflict_check: {text}");
+    assert!(
+        text.contains("open conflict(s)"),
+        "check reports open conflicts: {text}"
+    );
+    let check = data_from_text(&text).expect("conflict check JSON");
+    let open = check["openConflicts"]
+        .as_array()
+        .expect("openConflicts array");
+    assert!(!open.is_empty(), "at least one open conflict: {text}");
+    let group_id = open[0]["groupId"].as_str().expect("groupId").to_string();
+    println!("[mcp] nexus_conflict_check -> {text}");
+
+    let (text, err) = client.call_tool("nexus_conflict_list", serde_json::json!({}));
+    assert!(!err, "conflict_list: {text}");
+    assert!(
+        text.contains("1 conflict group(s)"),
+        "exactly one open group: {text}"
+    );
+    println!("[mcp] nexus_conflict_list -> {text}");
+
+    let (text, err) = client.call_tool(
+        "nexus_conflict_details",
+        serde_json::json!({ "id": group_id }),
+    );
+    assert!(!err, "conflict_details: {text}");
+    let details = data_from_text(&text).expect("conflict details JSON");
+    let member_ids = details["conflict"]["memberIds"]
+        .as_array()
+        .expect("memberIds array");
+    assert_eq!(member_ids.len(), 2, "both sides in the group: {text}");
+    println!("[mcp] nexus_conflict_details -> {text}");
+
+    let (text, err) = client.call_tool(
+        "nexus_conflict_truth",
+        serde_json::json!({ "id": group_id }),
+    );
+    assert!(!err, "conflict_truth: {text}");
+    assert!(text.contains("Current truth"), "verdict header: {text}");
+    println!("[mcp] nexus_conflict_truth -> {text}");
+
+    // Human decides: mem_a wins, mem_b is superseded.
+    let (text, err) = client.call_tool(
+        "nexus_conflict_resolve",
+        serde_json::json!({ "id": group_id, "winnerId": mem_a, "by": "user" }),
+    );
+    assert!(!err, "conflict_resolve: {text}");
+    assert!(text.contains("Resolved by user"), "resolution: {text}");
+    println!("[mcp] nexus_conflict_resolve -> {text}");
+
+    let (text, err) = client.call_tool(
+        "nexus_conflict_list",
+        serde_json::json!({ "status": "resolved" }),
+    );
+    assert!(!err, "conflict_list resolved: {text}");
+    assert!(
+        text.contains("1 conflict group(s)"),
+        "resolved group listed: {text}"
+    );
+    println!("[mcp] nexus_conflict_list(resolved) -> {text}");
 
     // ── graceful shutdown: EOF on stdin stops the server ────────────
     drop(client.stdin);
